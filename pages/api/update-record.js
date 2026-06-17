@@ -48,6 +48,23 @@ export default async function handler(req, res) {
         resolve(record);
       });
     });
+    // Auto-log activity comment whenever Status changes
+    if (fields.Status) {
+      const now = new Date().toLocaleString('en-GB', {
+        day: 'numeric', month: 'short', year: '2-digit',
+        hour: '2-digit', minute: '2-digit',
+      });
+      const commentUrl = `https://api.airtable.com/v0/${encodeURIComponent(baseId)}/${encodeURIComponent(tableId)}/${encodeURIComponent(recordId)}/comments`;
+      fetch(commentUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: `Status → ${fields.Status} · ${now}` }),
+      }).catch(err => console.warn('[update-record] activity log failed:', err.message));
+    }
+
     return res.status(200).json({ success: true });
   } catch (e) {
     console.error('[update-record]', e.message);

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 /* ── Status colours (mirrors page-level STATUS_CLASS maps) ─── */
 const STATUS_CLASS = {
@@ -28,9 +28,20 @@ const SECONDARY_FIELDS = [
 
 /* Keys never shown as "extra" fields */
 const SKIP = new Set([
-  'id', 'createdTime', 'Task', 'Status', 'Owner', 'Due Date',
+  'id', 'createdTime', '_baseId', '_tableId', 'Task', 'Status', 'Owner', 'Due Date',
   'Date of Entry', 'Business Area', 'Phase', 'Priority', 'Notes',
 ]);
+
+function fmtCommentDate(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('en-GB', {
+      day: 'numeric', month: 'short', year: '2-digit',
+      hour: '2-digit', minute: '2-digit',
+    });
+  } catch { return iso; }
+}
 
 export default function TaskDetailPanel({
   task,
@@ -39,6 +50,17 @@ export default function TaskDetailPanel({
   onStatusChange,
   saving,
 }) {
+  const [comments, setComments] = useState([]);
+  const [commentText, setCommentText] = useState('');
+  const [posting, setPosting] = useState(false);
+  const [commentsLoaded, setCommentsLoaded] = useState(false);
+  const [commentError, setCommentError] = useState('');
+
+  const baseId = task?._baseId;
+  const tableId = task?._tableId;
+  const recordId = task?.id;
+  const canComment = !!(baseId && tableId && recordId);
+
   /* Close on Escape */
   useEffect(() => {
     if (!task) return;
@@ -46,6 +68,41 @@ export default function TaskDetailPanel({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [task, onClose]);
+
+  /* Fetch comments when panel opens */
+  useEffect(() => {
+    if (!canComment) { setCommentsLoaded(true); return; }
+    setCommentsLoaded(false);
+    setComments([]);
+    fetch(`/api/record-comments?baseId=${encodeURIComponent(baseId)}&tableId=${encodeURIComponent(tableId)}&recordId=${encodeURIComponent(recordId)}`)
+      .then(r => r.json())
+      .then(data => { setComments(data.comments || []); setCommentsLoaded(true); })
+      .catch(() => setCommentsLoaded(true));
+  }, [baseId, tableId, recordId]);
+
+  async function submitComment(e) {
+    e.preventDefault();
+    if (!commentText.trim() || posting) return;
+    setPosting(true);
+    setCommentError('');
+    try {
+      const res = await fetch('/api/record-comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseId, tableId, recordId, text: commentText.trim() }),
+      });
+      const data = await res.json();
+      if (data.comment) {
+        setComments(prev => [...prev, data.comment]);
+        setCommentText('');
+      } else {
+        setCommentError(data.error || 'Failed to post comment');
+      }
+    } catch {
+      setCommentError('Network error — please try again');
+    }
+    setPosting(false);
+  }
 
   if (!task) return null;
 
@@ -134,6 +191,53 @@ export default function TaskDetailPanel({
             </>
           )}
 
+        </div>
+
+        {/* ── Activity & Comments ── */}
+        <div className="dp-comments">
+          <div className="dp-comments-header">
+            <span className="dp-comments-title">Activity &amp; Notes</span>
+            {commentsLoaded && comments.length > 0 && (
+              <span className="dp-comments-count">{comments.length}</span>
+            )}
+          </div>
+
+          <div className="dp-comments-list">
+            {!commentsLoaded ? (
+              <p className="dp-comment-meta" style={{ padding: '8px 0', fontStyle: 'italic' }}>Loading…</p>
+            ) : comments.length === 0 ? (
+              <p className="dp-comment-empty">No activity yet.</p>
+            ) : (
+              [...comments].reverse().map(c => (
+                <div key={c.id} className="dp-comment">
+                  <div className="dp-comment-meta">
+                    <span className="dp-comment-author">{c.author?.name || 'System'}</span>
+                    <span className="dp-comment-time">{fmtCommentDate(c.createdTime)}</span>
+                  </div>
+                  <p className="dp-comment-text">{c.text}</p>
+                </div>
+              ))
+            )}
+          </div>
+
+          <form className="dp-comment-form" onSubmit={submitComment}>
+            <textarea
+              className="dp-comment-input"
+              placeholder="Add a note or comment…"
+              value={commentText}
+              onChange={e => setCommentText(e.target.value)}
+              rows={2}
+              disabled={posting}
+            />
+            {commentError && <p className="dp-comment-error">{commentError}</p>}
+            <button
+              className="dp-comment-submit"
+              type="submit"
+              disabled={posting || !commentText.trim()}
+            >
+              {posting ? 'Saving…' : 'Add Note'}
+            </button>
+          </form>
         </div>
 
         {/* ── Footer ── */}
