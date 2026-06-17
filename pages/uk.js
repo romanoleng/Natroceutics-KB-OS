@@ -31,11 +31,12 @@ function sectionForTab(t) {
   return Object.keys(SECTION_TABS).find(s => SECTION_TABS[s].includes(t)) || 'Overview';
 }
 
+/* Brand SVG icons for UK section buttons */
 const SECTION_ICON = {
-  'Overview':   '📊',
-  'Shopify UK': '🛒',
-  'Amazon UK':  '📦',
-  'Warehouse':  '🏭',
+  'Overview':   <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><rect x="2" y="2" width="4" height="4" rx="0.5"/><rect x="8" y="2" width="4" height="4" rx="0.5"/><rect x="2" y="8" width="4" height="4" rx="0.5"/><rect x="8" y="8" width="4" height="4" rx="0.5"/></svg>,
+  'Shopify UK': <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h10l-1.5 7H3.5L2 3z"/><path d="M5 3l.5-1.5h3L9 3"/><circle cx="5" cy="12" r="0.8" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="0.8" fill="currentColor" stroke="none"/></svg>,
+  'Amazon UK':  <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="10" height="7" rx="1"/><path d="M5 5V4a2 2 0 014 0v1"/></svg>,
+  'Warehouse':  <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12V6l6-4 6 4v6"/><rect x="4" y="7" width="2.5" height="5"/><rect x="7.5" y="7" width="2.5" height="5"/><line x1="1" y1="12" x2="13" y2="12"/></svg>,
 };
 
 /* ── Airtable base/table IDs (for inline record updates) ─── */
@@ -510,7 +511,7 @@ function ShopifyTab({ products }) {
     <>
       <div className="wh-banner">
         <div className="wh-banner-inner">
-          <span className="wh-banner-label">🛍 Shopify UK</span>
+          <span className="wh-banner-label">Shopify UK</span>
           <span className="wh-banner-sub">Live product catalogue</span>
         </div>
         <div className="wh-banner-stats">
@@ -803,7 +804,7 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound }) {
           <>
             <div className="wh-banner" style={{ marginTop: 8 }}>
               <div className="wh-banner-inner">
-                <span className="wh-banner-label">📦 Amazon UK — FBA Stock</span>
+                <span className="wh-banner-label">Amazon UK — FBA Stock</span>
                 <span className="wh-banner-sub">Fulfilment by Amazon inventory</span>
               </div>
               <div className="wh-banner-stats">
@@ -877,7 +878,7 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound }) {
         <>
           <div className="wh-banner" style={{ marginTop: 8 }}>
             <div className="wh-banner-inner">
-              <span className="wh-banner-label">🏭 Bio-nature → Amazon FBA</span>
+              <span className="wh-banner-label">Bio-nature → Amazon FBA</span>
               <span className="wh-banner-sub">Stock en route to FBA fulfilment centres</span>
             </div>
             <div className="wh-banner-stats">
@@ -1007,7 +1008,7 @@ function SOHTab({ soh }) {
     <>
       <div className="wh-banner">
         <div className="wh-banner-inner">
-          <span className="wh-banner-label">🏭 Bio-nature UK Warehouse</span>
+          <span className="wh-banner-label">Bio-nature UK Warehouse</span>
           <span className="wh-banner-sub">Stock on hand — allocated by channel</span>
         </div>
         <div className="wh-banner-stats">
@@ -1106,7 +1107,7 @@ function InboundTab({ inbound }) {
     <>
       <div className="wh-banner">
         <div className="wh-banner-inner">
-          <span className="wh-banner-label">🏭 Bio-nature UK Warehouse</span>
+          <span className="wh-banner-label">Bio-nature UK Warehouse</span>
           <span className="wh-banner-sub">Inbound stock — en route from supplier</span>
         </div>
         <div className="wh-banner-stats">

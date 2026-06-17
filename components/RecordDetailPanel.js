@@ -1,9 +1,8 @@
 /**
  * RecordDetailPanel — generic slide-out detail panel for any Airtable record.
- * Used by SortableTable for auto-expand on any table without status editing,
- * and can be used directly with allStatuses/onStatusChange for editable status.
+ * Includes a timestamped comments section backed by the Airtable Comments API.
  */
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 const STATUS_CLASS = {
   'Done': 'pill-done', 'Complete': 'pill-done', 'Completed': 'pill-done',
@@ -14,17 +13,13 @@ const STATUS_CLASS = {
 };
 function sc(s) { return STATUS_CLASS[s] || 'pill-default'; }
 
-// Try these as the record title in priority order
 const TITLE_CANDIDATES = [
   'Task', 'Name', 'Risk / Blocker', 'Priority Item', 'Product Name',
   'SOP Name', 'Contact Name', 'Company', 'Customer', 'Title',
   'Subject', 'Description', 'Item', 'SKU', 'Order Number',
 ];
 
-// Never show in body — internal/system fields or already shown in header
-const SKIP = new Set(['id', 'createdTime']);
-
-// Fields whose value is long text (render multiline)
+const SKIP = new Set(['id', 'createdTime', '_baseId', '_tableId']);
 const LONG_TEXT_KEYS = new Set(['Notes', 'Description', 'Mitigation Plan', 'Details', 'Summary', 'Comments', 'Instructions']);
 
 function isLong(key, value) {
@@ -33,21 +28,80 @@ function isLong(key, value) {
   return false;
 }
 
+function fmtCommentDate(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('en-GB', {
+      day: 'numeric', month: 'short', year: '2-digit',
+      hour: '2-digit', minute: '2-digit',
+    });
+  } catch { return iso; }
+}
+
 export default function RecordDetailPanel({
   record,
   titleField: titleFieldProp,
   onClose,
-  // Optional: enable status editing
   allStatuses,
   onStatusChange,
   saving,
 }) {
+  const [comments, setComments] = useState([]);
+  const [commentText, setCommentText] = useState('');
+  const [posting, setPosting] = useState(false);
+  const [commentsLoaded, setCommentsLoaded] = useState(false);
+  const [commentError, setCommentError] = useState('');
+
   useEffect(() => {
     if (!record) return;
     function onKey(e) { if (e.key === 'Escape') onClose(); }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [record, onClose]);
+
+  const baseId = record?._baseId;
+  const tableId = record?._tableId;
+  const recordId = record?.id;
+  const canComment = !!(baseId && tableId && recordId);
+
+  // Fetch comments when panel opens
+  useEffect(() => {
+    if (!canComment) { setCommentsLoaded(true); return; }
+    setCommentsLoaded(false);
+    setComments([]);
+    fetch(`/api/record-comments?baseId=${encodeURIComponent(baseId)}&tableId=${encodeURIComponent(tableId)}&recordId=${encodeURIComponent(recordId)}`)
+      .then(r => r.json())
+      .then(data => {
+        setComments(data.comments || []);
+        setCommentsLoaded(true);
+      })
+      .catch(() => setCommentsLoaded(true));
+  }, [baseId, tableId, recordId]);
+
+  async function submitComment(e) {
+    e.preventDefault();
+    if (!commentText.trim() || posting) return;
+    setPosting(true);
+    setCommentError('');
+    try {
+      const res = await fetch('/api/record-comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseId, tableId, recordId, text: commentText.trim() }),
+      });
+      const data = await res.json();
+      if (data.comment) {
+        setComments(prev => [...prev, data.comment]);
+        setCommentText('');
+      } else {
+        setCommentError(data.error || 'Failed to post comment');
+      }
+    } catch {
+      setCommentError('Network error — please try again');
+    }
+    setPosting(false);
+  }
 
   if (!record) return null;
 
@@ -111,6 +165,53 @@ export default function RecordDetailPanel({
               <div className="dp-value">{renderValue(key, value)}</div>
             </div>
           ))}
+        </div>
+
+        {/* ── Comments section ── */}
+        <div className="dp-comments">
+          <div className="dp-comments-header">
+            <span className="dp-comments-title">Notes &amp; Comments</span>
+            {commentsLoaded && comments.length > 0 && (
+              <span className="dp-comments-count">{comments.length}</span>
+            )}
+          </div>
+
+          <div className="dp-comments-list">
+            {!commentsLoaded ? (
+              <p className="dp-comment-meta" style={{ padding: '8px 0', fontStyle: 'italic' }}>Loading…</p>
+            ) : comments.length === 0 ? (
+              <p className="dp-comment-empty">No notes yet.</p>
+            ) : (
+              [...comments].reverse().map(c => (
+                <div key={c.id} className="dp-comment">
+                  <div className="dp-comment-meta">
+                    <span className="dp-comment-author">{c.author?.name || 'User'}</span>
+                    <span className="dp-comment-time">{fmtCommentDate(c.createdTime)}</span>
+                  </div>
+                  <p className="dp-comment-text">{c.text}</p>
+                </div>
+              ))
+            )}
+          </div>
+
+          <form className="dp-comment-form" onSubmit={submitComment}>
+            <textarea
+              className="dp-comment-input"
+              placeholder="Add a note or comment…"
+              value={commentText}
+              onChange={e => setCommentText(e.target.value)}
+              rows={2}
+              disabled={posting}
+            />
+            {commentError && <p className="dp-comment-error">{commentError}</p>}
+            <button
+              className="dp-comment-submit"
+              type="submit"
+              disabled={posting || !commentText.trim()}
+            >
+              {posting ? 'Saving…' : 'Add Note'}
+            </button>
+          </form>
         </div>
 
         <div className="dp-footer">
