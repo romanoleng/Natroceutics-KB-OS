@@ -3,6 +3,7 @@ import Link from 'next/link';
 import OsLayout from '../components/OsLayout';
 import ProductsSection from '../components/ProductsSection';
 import SortableTable from '../components/SortableTable';
+import TaskDetailPanel from '../components/TaskDetailPanel';
 import {
   getSATasks, getSAPriorities, getSARisks,
   getSAInventory, getSAFinance, getSAB2B,
@@ -12,6 +13,9 @@ import {
 
 const TABS = ['Tasks', 'Priorities', 'Risks', 'Inventory', 'Finance', 'B2B', 'Customers', 'Marketing', 'Customer Service', 'Reporting', 'Products'];
 
+const SA_BASE  = 'appz7wLo78sxzLhjV';
+const SA_TASKS_TABLE = 'tblAv5lowKpohE27i';
+
 const STATUS_CLASS = {
   'Done': 'pill-done', 'Complete': 'pill-done', 'Completed': 'pill-done',
   'In Progress': 'pill-progress', 'Active': 'pill-progress',
@@ -20,57 +24,130 @@ const STATUS_CLASS = {
 };
 function statusClass(s) { return STATUS_CLASS[s] || 'pill-default'; }
 function fmt(v) { return (v === null || v === undefined || v === '') ? '—' : v; }
+function fmtEntryDate(dateEntry, createdTime) {
+  const raw = dateEntry || createdTime;
+  if (!raw) return '—';
+  try {
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return raw;
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' });
+  } catch { return raw; }
+}
+
+const DONE_VALS_SA = new Set(['Done', 'Complete', 'Completed', 'Approved']);
+const BASE_STATUSES_SA = ['Not Started', 'To Do', 'In Progress', 'Under Review', 'Done', 'Blocked', 'Cancelled'];
+
+async function patchSARecord(tableId, recordId, fields) {
+  const res = await fetch('/api/update-record', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ baseId: SA_BASE, tableId, recordId, fields }),
+  });
+  if (!res.ok) throw new Error('Update failed');
+}
 
 /* ── Tasks ────────────────────────────────────────────────── */
 function TaskTable({ tasks }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const statuses = [...new Set(tasks.map(t => t.Status).filter(Boolean))];
+  const [localStatus, setLocalStatus] = useState({});
+  const [doneAt, setDoneAt] = useState({});
+  const [saving, setSaving] = useState({});
+  const [selectedTask, setSelectedTask] = useState(null);
+
+  const allStatuses = useMemo(() =>
+    [...new Set([...BASE_STATUSES_SA, ...tasks.map(t => t.Status).filter(Boolean)])],
+    [tasks]
+  );
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return tasks.filter(t => {
+      const eff = localStatus[t.id] || t.Status;
       const matchQ = !q || (t.Task || '').toLowerCase().includes(q) || (t.Owner || '').toLowerCase().includes(q);
-      const matchS = !statusFilter || t.Status === statusFilter;
+      const matchS = !statusFilter || eff === statusFilter;
       return matchQ && matchS;
     });
-  }, [tasks, search, statusFilter]);
+  }, [tasks, search, statusFilter, localStatus]);
+
+  const dataWithStatus = useMemo(() =>
+    filtered.map(t => ({ ...t, Status: localStatus[t.id] || t.Status })),
+    [filtered, localStatus]
+  );
+
+  async function handleStatusChange(recordId, newStatus) {
+    setLocalStatus(prev => ({ ...prev, [recordId]: newStatus }));
+    setSaving(prev => ({ ...prev, [recordId]: true }));
+    if (DONE_VALS_SA.has(newStatus)) setDoneAt(prev => ({ ...prev, [recordId]: new Date().toISOString() }));
+    setSelectedTask(prev => prev?.id === recordId ? { ...prev, Status: newStatus } : prev);
+    try {
+      await patchSARecord(SA_TASKS_TABLE, recordId, { Status: newStatus });
+    } catch {
+      setLocalStatus(prev => { const n = { ...prev }; delete n[recordId]; return n; });
+      setDoneAt(prev => { const n = { ...prev }; delete n[recordId]; return n; });
+      setSelectedTask(prev => prev?.id === recordId ? { ...prev, Status: tasks.find(t => t.id === recordId)?.Status } : prev);
+    } finally {
+      setSaving(prev => { const n = { ...prev }; delete n[recordId]; return n; });
+    }
+  }
 
   return (
     <>
       <div className="os-toolbar">
         <input className="os-search" placeholder="Search tasks…" value={search} onChange={e => setSearch(e.target.value)} />
-        {statuses.length > 0 && (
+        {allStatuses.length > 0 && (
           <select className="os-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
             <option value="">All Statuses</option>
-            {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+            {allStatuses.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         )}
         <span className="os-count">{filtered.length} task{filtered.length !== 1 ? 's' : ''}</span>
       </div>
       <SortableTable
         cols={[
+          { label: 'Date', key: 'Date of Entry', type: 'date', w: 88 },
           { label: 'Task', key: 'Task' },
-          { label: 'Business Area', key: 'Business Area', w: 130 },
-          { label: 'Status', key: 'Status', w: 120 },
-          { label: 'Priority', key: 'Priority', w: 120 },
-          { label: 'Owner', key: 'Owner', w: 120 },
-          { label: 'Due', key: 'Due Date', type: 'date', w: 110 },
+          { label: 'Status', key: 'Status', w: 140 },
+          { label: 'Owner', key: 'Owner', w: 110 },
+          { label: 'Due', key: 'Due Date', type: 'date', w: 88 },
         ]}
-        data={filtered}
-        renderRow={t => (
-          <tr key={t.id}>
-            <td><strong>{fmt(t.Task)}</strong>
-              {t.Notes && <p className="os-table-note">{t.Notes}</p>}
-            </td>
-            <td className="os-muted">{fmt(t['Business Area'])}</td>
-            <td>{t.Status ? <span className={`os-pill ${statusClass(t.Status)}`}>{t.Status}</span> : '—'}</td>
-            <td>{t.Priority ? <span className="os-pill pill-default">{t.Priority}</span> : '—'}</td>
-            <td className="os-muted">{fmt(t.Owner)}</td>
-            <td className="os-mono">{fmt(t['Due Date'])}</td>
-          </tr>
-        )}
+        data={dataWithStatus}
+        sinkCompleted="Status"
+        renderRow={t => {
+          const isDone = DONE_VALS_SA.has(t.Status);
+          return (
+            <tr key={t.id} className={isDone ? 'row-done' : ''} onClick={() => setSelectedTask({ ...t, Status: localStatus[t.id] || t.Status })} style={{ cursor: 'pointer' }}>
+              <td className="os-mono" style={{ fontSize: 11, color: 'var(--charcoal-45)', whiteSpace: 'nowrap' }}>{fmtEntryDate(t['Date of Entry'], t.createdTime)}</td>
+              <td>
+                <strong>{fmt(t.Task)}</strong>
+                {t.Notes && <p className="os-table-note">{t.Notes}</p>}
+                {isDone && doneAt[t.id] && (
+                  <p className="done-stamp">✓ {new Date(doneAt[t.id]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · {new Date(doneAt[t.id]).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</p>
+                )}
+              </td>
+              <td onClick={e => e.stopPropagation()}>
+                <select
+                  className={`os-pill status-select ${statusClass(t.Status)}`}
+                  value={t.Status || ''}
+                  onChange={e => handleStatusChange(t.id, e.target.value)}
+                  disabled={!!saving[t.id]}
+                >
+                  {allStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </td>
+              <td className="os-muted">{fmt(t.Owner)}</td>
+              <td className="os-mono" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{fmt(t['Due Date'])}</td>
+            </tr>
+          );
+        }}
         emptyMsg="No tasks found."
+      />
+      <TaskDetailPanel
+        task={selectedTask}
+        onClose={() => setSelectedTask(null)}
+        allStatuses={allStatuses}
+        onStatusChange={handleStatusChange}
+        saving={selectedTask ? saving[selectedTask.id] : false}
       />
     </>
   );
@@ -379,12 +456,12 @@ function ReportingTab({ items }) {
 }
 
 /* ── Page ─────────────────────────────────────────────────── */
-export default function SAPage({ tasks, priorities, risks, inventory, finance, b2b, customers, marketing, cs, reporting, products, error }) {
+export default function SAPage({ tasks, priorities, risks, inventory, finance, b2b, customers, marketing, cs, reporting, products, error, serverTime }) {
   const [tab, setTab] = useState('Tasks');
   const openRisks = risks.filter(r => !['Resolved','Closed','Done'].includes(r.Status)).length;
 
   return (
-    <OsLayout title="SA Dashboard" region="South Africa">
+    <OsLayout title="SA Dashboard" region="South Africa" airtableUrl="https://airtable.com/appz7wLo78sxzLhjV" serverTime={serverTime}>
       <section className="region-hero region-hero-sa">
         <div className="os-hero-inner">
           <p className="os-eyebrow">Regional Module</p>
@@ -436,7 +513,7 @@ export async function getServerSideProps() {
       getSACustomers(), getSAMarketing(), getSACS(), getSAReporting(),
       getProducts(),
     ]);
-    return { props: { tasks, priorities, risks, inventory, finance, b2b, customers, marketing, cs, reporting, products, error: null } };
+    return { props: { tasks, priorities, risks, inventory, finance, b2b, customers, marketing, cs, reporting, products, error: null, serverTime: new Date().toISOString() } };
   } catch (e) {
     return { props: { tasks: [], priorities: [], risks: [], inventory: [], finance: [], b2b: [], customers: [], marketing: [], cs: [], reporting: [], products: [], error: e.message } };
   }

@@ -10,13 +10,26 @@ const MODULES = [
   { href: '/all-tasks',      code: 'TASKS',     flag: '✅',  label: 'All Tasks' },
 ];
 
-export default function OsLayout({ children, title = 'Natroceutics OS' }) {
+function fmtServerTime(iso) {
+  if (!iso) return null;
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('en-GB', {
+      day: 'numeric', month: 'short',
+      hour: '2-digit', minute: '2-digit',
+    });
+  } catch { return null; }
+}
+
+export default function OsLayout({ children, title = 'Natroceutics OS', airtableUrl, serverTime }) {
   const router = useRouter();
   const isHome = router.pathname === '/';
 
   function isActive(href) {
     return router.pathname === href || router.pathname.startsWith(href + '/');
   }
+
+  const updatedLabel = fmtServerTime(serverTime);
 
   return (
     <>
@@ -48,7 +61,19 @@ export default function OsLayout({ children, title = 'Natroceutics OS' }) {
             </nav>
           )}
 
-          <a href="/api/logout" className="os-logout">↩ Logout</a>
+          <div className="os-header-actions">
+            {updatedLabel && (
+              <span className="os-last-updated" title={`Data fetched: ${serverTime}`}>
+                ↻ {updatedLabel}
+              </span>
+            )}
+            {airtableUrl && (
+              <a href={airtableUrl} target="_blank" rel="noopener noreferrer" className="os-airtable-btn">
+                ⊞ Airtable
+              </a>
+            )}
+            <a href="/api/logout" className="os-logout">↩ Logout</a>
+          </div>
         </div>
       </header>
 

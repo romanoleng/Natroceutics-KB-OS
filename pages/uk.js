@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import OsLayout from '../components/OsLayout';
 import ProductsSection from '../components/ProductsSection';
 import SortableTable from '../components/SortableTable';
+import TaskDetailPanel from '../components/TaskDetailPanel';
 import {
   getUKTasks, getUKPriorities, getUKRisks,
   getUKAmazon, getUKAmazonCat,
@@ -37,6 +38,13 @@ const SECTION_ICON = {
   'Warehouse':  '🏭',
 };
 
+/* ── Airtable base/table IDs (for inline record updates) ─── */
+const UK_BASE   = 'appb0pnXsdtALWq80';
+const UK_TABLES_CLIENT = {
+  TASKS:      'tbl5GXDhdcu6iwCA8',
+  PRIORITIES: 'tblYTB8FShzWDqVeN',
+};
+
 /* ── Helpers ──────────────────────────────────── */
 const STATUS_CLASS = {
   'Done': 'pill-done', 'Complete': 'pill-done', 'Completed': 'pill-done', 'Paid': 'pill-done', 'Active': 'pill-done',
@@ -48,53 +56,135 @@ function sc(s) { return STATUS_CLASS[s] || 'pill-default'; }
 function fmt(v) { return (v === null || v === undefined || v === '') ? '—' : v; }
 function gbp(v) { return v ? `£${Number(v).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'; }
 function gbp0(v) { return v ? `£${Number(v).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '—'; }
+/** Show 'Date of Entry' if set, otherwise fall back to createdTime (record creation date). */
+function fmtEntryDate(dateEntry, createdTime) {
+  const raw = dateEntry || createdTime;
+  if (!raw) return '—';
+  try {
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return raw;
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' });
+  } catch { return raw; }
+}
+
+/* ── Shared inline-status constants ──────────── */
+const DONE_VALS = new Set(['Done', 'Complete', 'Completed', 'Approved']);
+const BASE_STATUSES = ['Not Started', 'To Do', 'In Progress', 'Under Review', 'Done', 'Blocked', 'Cancelled'];
+
+async function patchRecord(baseId, tableId, recordId, fields) {
+  const res = await fetch('/api/update-record', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ baseId, tableId, recordId, fields }),
+  });
+  if (!res.ok) throw new Error('Update failed');
+}
 
 /* ── Tasks ────────────────────────────────────── */
 function TaskTable({ tasks }) {
   const [search, setSearch] = useState('');
   const [sf, setSF] = useState('');
-  const statuses = [...new Set(tasks.map(t => t.Status).filter(Boolean))];
+  const [localStatus, setLocalStatus] = useState({});
+  const [doneAt, setDoneAt] = useState({});
+  const [saving, setSaving] = useState({});
+  const [selectedTask, setSelectedTask] = useState(null);
+
+  const allStatuses = useMemo(() =>
+    [...new Set([...BASE_STATUSES, ...tasks.map(t => t.Status).filter(Boolean)])],
+    [tasks]
+  );
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return tasks.filter(t => {
+      const eff = localStatus[t.id] || t.Status;
       const mQ = !q || (t.Task || '').toLowerCase().includes(q) || (t.Owner || '').toLowerCase().includes(q);
-      const mS = !sf || t.Status === sf;
+      const mS = !sf || eff === sf;
       return mQ && mS;
     });
-  }, [tasks, search, sf]);
+  }, [tasks, search, sf, localStatus]);
+
+  const dataWithStatus = useMemo(() =>
+    filtered.map(t => ({ ...t, Status: localStatus[t.id] || t.Status })),
+    [filtered, localStatus]
+  );
+
+  async function handleStatusChange(recordId, newStatus) {
+    setLocalStatus(prev => ({ ...prev, [recordId]: newStatus }));
+    setSaving(prev => ({ ...prev, [recordId]: true }));
+    if (DONE_VALS.has(newStatus)) {
+      setDoneAt(prev => ({ ...prev, [recordId]: new Date().toISOString() }));
+    }
+    // Keep panel record in sync
+    setSelectedTask(prev => prev?.id === recordId ? { ...prev, Status: newStatus } : prev);
+    try {
+      await patchRecord(UK_BASE, UK_TABLES_CLIENT.TASKS, recordId, { Status: newStatus });
+    } catch {
+      setLocalStatus(prev => { const n = { ...prev }; delete n[recordId]; return n; });
+      setDoneAt(prev => { const n = { ...prev }; delete n[recordId]; return n; });
+      setSelectedTask(prev => prev?.id === recordId ? { ...prev, Status: tasks.find(t => t.id === recordId)?.Status } : prev);
+    } finally {
+      setSaving(prev => { const n = { ...prev }; delete n[recordId]; return n; });
+    }
+  }
+
   return (
     <>
       <div className="os-toolbar">
         <input className="os-search" placeholder="Search tasks…" value={search} onChange={e => setSearch(e.target.value)} />
-        {statuses.length > 0 && (
+        {allStatuses.length > 0 && (
           <select className="os-select" value={sf} onChange={e => setSF(e.target.value)}>
             <option value="">All Statuses</option>
-            {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+            {allStatuses.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         )}
         <span className="os-count">{filtered.length} tasks</span>
       </div>
       <SortableTable
         cols={[
+          { label: 'Date', key: 'Date of Entry', type: 'date', w: 88 },
           { label: 'Task', key: 'Task' },
-          { label: 'Business Area', key: 'Business Area', w: 130 },
-          { label: 'Status', key: 'Status', w: 120 },
-          { label: 'Priority', key: 'Priority', w: 110 },
-          { label: 'Owner', key: 'Owner', w: 120 },
-          { label: 'Due', key: 'Due Date', type: 'date', w: 100 },
+          { label: 'Status', key: 'Status', w: 140 },
+          { label: 'Owner', key: 'Owner', w: 110 },
+          { label: 'Due', key: 'Due Date', type: 'date', w: 88 },
         ]}
-        data={filtered}
-        renderRow={t => (
-          <tr key={t.id}>
-            <td><strong>{fmt(t.Task)}</strong>{t.Notes && <p className="os-table-note">{t.Notes}</p>}</td>
-            <td className="os-muted">{fmt(t['Business Area'])}</td>
-            <td>{t.Status ? <span className={`os-pill ${sc(t.Status)}`}>{t.Status}</span> : '—'}</td>
-            <td>{t.Priority ? <span className="os-pill pill-default">{t.Priority}</span> : '—'}</td>
-            <td className="os-muted">{fmt(t.Owner)}</td>
-            <td className="os-mono">{fmt(t['Due Date'])}</td>
-          </tr>
-        )}
+        data={dataWithStatus}
+        sinkCompleted="Status"
+        renderRow={t => {
+          const isDone = DONE_VALS.has(t.Status);
+          return (
+            <tr key={t.id} className={isDone ? 'row-done' : ''} onClick={() => setSelectedTask({ ...t, Status: localStatus[t.id] || t.Status })} style={{ cursor: 'pointer' }}>
+              <td className="os-mono" style={{ fontSize: 11, color: 'var(--charcoal-45)', whiteSpace: 'nowrap' }}>{fmtEntryDate(t['Date of Entry'], t.createdTime)}</td>
+              <td>
+                <strong>{fmt(t.Task)}</strong>
+                {t.Notes && <p className="os-table-note">{t.Notes}</p>}
+                {isDone && doneAt[t.id] && (
+                  <p className="done-stamp">✓ {new Date(doneAt[t.id]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · {new Date(doneAt[t.id]).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</p>
+                )}
+              </td>
+              <td onClick={e => e.stopPropagation()}>
+                <select
+                  className={`os-pill status-select ${sc(t.Status)}`}
+                  value={t.Status || ''}
+                  onChange={e => handleStatusChange(t.id, e.target.value)}
+                  disabled={!!saving[t.id]}
+                >
+                  {allStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </td>
+              <td className="os-muted">{fmt(t.Owner)}</td>
+              <td className="os-mono" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{fmt(t['Due Date'])}</td>
+            </tr>
+          );
+        }}
         emptyMsg="No tasks found."
+      />
+      <TaskDetailPanel
+        task={selectedTask}
+        onClose={() => setSelectedTask(null)}
+        allStatuses={allStatuses}
+        onStatusChange={handleStatusChange}
+        saving={selectedTask ? saving[selectedTask.id] : false}
       />
     </>
   );
@@ -452,76 +542,368 @@ function ShopifyTab({ products }) {
   );
 }
 
-/* ── Amazon UK ────────────────────────────────── */
-function AmazonTab({ fba, catalogue }) {
+/* ── Amazon UK — full hub ─────────────────────── */
+function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound }) {
+  const [sub, setSub] = useState('Overview');
+  const [taskSearch, setTaskSearch] = useState('');
+  const [taskStatus, setTaskStatus] = useState('');
+
+  const AMZ_SUBS = ['Overview', 'Tasks', 'Priorities', 'FBA Stock', 'Inbound', 'Catalogue', 'Marketing'];
+
+  // Filter to Amazon-related records
+  const amazonTasks = useMemo(() =>
+    tasks.filter(t => (t['Business Area'] || '').toLowerCase().includes('amazon')),
+    [tasks]
+  );
+  const amazonPriorities = useMemo(() =>
+    priorities.filter(p => (p['Business Area'] || '').toLowerCase().includes('amazon')),
+    [priorities]
+  );
+  const amazonMarketing = useMemo(() =>
+    marketing.filter(m =>
+      (m.Type || '').toLowerCase().includes('amazon') ||
+      (m.Channel || '').toLowerCase().includes('amazon') ||
+      (m['Campaign / Launch Name'] || '').toLowerCase().includes('amazon')
+    ),
+    [marketing]
+  );
+  // Inbound destined for Amazon FBA
+  const amazonInbound = useMemo(() =>
+    inbound.filter(s => {
+      const ch = Array.isArray(s.Channel) ? s.Channel.join(' ') : (s.Channel || '');
+      return ch.toLowerCase().includes('amazon') || (s.Location || '').toLowerCase().includes('amazon');
+    }),
+    [inbound]
+  );
+
+  const reorderCount = fba.filter(p => p.Reorder === 'Yes' || p.Reorder === true).length;
+  const totalFBA = fba.reduce((s, p) => s + (Number(p['FBA Stock']) || 0), 0);
+  const openTasks = amazonTasks.filter(t => !['Done', 'Complete', 'Completed'].includes(t.Status));
+  const taskStatuses = [...new Set(amazonTasks.map(t => t.Status).filter(Boolean))];
+
+  const filteredTasks = useMemo(() => {
+    const q = taskSearch.toLowerCase();
+    return amazonTasks.filter(t => {
+      const mQ = !q || (t.Task || '').toLowerCase().includes(q) || (t.Owner || '').toLowerCase().includes(q);
+      const mS = !taskStatus || t.Status === taskStatus;
+      return mQ && mS;
+    });
+  }, [amazonTasks, taskSearch, taskStatus]);
+
+  const totalInbound = amazonInbound.reduce((s, i) => s + (Number(i['Inbound QTY']) || 0), 0);
+
   return (
     <>
-      <h3 className="os-section-heading">FBA Stock</h3>
-      {!fba.length ? <div className="os-empty">No Amazon FBA stock data.</div> : (
+      {/* Sub-tab nav */}
+      <div className="os-sub-tabs">
+        {AMZ_SUBS.map(s => (
+          <button key={s} className={`os-sub-tab${sub === s ? ' active' : ''}`} onClick={() => setSub(s)}>{s}</button>
+        ))}
+      </div>
+
+      {/* ── Overview ── */}
+      {sub === 'Overview' && (
         <>
-          <div className="os-stat-row">
-            <div className="os-stat-card os-stat-red">
-              <div className="os-stat-num">{fba.filter(p => p.Reorder === 'Yes' || p.Reorder === true).length}</div>
-              <div className="os-stat-label">Reorder Required</div>
+          <div className="os-stat-row" style={{ marginTop: 16 }}>
+            <div className="os-stat-card"><div className="os-stat-num">{fba.length}</div><div className="os-stat-label">Amazon SKUs</div></div>
+            <div className="os-stat-card"><div className="os-stat-num">{totalFBA.toLocaleString()}</div><div className="os-stat-label">FBA Units</div></div>
+            <div className={`os-stat-card${reorderCount > 0 ? ' os-stat-red' : ' os-stat-green'}`}><div className="os-stat-num">{reorderCount}</div><div className="os-stat-label">Reorder Required</div></div>
+            <div className="os-stat-card"><div className="os-stat-num">{amazonInbound.length}</div><div className="os-stat-label">Inbound Lines</div></div>
+            <div className="os-stat-card"><div className="os-stat-num">{totalInbound.toLocaleString()}</div><div className="os-stat-label">Inbound Units</div></div>
+            <div className={`os-stat-card${openTasks.length > 0 ? ' os-stat-amber' : ' os-stat-green'}`}><div className="os-stat-num">{openTasks.length}</div><div className="os-stat-label">Open Tasks</div></div>
+          </div>
+
+          {amazonPriorities.length > 0 && (
+            <>
+              <h3 className="os-section-heading" style={{ marginTop: 28 }}>Amazon Priorities</h3>
+              <div className="priority-list">
+                {amazonPriorities.map((p, i) => (
+                  <div key={p.id} className="priority-item">
+                    <span className="priority-num">{i + 1}</span>
+                    <div className="priority-body">
+                      <strong>{fmt(p['Priority Item'])}</strong>
+                      {p.Notes && <p className="os-muted">{p.Notes}</p>}
+                      <div className="priority-meta">
+                        {p['Business Area'] && <span className="os-tag">{p['Business Area']}</span>}
+                        {p.Owner && <span className="os-tag">{p.Owner}</span>}
+                        {p.Week && <span className="os-tag os-tag-week">W{p.Week}</span>}
+                      </div>
+                    </div>
+                    {p.Status && <span className={`os-pill ${sc(p.Status)}`}>{p.Status}</span>}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {openTasks.length > 0 && (
+            <>
+              <h3 className="os-section-heading" style={{ marginTop: 28 }}>Open Amazon Tasks</h3>
+              <SortableTable
+                cols={[
+                  { label: 'Task', key: 'Task' },
+                  { label: 'Area', key: 'Business Area', w: 130 },
+                  { label: 'Status', key: 'Status', w: 110 },
+                  { label: 'Priority', key: 'Priority', w: 100 },
+                  { label: 'Owner', key: 'Owner', w: 110 },
+                  { label: 'Due', key: 'Due Date', type: 'date', w: 100 },
+                ]}
+                data={openTasks}
+                renderRow={t => (
+                  <tr key={t.id}>
+                    <td><strong>{fmt(t.Task)}</strong>{t.Notes && <p className="os-table-note">{t.Notes}</p>}</td>
+                    <td className="os-muted">{fmt(t['Business Area'])}</td>
+                    <td>{t.Status ? <span className={`os-pill ${sc(t.Status)}`}>{t.Status}</span> : '—'}</td>
+                    <td>{t.Priority ? <span className="os-pill pill-default">{t.Priority}</span> : '—'}</td>
+                    <td className="os-muted">{fmt(t.Owner)}</td>
+                    <td className="os-mono">{fmt(t['Due Date'])}</td>
+                  </tr>
+                )}
+                emptyMsg="No open tasks."
+              />
+            </>
+          )}
+
+          {reorderCount > 0 && (
+            <>
+              <h3 className="os-section-heading" style={{ marginTop: 28 }}>⚠️ Reorder Required</h3>
+              <SortableTable
+                cols={[
+                  { label: 'Product', key: 'Product' },
+                  { label: 'ASIN', key: 'ASIN', w: 130 },
+                  { label: 'FBA Stock', key: 'FBA Stock', type: 'number', w: 90 },
+                  { label: 'Days Left', key: 'Days Left', type: 'number', w: 90 },
+                  { label: 'Velocity/day', key: 'Velocity (daily)', type: 'number', w: 100 },
+                ]}
+                data={fba.filter(p => p.Reorder === 'Yes' || p.Reorder === true)}
+                renderRow={p => (
+                  <tr key={p.id}>
+                    <td><strong>{fmt(p.Product)}</strong></td>
+                    <td className="os-mono" style={{ fontSize: 11 }}>{fmt(p.ASIN)}</td>
+                    <td className="os-mono"><span style={{ color: 'var(--red-500, #ef4444)', fontWeight: 700 }}>{fmt(p['FBA Stock'])}</span></td>
+                    <td className="os-mono"><span style={{ color: 'var(--red-500, #ef4444)', fontWeight: 700 }}>{fmt(p['Days Left'])}</span></td>
+                    <td className="os-mono">{fmt(p['Velocity (daily)'])}</td>
+                  </tr>
+                )}
+                emptyMsg=""
+              />
+            </>
+          )}
+        </>
+      )}
+
+      {/* ── Tasks ── */}
+      {sub === 'Tasks' && (
+        <>
+          <div className="os-toolbar" style={{ marginTop: 8 }}>
+            <input className="os-search" placeholder="Search tasks, owners…" value={taskSearch} onChange={e => setTaskSearch(e.target.value)} />
+            {taskStatuses.length > 0 && (
+              <select className="os-select" value={taskStatus} onChange={e => setTaskStatus(e.target.value)}>
+                <option value="">All Statuses</option>
+                {taskStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            )}
+            <span className="os-count">{filteredTasks.length} tasks</span>
+          </div>
+          <SortableTable
+            cols={[
+              { label: 'Task', key: 'Task' },
+              { label: 'Area', key: 'Business Area', w: 140 },
+              { label: 'Status', key: 'Status', w: 110 },
+              { label: 'Priority', key: 'Priority', w: 100 },
+              { label: 'Owner', key: 'Owner', w: 110 },
+              { label: 'Due', key: 'Due Date', type: 'date', w: 100 },
+            ]}
+            data={filteredTasks}
+            renderRow={t => (
+              <tr key={t.id}>
+                <td><strong>{fmt(t.Task)}</strong>{t.Notes && <p className="os-table-note">{t.Notes}</p>}</td>
+                <td className="os-muted">{fmt(t['Business Area'])}</td>
+                <td>{t.Status ? <span className={`os-pill ${sc(t.Status)}`}>{t.Status}</span> : '—'}</td>
+                <td>{t.Priority ? <span className="os-pill pill-default">{t.Priority}</span> : '—'}</td>
+                <td className="os-muted">{fmt(t.Owner)}</td>
+                <td className="os-mono">{fmt(t['Due Date'])}</td>
+              </tr>
+            )}
+            emptyMsg="No Amazon tasks found."
+          />
+        </>
+      )}
+
+      {/* ── Priorities ── */}
+      {sub === 'Priorities' && (
+        amazonPriorities.length === 0
+          ? <div className="os-empty">No Amazon priorities logged.</div>
+          : <div className="priority-list" style={{ marginTop: 8 }}>
+              {amazonPriorities.map((p, i) => (
+                <div key={p.id} className="priority-item">
+                  <span className="priority-num">{i + 1}</span>
+                  <div className="priority-body">
+                    <strong>{fmt(p['Priority Item'])}</strong>
+                    {p.Notes && <p className="os-muted">{p.Notes}</p>}
+                    <div className="priority-meta">
+                      {p['Business Area'] && <span className="os-tag">{p['Business Area']}</span>}
+                      {p.Owner && <span className="os-tag">{p.Owner}</span>}
+                      {p.Week && <span className="os-tag os-tag-week">W{p.Week}</span>}
+                    </div>
+                  </div>
+                  {p.Status && <span className={`os-pill ${sc(p.Status)}`}>{p.Status}</span>}
+                </div>
+              ))}
             </div>
-            <div className="os-stat-card"><div className="os-stat-num">{fba.length}</div><div className="os-stat-label">Total SKUs</div></div>
-            <div className="os-stat-card"><div className="os-stat-num">{fba.reduce((s, p) => s + (Number(p['FBA Stock']) || 0), 0)}</div><div className="os-stat-label">Total FBA Units</div></div>
+      )}
+
+      {/* ── FBA Stock ── */}
+      {sub === 'FBA Stock' && (
+        !fba.length ? <div className="os-empty">No Amazon FBA stock data.</div> : (
+          <>
+            <div className="os-stat-row" style={{ marginTop: 8 }}>
+              <div className={`os-stat-card${reorderCount > 0 ? ' os-stat-red' : ''}`}>
+                <div className="os-stat-num">{reorderCount}</div><div className="os-stat-label">Reorder Required</div>
+              </div>
+              <div className="os-stat-card"><div className="os-stat-num">{fba.length}</div><div className="os-stat-label">Total SKUs</div></div>
+              <div className="os-stat-card"><div className="os-stat-num">{totalFBA.toLocaleString()}</div><div className="os-stat-label">Total FBA Units</div></div>
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <SortableTable
+                cols={[
+                  { label: 'Product', key: 'Product' },
+                  { label: 'ASIN', key: 'ASIN', w: 130 },
+                  { label: 'FBA Stock', key: 'FBA Stock', type: 'number', w: 90 },
+                  { label: 'Velocity/day', key: 'Velocity (daily)', type: 'number', w: 100 },
+                  { label: 'Days Left', key: 'Days Left', type: 'number', w: 90 },
+                  { label: 'Margin %', key: 'Margin %', type: 'number', w: 90 },
+                  { label: 'P30 Forecast', key: 'P30 Forecast £', type: 'number', w: 120 },
+                  { label: 'Reorder', key: 'Reorder', w: 90 },
+                  { label: 'Status', key: 'Status', w: 110 },
+                ]}
+                data={fba}
+                renderRow={p => (
+                  <tr key={p.id}>
+                    <td><strong>{fmt(p.Product)}</strong><p className="os-table-note os-mono" style={{ fontSize: 10 }}>{fmt(p['Amazon SKU'])}</p></td>
+                    <td className="os-mono" style={{ fontSize: 11 }}>{fmt(p.ASIN)}</td>
+                    <td className="os-mono">{fmt(p['FBA Stock'])}</td>
+                    <td className="os-mono">{fmt(p['Velocity (daily)'])}</td>
+                    <td className="os-mono">{p['Days Left'] && p['Days Left'] < 30 ? <span style={{ color: 'var(--red-500, #ef4444)', fontWeight: 700 }}>{p['Days Left']}</span> : fmt(p['Days Left'])}</td>
+                    <td className="os-mono">{p['Margin %'] ? `${p['Margin %']}%` : '—'}</td>
+                    <td className="os-mono">{gbp(p['P30 Forecast £'])}</td>
+                    <td>{(p.Reorder === 'Yes' || p.Reorder === true) ? <span className="os-pill pill-blocked">Yes</span> : <span className="os-pill pill-done">No</span>}</td>
+                    <td>{p.Status ? <span className={`os-pill ${sc(p.Status)}`}>{p.Status}</span> : '—'}</td>
+                  </tr>
+                )}
+              />
+            </div>
+          </>
+        )
+      )}
+
+      {/* ── Inbound (Bio-nature → Amazon FBA) ── */}
+      {sub === 'Inbound' && (
+        <>
+          <div className="wh-banner" style={{ marginTop: 8 }}>
+            <div className="wh-banner-inner">
+              <span className="wh-banner-label">🏭 Bio-nature → Amazon FBA</span>
+              <span className="wh-banner-sub">Stock en route to FBA fulfilment centres</span>
+            </div>
+            <div className="wh-banner-stats">
+              <div className="wh-banner-stat"><span className="wh-banner-num">{amazonInbound.length}</span><span className="wh-banner-unit">Lines</span></div>
+              <div className="wh-banner-stat"><span className="wh-banner-num">{totalInbound.toLocaleString()}</span><span className="wh-banner-unit">Units</span></div>
+            </div>
           </div>
           <div style={{ marginTop: 16 }}>
+            {amazonInbound.length === 0
+              ? <div className="os-empty">No inbound stock tagged to Amazon. Showing all inbound lines below.</div>
+              : null}
             <SortableTable
               cols={[
                 { label: 'Product', key: 'Product' },
-                { label: 'ASIN', key: 'ASIN', w: 130 },
-                { label: 'FBA Stock', key: 'FBA Stock', type: 'number', w: 90 },
-                { label: 'Velocity/day', key: 'Velocity (daily)', type: 'number', w: 100 },
-                { label: 'Days Left', key: 'Days Left', type: 'number', w: 90 },
-                { label: 'Margin %', key: 'Margin %', type: 'number', w: 90 },
-                { label: 'P30 Forecast', key: 'P30 Forecast £', type: 'number', w: 120 },
-                { label: 'Reorder', key: 'Reorder', w: 90 },
+                { label: 'SKU', key: 'SKU', w: 110 },
+                { label: 'Inbound QTY', key: 'Inbound QTY', type: 'number', w: 110 },
+                { label: 'PO Reference', key: 'PO Reference', w: 140 },
+                { label: 'Location', key: 'Location', w: 130 },
                 { label: 'Status', key: 'Status', w: 110 },
+                { label: 'Expected Arrival', key: 'Expected Arrival', type: 'date', w: 140 },
               ]}
-              data={fba}
-              renderRow={p => (
-                <tr key={p.id}>
-                  <td><strong>{fmt(p.Product)}</strong><p className="os-table-note os-mono" style={{ fontSize: 10 }}>{fmt(p['Amazon SKU'])}</p></td>
-                  <td className="os-mono" style={{ fontSize: 11 }}>{fmt(p.ASIN)}</td>
-                  <td className="os-mono">{fmt(p['FBA Stock'])}</td>
-                  <td className="os-mono">{fmt(p['Velocity (daily)'])}</td>
-                  <td className="os-mono">{p['Days Left'] && p['Days Left'] < 30 ? <span style={{ color: 'var(--red-500, #ef4444)', fontWeight: 700 }}>{p['Days Left']}</span> : fmt(p['Days Left'])}</td>
-                  <td className="os-mono">{p['Margin %'] ? `${p['Margin %']}%` : '—'}</td>
-                  <td className="os-mono">{gbp(p['P30 Forecast £'])}</td>
-                  <td>{(p.Reorder === 'Yes' || p.Reorder === true) ? <span className="os-pill pill-blocked">Yes</span> : <span className="os-pill pill-done">No</span>}</td>
-                  <td>{p.Status ? <span className={`os-pill ${sc(p.Status)}`}>{p.Status}</span> : '—'}</td>
+              data={amazonInbound.length > 0 ? amazonInbound : inbound}
+              renderRow={s => (
+                <tr key={s.id}>
+                  <td><strong>{fmt(s.Product)}</strong></td>
+                  <td className="os-mono">{fmt(s.SKU)}</td>
+                  <td className="os-mono"><strong>{fmt(s['Inbound QTY'])}</strong></td>
+                  <td className="os-mono">{fmt(s['PO Reference'])}</td>
+                  <td className="os-muted">{fmt(s.Location)}</td>
+                  <td>{s.Status ? <span className={`os-pill ${sc(s.Status)}`}>{s.Status}</span> : '—'}</td>
+                  <td className="os-mono">{fmt(s['Expected Arrival'])}</td>
                 </tr>
               )}
+              emptyMsg="No inbound stock."
             />
           </div>
         </>
       )}
 
-      <h3 className="os-section-heading" style={{ marginTop: 32 }}>Catalogue Management</h3>
-      <SortableTable
-        cols={[
-          { label: 'Task / Update', key: 'Task / Update' },
-          { label: 'Category', key: 'Category', w: 130 },
-          { label: 'Status', key: 'Status', w: 110 },
-          { label: 'Priority', key: 'Priority', w: 100 },
-          { label: 'Owner', key: 'Owner', w: 110 },
-          { label: 'ASIN / SKU', key: 'ASIN / SKU', w: 120 },
-        ]}
-        data={catalogue}
-        renderRow={t => (
-          <tr key={t.id}>
-            <td><strong>{fmt(t['Task / Update'])}</strong>{t['Notes / Detail'] && <p className="os-table-note">{t['Notes / Detail']}</p>}</td>
-            <td className="os-muted">{fmt(t.Category)}</td>
-            <td>{t.Status ? <span className={`os-pill ${sc(t.Status)}`}>{t.Status}</span> : '—'}</td>
-            <td>{t.Priority ? <span className="os-pill pill-default">{t.Priority}</span> : '—'}</td>
-            <td className="os-muted">{fmt(t.Owner)}</td>
-            <td className="os-mono" style={{ fontSize: 11 }}>{fmt(t['ASIN / SKU'])}</td>
-          </tr>
-        )}
-        emptyMsg="No catalogue tasks."
-      />
+      {/* ── Catalogue ── */}
+      {sub === 'Catalogue' && (
+        <div style={{ marginTop: 8 }}>
+          <SortableTable
+            cols={[
+              { label: 'Task / Update', key: 'Task / Update' },
+              { label: 'Category', key: 'Category', w: 130 },
+              { label: 'Status', key: 'Status', w: 110 },
+              { label: 'Priority', key: 'Priority', w: 100 },
+              { label: 'Owner', key: 'Owner', w: 110 },
+              { label: 'ASIN / SKU', key: 'ASIN / SKU', w: 120 },
+            ]}
+            data={catalogue}
+            renderRow={t => (
+              <tr key={t.id}>
+                <td><strong>{fmt(t['Task / Update'])}</strong>{t['Notes / Detail'] && <p className="os-table-note">{t['Notes / Detail']}</p>}</td>
+                <td className="os-muted">{fmt(t.Category)}</td>
+                <td>{t.Status ? <span className={`os-pill ${sc(t.Status)}`}>{t.Status}</span> : '—'}</td>
+                <td>{t.Priority ? <span className="os-pill pill-default">{t.Priority}</span> : '—'}</td>
+                <td className="os-muted">{fmt(t.Owner)}</td>
+                <td className="os-mono" style={{ fontSize: 11 }}>{fmt(t['ASIN / SKU'])}</td>
+              </tr>
+            )}
+            emptyMsg="No catalogue tasks."
+          />
+        </div>
+      )}
+
+      {/* ── Marketing ── */}
+      {sub === 'Marketing' && (
+        <div style={{ marginTop: 8 }}>
+          {amazonMarketing.length === 0 && (
+            <p className="os-muted" style={{ marginBottom: 12, fontSize: 13 }}>No Amazon-tagged campaigns found — showing all UK marketing below.</p>
+          )}
+          <SortableTable
+            cols={[
+              { label: 'Campaign', key: 'Campaign / Launch Name' },
+              { label: 'Type', key: 'Type', w: 110 },
+              { label: 'Status', key: 'Status', w: 110 },
+              { label: 'Owner', key: 'Owner', w: 110 },
+              { label: 'Start', key: 'Start Date', type: 'date', w: 100 },
+              { label: 'End', key: 'End Date', type: 'date', w: 100 },
+              { label: 'Budget', key: 'Budget (£)', type: 'number', w: 100 },
+              { label: 'Revenue', key: 'Revenue Generated (£)', type: 'number', w: 110 },
+            ]}
+            data={amazonMarketing.length > 0 ? amazonMarketing : marketing}
+            renderRow={m => (
+              <tr key={m.id}>
+                <td><strong>{fmt(m['Campaign / Launch Name'])}</strong></td>
+                <td className="os-muted">{fmt(m.Type)}</td>
+                <td>{m.Status ? <span className={`os-pill ${sc(m.Status)}`}>{m.Status}</span> : '—'}</td>
+                <td className="os-muted">{fmt(m.Owner)}</td>
+                <td className="os-mono">{fmt(m['Start Date'])}</td>
+                <td className="os-mono">{fmt(m['End Date'])}</td>
+                <td className="os-mono">{gbp(m['Budget (£)'])}</td>
+                <td className="os-mono">{gbp(m['Revenue Generated (£)'])}</td>
+              </tr>
+            )}
+            emptyMsg="No marketing campaigns."
+          />
+        </div>
+      )}
     </>
   );
 }
@@ -1061,7 +1443,7 @@ function ReportingTab({ items }) {
 }
 
 /* ── Page ─────────────────────────────────────── */
-export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, error }) {
+export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, error, serverTime }) {
   const router = useRouter();
   const [section, setSection] = useState('Overview');
   const [tab, setTab] = useState('Tasks');
@@ -1085,7 +1467,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
   const totalSOH = soh.reduce((s, i) => s + (Number(i['Total QTY']) || 0), 0);
 
   return (
-    <OsLayout title="UK Dashboard" region="United Kingdom">
+    <OsLayout title="UK Dashboard" region="United Kingdom" airtableUrl="https://airtable.com/appb0pnXsdtALWq80" serverTime={serverTime}>
       <section className="region-hero region-hero-uk">
         <div className="os-hero-inner">
           <p className="os-eyebrow">Regional Module</p>
@@ -1139,7 +1521,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
           {tab === 'Subscriptions'    && <SubscriptionsTab items={subscriptions} />}
           {tab === 'Customer Service' && <CSTab items={cs} />}
           {tab === 'Finance'          && <FinanceTab reconcile={reconcile} software={software} payouts={payouts} />}
-          {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} />}
+          {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} tasks={tasks} priorities={priorities} marketing={marketing} inbound={inbound} />}
           {tab === 'Stock on Hand'    && <SOHTab soh={soh} />}
           {tab === 'Inbound Stock'    && <InboundTab inbound={inbound} />}
         </div>
@@ -1174,7 +1556,7 @@ export async function getServerSideProps() {
       console.warn('Shopify live orders failed, using Airtable fallback:', shopifyErr.message);
     }
 
-    return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, error: null } };
+    return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, error: null, serverTime: new Date().toISOString() } };
   } catch (e) {
     return { props: { tasks: [], priorities: [], risks: [], amazon: [], catalogue: [], shopifyProducts: [], orders: [], ordersSource: 'airtable', discounts: [], refunds: [], payouts: [], soh: [], inbound: [], b2b: [], customers: [], affiliates: [], emailList: [], marketing: [], subscriptions: [], cs: [], reconcile: [], software: [], reporting: [], products: [], error: e.message } };
   }

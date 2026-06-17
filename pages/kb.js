@@ -172,7 +172,7 @@ export default function KBPage({ products, sops, contacts, platforms, regulatory
   const [tab, setTab] = useState('Products');
 
   return (
-    <OsLayout title="Knowledge Base">
+    <OsLayout title="Knowledge Base" airtableUrl="https://airtable.com/appbbbPs9ngSR6fIK">
       <section className="os-hero" style={{background:'var(--forest-900)'}}>
         <div className="os-hero-inner">
           <p className="os-eyebrow">Company-Wide</p>

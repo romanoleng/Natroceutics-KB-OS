@@ -60,7 +60,7 @@ export default function PartnerBrandsPage({ products, error }) {
   }, [products, search, brandFilter, catFilter, chanFilter]);
 
   return (
-    <OsLayout title="Partner Brands">
+    <OsLayout title="Partner Brands" airtableUrl="https://airtable.com/app6jWt9MuLq42Y5s">
       <section className="region-hero" style={{ background: 'var(--charcoal)' }}>
         <div className="os-hero-inner">
           <p className="os-eyebrow">Company-Wide</p>
