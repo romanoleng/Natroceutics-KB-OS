@@ -1,15 +1,21 @@
 export default function FilterBar({ categories, active, onChange }) {
   return (
-    <select
-      className="filter-select"
-      value={active}
-      onChange={e => onChange(e.target.value)}
-      aria-label="Filter by category"
-    >
-      <option value="">All categories</option>
+    <div className="filter-row">
+      <button
+        className={`filter-btn${!active ? ' active' : ''}`}
+        onClick={() => onChange('')}
+      >
+        All
+      </button>
       {categories.map(cat => (
-        <option key={cat} value={cat}>{cat}</option>
+        <button
+          key={cat}
+          className={`filter-btn${active === cat ? ' active' : ''}`}
+          onClick={() => onChange(cat)}
+        >
+          {cat}
+        </button>
       ))}
-    </select>
+    </div>
   );
 }

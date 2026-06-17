@@ -1,62 +1,61 @@
 import Link from 'next/link';
-import Layout from '../components/Layout';
-import { getStats } from '../lib/airtable';
+import OsLayout from '../components/OsLayout';
 
-export default function Home({ stats, error }) {
-  const catList = stats ? Object.entries(stats.categories) : [];
+const MODULES = [
+  {
+    href: '/sa',
+    eyebrow: 'Regional Operations',
+    icon: '🇿🇦',
+    name: 'South Africa',
+    desc: 'Tasks, priorities, risks, inventory, finance, B2B, customers, marketing, CS, and reporting.',
+  },
+  {
+    href: '/global',
+    eyebrow: 'Regional Operations',
+    icon: '🌍',
+    name: 'Global',
+    desc: 'United Kingdom and Middle East operations — Shopify, Amazon, affiliates, launch, registrations.',
+  },
+  {
+    href: '/kb',
+    eyebrow: 'Company-Wide',
+    icon: '📋',
+    name: 'Knowledge Base',
+    desc: 'Products, SOPs, contacts, platforms, and regulatory reference across all markets.',
+  },
+  {
+    href: '/partner-brands',
+    eyebrow: 'Company-Wide',
+    icon: '🤝',
+    name: 'Partner Brands',
+    desc: 'Third-party brands, therapeutic categories, distributor data, and pricing reference.',
+  },
+];
 
+export default function Home() {
   return (
-    <Layout title="Home">
-      <div className="page">
-        <div className="page-header">
-          <p className="page-eyebrow">Internal · Confidential</p>
-          <h1 className="page-title">Natroceutics<br />Knowledge Base OS</h1>
-          <p className="page-sub">Enhancing health through nature-based therapeutics and nutrition.</p>
+    <OsLayout title="Natroceutics OS">
+      <section className="os-hero">
+        <div className="os-hero-inner">
+          <p className="os-eyebrow">Internal Operations Platform</p>
+          <h1 className="os-hero-title">Natroceutics<sup>®</sup> OS</h1>
+          <p className="os-hero-sub">Select a module to continue.</p>
         </div>
+      </section>
 
-        {!error && stats && (
-          <div className="stats-grid" style={{ marginBottom: 32 }}>
-            <div className="stat-tile">
-              <span className="stat-num">{stats.total}</span>
-              <span className="stat-label">Total Entries</span>
-            </div>
-            {catList.map(([cat, count]) => (
-              <div className="stat-tile" key={cat}>
-                <span className="stat-num">{count}</span>
-                <span className="stat-label">{cat}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {error && (
-          <div className="alert alert-error" style={{ marginBottom: 32 }}>
-            Could not connect to Airtable. Check your environment variables.
-          </div>
-        )}
-
-        <div className="nav-cards">
-          <Link href="/knowledge" className="nav-card">
-            <p className="nav-card-eyebrow">Browse</p>
-            <p className="nav-card-title">Knowledge Base</p>
-            <p className="nav-card-desc">Search, filter, and explore all entries across categories.</p>
-          </Link>
-          <Link href="/admin" className="nav-card">
-            <p className="nav-card-eyebrow">Admin</p>
-            <p className="nav-card-title">Add Entry</p>
-            <p className="nav-card-desc">Create a new knowledge item and publish it to the base.</p>
-          </Link>
+      <div className="os-page-wrap">
+        <div className="module-grid">
+          {MODULES.map(m => (
+            <Link key={m.href} href={m.href} className="module-card">
+              <span className="module-card-eyebrow">{m.eyebrow}</span>
+              <span className="module-card-icon">{m.icon}</span>
+              <span className="module-card-name">{m.name}</span>
+              <p className="module-card-desc">{m.desc}</p>
+              <span className="module-card-cta">Open module →</span>
+            </Link>
+          ))}
         </div>
       </div>
-    </Layout>
+    </OsLayout>
   );
-}
-
-export async function getServerSideProps() {
-  try {
-    const stats = await getStats();
-    return { props: { stats, error: null } };
-  } catch (e) {
-    return { props: { stats: null, error: e.message } };
-  }
 }

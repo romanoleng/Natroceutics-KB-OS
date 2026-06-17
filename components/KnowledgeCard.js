@@ -12,7 +12,7 @@ export default function KnowledgeCard({ item }) {
     <div className="k-card">
       <div className="k-card-header">
         <div className="k-card-title">{item.title || 'Untitled'}</div>
-        {item.category && <span className="k-badge">{item.category}</span>}
+        {item.category && <span className="badge badge-cat">{item.category}</span>}
       </div>
       {preview && (
         <p className="k-content">{preview}{(item.content || '').length > 180 ? '…' : ''}</p>

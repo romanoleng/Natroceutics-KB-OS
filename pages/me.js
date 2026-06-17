@@ -1,0 +1,589 @@
+import { useState, useMemo, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
+import OsLayout from '../components/OsLayout';
+import ProductsSection from '../components/ProductsSection';
+import SortableTable from '../components/SortableTable';
+import {
+  getMETasks, getMEPriorities, getMERisks, getMERegistrations,
+  getMEInventory, getMEAffiliates, getMEB2B, getMEPartners,
+  getMEFinance, getMEMarketing, getMECS, getMECustomers, getMEReporting,
+  getProducts,
+} from '../lib/airtable';
+
+const TABS = ['Tasks', 'Priorities', 'Risks', 'Registrations', 'Inventory', 'Affiliates', 'B2B', 'Partners', 'Finance', 'Marketing', 'Customer Service', 'Customers', 'Reporting', 'Products'];
+
+const STATUS_CLASS = {
+  'Done': 'pill-done', 'Complete': 'pill-done', 'Completed': 'pill-done', 'Approved': 'pill-done', 'Registered': 'pill-done', 'Live': 'pill-done', 'Active': 'pill-done',
+  'In Progress': 'pill-progress', 'Under Review': 'pill-progress', 'Submitted': 'pill-progress',
+  'To Do': 'pill-todo', 'Not Started': 'pill-todo', 'Pending': 'pill-todo',
+  'Blocked': 'pill-blocked', 'At Risk': 'pill-blocked', 'Rejected': 'pill-blocked',
+};
+function statusClass(s) { return STATUS_CLASS[s] || 'pill-default'; }
+function fmt(v) { return (v === null || v === undefined || v === '') ? '—' : v; }
+
+/* ── Tasks ────────────────────────────────────────────────── */
+function TaskTable({ tasks }) {
+  const [search, setSearch] = useState('');
+  const [phase, setPhase] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const phases = [...new Set(tasks.map(t => t.Phase).filter(Boolean))];
+  const statuses = [...new Set(tasks.map(t => t.Status).filter(Boolean))];
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return tasks.filter(t => {
+      const matchQ = !q || (t.Task || '').toLowerCase().includes(q) || (t.Owner || '').toLowerCase().includes(q);
+      const matchP = !phase || t.Phase === phase;
+      const matchS = !statusFilter || t.Status === statusFilter;
+      return matchQ && matchP && matchS;
+    });
+  }, [tasks, search, phase, statusFilter]);
+
+  return (
+    <>
+      <div className="os-toolbar">
+        <input className="os-search" placeholder="Search launch tasks…" value={search} onChange={e => setSearch(e.target.value)} />
+        {phases.length > 0 && (
+          <select className="os-select" value={phase} onChange={e => setPhase(e.target.value)}>
+            <option value="">All Phases</option>
+            {phases.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+        )}
+        {statuses.length > 0 && (
+          <select className="os-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+            <option value="">All Statuses</option>
+            {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        )}
+        <span className="os-count">{filtered.length} task{filtered.length !== 1 ? 's' : ''}</span>
+      </div>
+      <SortableTable
+        cols={[
+          { label: 'Task', key: 'Task' },
+          { label: 'Phase', key: 'Phase', w: 130 },
+          { label: 'Status', key: 'Status', w: 120 },
+          { label: 'Priority', key: 'Priority', w: 120 },
+          { label: 'Owner', key: 'Owner', w: 120 },
+          { label: 'Due', key: 'Due Date', type: 'date', w: 110 },
+        ]}
+        data={filtered}
+        renderRow={t => (
+          <tr key={t.id}>
+            <td><strong>{fmt(t.Task)}</strong>
+              {t.Notes && <p className="os-table-note">{t.Notes}</p>}
+            </td>
+            <td>{t.Phase ? <span className="os-pill pill-default">{t.Phase}</span> : '—'}</td>
+            <td>{t.Status ? <span className={`os-pill ${statusClass(t.Status)}`}>{t.Status}</span> : '—'}</td>
+            <td>{t.Priority ? <span className="os-pill pill-default">{t.Priority}</span> : '—'}</td>
+            <td className="os-muted">{fmt(t.Owner)}</td>
+            <td className="os-mono">{fmt(t['Due Date'])}</td>
+          </tr>
+        )}
+        emptyMsg="No tasks found."
+      />
+    </>
+  );
+}
+
+/* ── Priorities ───────────────────────────────────────────── */
+function PriorityList({ items }) {
+  if (!items.length) return <div className="os-empty">No priorities this week.</div>;
+  return (
+    <div className="priority-list">
+      {items.map((p, i) => (
+        <div key={p.id} className="priority-item">
+          <span className="priority-num">{i + 1}</span>
+          <div className="priority-body">
+            <strong>{fmt(p['Priority Item'])}</strong>
+            {p.Notes && <p className="os-muted">{p.Notes}</p>}
+            <div className="priority-meta">
+              {p['Business Area'] && <span className="os-tag">{p['Business Area']}</span>}
+              {p.Owner && <span className="os-tag">{p.Owner}</span>}
+              {p.Week && <span className="os-tag os-tag-week">W{p.Week}</span>}
+            </div>
+          </div>
+          {p.Status && <span className={`os-pill ${statusClass(p.Status)}`}>{p.Status}</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── Risks ────────────────────────────────────────────────── */
+function RiskList({ items }) {
+  const open = items.filter(r => !['Resolved', 'Closed', 'Done'].includes(r.Status));
+  if (!items.length) return <div className="os-empty">No risks logged.</div>;
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card os-stat-red"><div className="os-stat-num">{open.length}</div><div className="os-stat-label">Open Risks</div></div>
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{items.length - open.length}</div><div className="os-stat-label">Resolved</div></div>
+      </div>
+      <div style={{marginTop:24}}>
+        <SortableTable
+          cols={[
+            { label: 'Risk / Blocker', key: 'Risk / Blocker' },
+            { label: 'Status', key: 'Status', w: 110 },
+            { label: 'Impact', key: 'Impact', w: 90 },
+            { label: 'Mitigation Plan', key: 'Mitigation Plan' },
+            { label: 'Owner', key: 'Owner', w: 110 },
+          ]}
+          data={items}
+          renderRow={r => (
+            <tr key={r.id}>
+              <td><strong>{fmt(r['Risk / Blocker'])}</strong></td>
+              <td>{r.Status ? <span className={`os-pill ${statusClass(r.Status)}`}>{r.Status}</span> : '—'}</td>
+              <td>{r.Impact ? <span className="os-pill pill-blocked">{r.Impact}</span> : '—'}</td>
+              <td className="os-muted">{fmt(r['Mitigation Plan'])}</td>
+              <td className="os-muted">{fmt(r.Owner)}</td>
+            </tr>
+          )}
+          emptyMsg="No risks logged."
+        />
+      </div>
+    </>
+  );
+}
+
+/* ── Product Registrations ────────────────────────────────── */
+function RegistrationsTab({ items }) {
+  if (!items.length) return <div className="os-empty">No product registrations logged.</div>;
+  const approved = items.filter(r => ['Approved', 'Registered', 'Done', 'Complete'].includes(r['Registration Status']));
+  const eligible = items.filter(r => r['Eligible for ME Launch'] === true || r['Eligible for ME Launch'] === 'true');
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{approved.length}</div><div className="os-stat-label">Registered</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{eligible.length}</div><div className="os-stat-label">Eligible for ME</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Total Products</div></div>
+      </div>
+      <div style={{marginTop:24}}>
+        <SortableTable
+          cols={[
+            { label: 'Product', key: 'Product Name' },
+            { label: 'SKU', key: 'SKU', w: 80 },
+            { label: 'Market', key: 'Market', w: 100 },
+            { label: 'Registration Status', key: 'Registration Status', w: 140 },
+            { label: 'Regulatory Body', key: 'Regulatory Body', w: 120 },
+            { label: 'Submitted', key: 'Submission Date', type: 'date', w: 110 },
+            { label: 'Expected', key: 'Expected Approval', type: 'date', w: 110 },
+          ]}
+          data={items}
+          renderRow={r => (
+            <tr key={r.id}>
+              <td><strong>{fmt(r['Product Name'])}</strong>
+                {r['Eligible for ME Launch'] && <span className="os-tag" style={{marginLeft:6}}>ME Launch</span>}
+              </td>
+              <td className="os-mono">{fmt(r.SKU)}</td>
+              <td className="os-muted">{fmt(r.Market)}</td>
+              <td>{r['Registration Status'] ? <span className={`os-pill ${statusClass(r['Registration Status'])}`}>{r['Registration Status']}</span> : '—'}</td>
+              <td className="os-muted">{fmt(r['Regulatory Body'])}</td>
+              <td className="os-mono">{fmt(r['Submission Date'])}</td>
+              <td className="os-mono">{fmt(r['Expected Approval'])}</td>
+            </tr>
+          )}
+          emptyMsg="No product registrations logged."
+        />
+      </div>
+    </>
+  );
+}
+
+/* ── Inventory ME ─────────────────────────────────────────── */
+function InventoryTab({ items }) {
+  if (!items.length) return <div className="os-empty">No inventory records.</div>;
+  const low = items.filter(i => ['Low Stock', 'Out of Stock', 'Critical'].includes(i['Stock Status']));
+  return (
+    <>
+      {low.length > 0 && (
+        <div className="os-stat-row">
+          <div className="os-stat-card os-stat-red"><div className="os-stat-num">{low.length}</div><div className="os-stat-label">Low / Out of Stock</div></div>
+          <div className="os-stat-card os-stat-green"><div className="os-stat-num">{items.length - low.length}</div><div className="os-stat-label">Adequate Stock</div></div>
+        </div>
+      )}
+      <div style={{marginTop: low.length ? 24 : 0}}>
+        <SortableTable
+          cols={[
+            { label: 'Product', key: 'Product Name' },
+            { label: 'SKU', key: 'SKU', w: 100 },
+            { label: 'On Hand', key: 'Units On Hand', type: 'number', w: 100 },
+            { label: 'On Order', key: 'Units On Order', type: 'number', w: 100 },
+            { label: 'Warehouse', key: 'Warehouse Location', w: 130 },
+            { label: 'Stock Status', key: 'Stock Status', w: 110 },
+            { label: 'Next Shipment', key: 'Next Shipment ETA', type: 'date', w: 110 },
+          ]}
+          data={items}
+          renderRow={i => (
+            <tr key={i.id}>
+              <td><strong>{fmt(i['Product Name'])}</strong></td>
+              <td className="os-mono">{fmt(i.SKU)}</td>
+              <td className="os-mono">{fmt(i['Units On Hand'])}</td>
+              <td className="os-mono">{fmt(i['Units On Order'])}</td>
+              <td className="os-muted">{fmt(i['Warehouse Location'])}</td>
+              <td>{i['Stock Status'] ? <span className={`os-pill ${statusClass(i['Stock Status'])}`}>{i['Stock Status']}</span> : '—'}</td>
+              <td className="os-mono">{fmt(i['Next Shipment ETA'])}</td>
+            </tr>
+          )}
+          emptyMsg="No inventory records."
+        />
+      </div>
+    </>
+  );
+}
+
+/* ── Affiliates ME ────────────────────────────────────────── */
+function AffiliatesTab({ items }) {
+  if (!items.length) return <div className="os-empty">No affiliates yet.</div>;
+  const signed = items.filter(i => i['Agreement Signed'] === true || i['Agreement Signed'] === 'true');
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{signed.length}</div><div className="os-stat-label">Agreements Signed</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Total Affiliates</div></div>
+      </div>
+      <div style={{marginTop:24}}>
+        <SortableTable
+          cols={[
+            { label: 'Name', key: 'Name' },
+            { label: 'Type', key: 'Type', w: 120 },
+            { label: 'Platform', key: 'Platform', w: 130 },
+            { label: 'Market', w: 130 },
+            { label: 'Commission Tier', key: 'Commission Tier', w: 140 },
+            { label: 'Onboarding Status', key: 'Onboarding Status', w: 150 },
+          ]}
+          data={items}
+          renderRow={a => (
+            <tr key={a.id}>
+              <td><strong>{fmt(a.Name)}</strong>
+                {a.Email && <p className="os-table-note">{a.Email}</p>}
+              </td>
+              <td className="os-muted">{fmt(a.Type)}</td>
+              <td className="os-muted">{fmt(a.Platform)}</td>
+              <td className="os-muted">{Array.isArray(a.Market) ? a.Market.join(', ') : fmt(a.Market)}</td>
+              <td>{a['Commission Tier'] ? <span className="os-pill pill-default">{a['Commission Tier']}</span> : '—'}</td>
+              <td>{a['Onboarding Status'] ? <span className={`os-pill ${statusClass(a['Onboarding Status'])}`}>{a['Onboarding Status']}</span> : '—'}</td>
+            </tr>
+          )}
+          emptyMsg="No affiliates yet."
+        />
+      </div>
+    </>
+  );
+}
+
+/* ── B2B ME ───────────────────────────────────────────────── */
+function B2BTab({ items }) {
+  if (!items.length) return <div className="os-empty">No B2B accounts.</div>;
+  const active = items.filter(i => i['Account Status'] === 'Active');
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{active.length}</div><div className="os-stat-label">Active Accounts</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Total Accounts</div></div>
+      </div>
+      <div style={{marginTop:24}}>
+        <SortableTable
+          cols={[
+            { label: 'Business', key: 'Business Name' },
+            { label: 'Type', key: 'Business Type', w: 130 },
+            { label: 'Market', key: 'Market', w: 110 },
+            { label: 'Status', key: 'Account Status', w: 110 },
+            { label: 'Monthly Order (AED)', key: 'Monthly Order Value (AED)', type: 'number', w: 160 },
+          ]}
+          data={items}
+          renderRow={b => (
+            <tr key={b.id}>
+              <td><strong>{fmt(b['Business Name'])}</strong>
+                {b['Contact Name'] && <p className="os-table-note">{b['Contact Name']}{b.Email ? ` · ${b.Email}` : ''}</p>}
+              </td>
+              <td className="os-muted">{fmt(b['Business Type'])}</td>
+              <td className="os-muted">{fmt(b.Market)}</td>
+              <td>{b['Account Status'] ? <span className={`os-pill ${statusClass(b['Account Status'])}`}>{b['Account Status']}</span> : '—'}</td>
+              <td className="os-mono">{b['Monthly Order Value (AED)'] ? `AED ${Number(b['Monthly Order Value (AED)']).toLocaleString()}` : '—'}</td>
+            </tr>
+          )}
+          emptyMsg="No B2B accounts."
+        />
+      </div>
+    </>
+  );
+}
+
+/* ── Partners ME ──────────────────────────────────────────── */
+function PartnersTab({ items }) {
+  if (!items.length) return <div className="os-empty">No strategic partners.</div>;
+  const signed = items.filter(i => i['Agreement Signed'] === true || i['Agreement Signed'] === 'true');
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{signed.length}</div><div className="os-stat-label">Agreements Signed</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Total Partners</div></div>
+      </div>
+      <div style={{marginTop:24}}>
+        <SortableTable
+          cols={[
+            { label: 'Partner', key: 'Partner Name' },
+            { label: 'Type', key: 'Partner Type', w: 130 },
+            { label: 'Key Contact', key: 'Key Contact', w: 130 },
+            { label: 'Markets', w: 130 },
+            { label: 'Status', key: 'Status', w: 110 },
+            { label: 'Agreement', w: 120 },
+          ]}
+          data={items}
+          renderRow={p => (
+            <tr key={p.id}>
+              <td><strong>{fmt(p['Partner Name'])}</strong>
+                {p.Email && <p className="os-table-note">{p.Email}</p>}
+              </td>
+              <td className="os-muted">{fmt(p['Partner Type'])}</td>
+              <td className="os-muted">{fmt(p['Key Contact'])}</td>
+              <td className="os-muted">{Array.isArray(p['Markets Covered']) ? p['Markets Covered'].join(', ') : fmt(p['Markets Covered'])}</td>
+              <td>{p.Status ? <span className={`os-pill ${statusClass(p.Status)}`}>{p.Status}</span> : '—'}</td>
+              <td className="os-mono">{p['Agreement Signed'] ? '✓ Signed' : 'Pending'}</td>
+            </tr>
+          )}
+          emptyMsg="No strategic partners."
+        />
+      </div>
+    </>
+  );
+}
+
+/* ── Finance ME ───────────────────────────────────────────── */
+function FinanceTab({ items }) {
+  if (!items.length) return <div className="os-empty">No finance data yet. Populates once ME store is live.</div>;
+  return (
+    <SortableTable
+      cols={[
+        { label: 'Period', key: 'Period' },
+        { label: 'Market', key: 'Market', w: 100 },
+        { label: 'Gross Rev (AED)', key: 'Gross Revenue (AED)', type: 'number', w: 150 },
+        { label: 'Net Rev (AED)', key: 'Net Revenue (AED)', type: 'number', w: 130 },
+        { label: 'GBP Equiv (£)', key: 'GBP Equivalent (£)', type: 'number', w: 130 },
+        { label: 'Status', key: 'Status', w: 110 },
+      ]}
+      data={items}
+      renderRow={r => (
+        <tr key={r.id}>
+          <td><strong>{fmt(r.Period)}</strong></td>
+          <td className="os-muted">{fmt(r.Market)}</td>
+          <td className="os-mono">{r['Gross Revenue (AED)'] ? `AED ${Number(r['Gross Revenue (AED)']).toLocaleString()}` : '—'}</td>
+          <td className="os-mono">{r['Net Revenue (AED)'] ? `AED ${Number(r['Net Revenue (AED)']).toLocaleString()}` : '—'}</td>
+          <td className="os-mono">{r['GBP Equivalent (£)'] ? `£${Number(r['GBP Equivalent (£)']).toLocaleString()}` : '—'}</td>
+          <td>{r.Status ? <span className={`os-pill ${statusClass(r.Status)}`}>{r.Status}</span> : '—'}</td>
+        </tr>
+      )}
+      emptyMsg="No finance data yet."
+    />
+  );
+}
+
+/* ── Marketing ME ─────────────────────────────────────────── */
+function MarketingTab({ items }) {
+  if (!items.length) return <div className="os-empty">No marketing campaigns.</div>;
+  return (
+    <SortableTable
+      cols={[
+        { label: 'Campaign', key: 'Campaign / Launch Name' },
+        { label: 'Type', key: 'Type', w: 110 },
+        { label: 'Market', w: 120 },
+        { label: 'Status', key: 'Status', w: 110 },
+        { label: 'Owner', key: 'Owner', w: 110 },
+        { label: 'Start', key: 'Start Date', type: 'date', w: 100 },
+        { label: 'End', key: 'End Date', type: 'date', w: 100 },
+        { label: 'Budget (AED)', key: 'Budget (AED)', type: 'number', w: 120 },
+      ]}
+      data={items}
+      renderRow={m => (
+        <tr key={m.id}>
+          <td><strong>{fmt(m['Campaign / Launch Name'])}</strong></td>
+          <td className="os-muted">{fmt(m.Type)}</td>
+          <td className="os-muted">{Array.isArray(m.Market) ? m.Market.join(', ') : fmt(m.Market)}</td>
+          <td>{m.Status ? <span className={`os-pill ${statusClass(m.Status)}`}>{m.Status}</span> : '—'}</td>
+          <td className="os-muted">{fmt(m.Owner)}</td>
+          <td className="os-mono">{fmt(m['Start Date'])}</td>
+          <td className="os-mono">{fmt(m['End Date'])}</td>
+          <td className="os-mono">{m['Budget (AED)'] ? `AED ${Number(m['Budget (AED)']).toLocaleString()}` : '—'}</td>
+        </tr>
+      )}
+      emptyMsg="No marketing campaigns."
+    />
+  );
+}
+
+/* ── Customer Service ME ──────────────────────────────────── */
+function CSTab({ items }) {
+  const open = items.filter(i => !['Resolved', 'Closed', 'Done'].includes(i.Status));
+  if (!items.length) return <div className="os-empty">No customer service tickets yet. Populates once ME store is live.</div>;
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card os-stat-red"><div className="os-stat-num">{open.length}</div><div className="os-stat-label">Open Tickets</div></div>
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{items.length - open.length}</div><div className="os-stat-label">Resolved</div></div>
+      </div>
+      <div style={{marginTop:24}}>
+        <SortableTable
+          cols={[
+            { label: 'Reference', key: 'Issue Reference' },
+            { label: 'Customer', key: 'Customer Name', w: 130 },
+            { label: 'Market', key: 'Market', w: 110 },
+            { label: 'Category', key: 'Category', w: 130 },
+            { label: 'Status', key: 'Status', w: 110 },
+            { label: 'Raised', key: 'Date Raised', type: 'date', w: 100 },
+          ]}
+          data={items}
+          renderRow={t => (
+            <tr key={t.id}>
+              <td><strong>{fmt(t['Issue Reference'])}</strong></td>
+              <td className="os-muted">{fmt(t['Customer Name'])}</td>
+              <td className="os-muted">{fmt(t.Market)}</td>
+              <td className="os-muted">{fmt(t.Category)}</td>
+              <td>{t.Status ? <span className={`os-pill ${statusClass(t.Status)}`}>{t.Status}</span> : '—'}</td>
+              <td className="os-mono">{fmt(t['Date Raised'])}</td>
+            </tr>
+          )}
+          emptyMsg="No customer service tickets."
+        />
+      </div>
+    </>
+  );
+}
+
+/* ── Customers ME ─────────────────────────────────────────── */
+function CustomersTab({ items }) {
+  if (!items.length) return <div className="os-empty">No customer records yet. Populates once ME store is live.</div>;
+  return (
+    <SortableTable
+      cols={[
+        { label: 'Customer', key: 'Customer Name' },
+        { label: 'Country', key: 'Country', w: 100 },
+        { label: 'Source', key: 'Source', w: 110 },
+        { label: 'Type', key: 'Customer Type', w: 120 },
+        { label: 'Status', key: 'Status', w: 110 },
+        { label: 'LTV (AED)', key: 'LTV (AED)', type: 'number', w: 110 },
+        { label: 'Orders', key: 'Total Orders', type: 'number', w: 80 },
+      ]}
+      data={items}
+      renderRow={c => (
+        <tr key={c.id}>
+          <td><strong>{fmt(c['Customer Name'])}</strong>
+            {c.Email && <p className="os-table-note">{c.Email}</p>}
+          </td>
+          <td className="os-muted">{fmt(c.Country)}</td>
+          <td className="os-muted">{fmt(c.Source)}</td>
+          <td className="os-muted">{fmt(c['Customer Type'])}</td>
+          <td>{c.Status ? <span className={`os-pill ${statusClass(c.Status)}`}>{c.Status}</span> : '—'}</td>
+          <td className="os-mono">{c['LTV (AED)'] ? `AED ${Number(c['LTV (AED)']).toLocaleString()}` : '—'}</td>
+          <td className="os-mono">{fmt(c['Total Orders'])}</td>
+        </tr>
+      )}
+      emptyMsg="No customer records."
+    />
+  );
+}
+
+/* ── Reporting ME ─────────────────────────────────────────── */
+function ReportingTab({ items }) {
+  if (!items.length) return <div className="os-empty">No reporting data yet. Populates once ME store is live (late August 2026).</div>;
+  return (
+    <SortableTable
+      cols={[
+        { label: 'Period', key: 'Period' },
+        { label: 'Market', key: 'Market', w: 100 },
+        { label: 'Shopify Rev (AED)', key: 'Shopify Revenue (AED)', type: 'number', w: 150 },
+        { label: 'Total Rev (AED)', key: 'Total Revenue (AED)', type: 'number', w: 130 },
+        { label: 'GBP Equiv (£)', key: 'GBP Equivalent (£)', type: 'number', w: 120 },
+        { label: 'New Customers', key: 'New Customers', type: 'number', w: 100 },
+        { label: 'MoM %', key: 'MoM Growth %', type: 'number', w: 90 },
+        { label: 'Status', key: 'Status', w: 110 },
+      ]}
+      data={items}
+      renderRow={r => (
+        <tr key={r.id}>
+          <td><strong>{fmt(r.Period)}</strong></td>
+          <td className="os-muted">{fmt(r.Market)}</td>
+          <td className="os-mono">{r['Shopify Revenue (AED)'] ? `AED ${Number(r['Shopify Revenue (AED)']).toLocaleString()}` : '—'}</td>
+          <td className="os-mono">{r['Total Revenue (AED)'] ? `AED ${Number(r['Total Revenue (AED)']).toLocaleString()}` : '—'}</td>
+          <td className="os-mono">{r['GBP Equivalent (£)'] ? `£${Number(r['GBP Equivalent (£)']).toLocaleString()}` : '—'}</td>
+          <td className="os-mono">{fmt(r['New Customers'])}</td>
+          <td className="os-mono">{r['MoM Growth %'] ? `${r['MoM Growth %']}%` : '—'}</td>
+          <td>{r.Status ? <span className={`os-pill ${statusClass(r.Status)}`}>{r.Status}</span> : '—'}</td>
+        </tr>
+      )}
+      emptyMsg="No reporting data yet."
+    />
+  );
+}
+
+/* ── Page ─────────────────────────────────────────────────── */
+export default function MEPage({ tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, marketing, cs, customers, reporting, products, error }) {
+  const router = useRouter();
+  const [tab, setTab] = useState('Tasks');
+  useEffect(() => {
+    if (router.query.tab && TABS.includes(router.query.tab)) setTab(router.query.tab);
+  }, [router.query.tab]);
+  const openRisks = risks.filter(r => !['Resolved','Closed','Done'].includes(r.Status)).length;
+  const registered = registrations.filter(r => ['Approved', 'Registered', 'Done', 'Complete'].includes(r['Registration Status'])).length;
+  const eligibleME = registrations.filter(r => r['Eligible for ME Launch'] === true || r['Eligible for ME Launch'] === 'true').length;
+
+  return (
+    <OsLayout title="Middle East Dashboard" region="Middle East">
+      <section className="region-hero region-hero-me">
+        <div className="os-hero-inner">
+          <p className="os-eyebrow">Regional Module</p>
+          <h1 className="os-region-title">🇦🇪 Middle East</h1>
+          <div className="region-hero-stats">
+            <div className="rhs"><span className="rhs-num">{tasks.length}</span><span className="rhs-label">Launch Tasks</span></div>
+            <div className="rhs"><span className="rhs-num">{registered}/{registrations.length}</span><span className="rhs-label">Registrations</span></div>
+            <div className="rhs"><span className="rhs-num">{eligibleME}</span><span className="rhs-label">ME Launch Ready</span></div>
+            <div className="rhs"><span className="rhs-num">{openRisks}</span><span className="rhs-label">Open Risks</span></div>
+            <div className="rhs"><span className="rhs-num">{partners.length}</span><span className="rhs-label">Partners</span></div>
+            <div className="rhs"><span className="rhs-num">{b2b.length}</span><span className="rhs-label">B2B Accounts</span></div>
+          </div>
+        </div>
+      </section>
+
+      <div className="os-page-wrap">
+        {error && <div className="os-alert-error">{error}</div>}
+
+        <div className="os-subnav">
+          {TABS.map(t => (
+            <button key={t} className={`os-subnav-btn${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{t}</button>
+          ))}
+        </div>
+
+        <div className="os-tab-content">
+          {tab === 'Tasks' && <TaskTable tasks={tasks} />}
+          {tab === 'Priorities' && <PriorityList items={priorities} />}
+          {tab === 'Risks' && <RiskList items={risks} />}
+          {tab === 'Registrations' && <RegistrationsTab items={registrations} />}
+          {tab === 'Inventory' && <InventoryTab items={inventory} />}
+          {tab === 'Affiliates' && <AffiliatesTab items={affiliates} />}
+          {tab === 'B2B' && <B2BTab items={b2b} />}
+          {tab === 'Partners' && <PartnersTab items={partners} />}
+          {tab === 'Finance' && <FinanceTab items={finance} />}
+          {tab === 'Marketing' && <MarketingTab items={marketing} />}
+          {tab === 'Customer Service' && <CSTab items={cs} />}
+          {tab === 'Customers' && <CustomersTab items={customers} />}
+          {tab === 'Reporting' && <ReportingTab items={reporting} />}
+          {tab === 'Products' && <ProductsSection products={products} />}
+        </div>
+      </div>
+    </OsLayout>
+  );
+}
+
+export async function getServerSideProps() {
+  try {
+    const [tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, marketing, cs, customers, reporting, products] = await Promise.all([
+      getMETasks(), getMEPriorities(), getMERisks(), getMERegistrations(),
+      getMEInventory(), getMEAffiliates(), getMEB2B(), getMEPartners(),
+      getMEFinance(), getMEMarketing(), getMECS(), getMECustomers(), getMEReporting(),
+      getProducts(),
+    ]);
+    return { props: { tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, marketing, cs, customers, reporting, products, error: null } };
+  } catch (e) {
+    return { props: { tasks: [], priorities: [], risks: [], registrations: [], inventory: [], affiliates: [], b2b: [], partners: [], finance: [], marketing: [], cs: [], customers: [], reporting: [], products: [], error: e.message } };
+  }
+}

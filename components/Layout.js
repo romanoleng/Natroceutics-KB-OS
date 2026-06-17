@@ -2,33 +2,56 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 
-export default function Layout({ children, title = 'Natroceutics OS' }) {
+const NAV = [
+  { href: '/',           label: 'Home' },
+  { href: '/products',   label: 'Products' },
+  { href: '/sops',       label: 'SOPs' },
+  { href: '/platforms',  label: 'Platforms' },
+  { href: '/contacts',   label: 'Contacts' },
+  { href: '/regulatory', label: 'Regulatory' },
+  { href: '/knowledge',  label: 'Knowledge' },
+  { href: '/admin',      label: 'Add Entry' },
+];
+
+export default function Layout({ children, title = 'Natroceutics KB OS' }) {
   const router = useRouter();
-  const isActive = (path) => router.pathname === path;
 
   return (
     <>
       <Head>
-        <title>{title} · Natroceutics OS</title>
+        <title>{title} · Natroceutics®</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="robots" content="noindex" />
+        <meta name="robots" content="noindex,nofollow" />
       </Head>
-      <nav className="nav">
-        <div className="nav-inner">
-          <Link href="/" className="nav-brand">N® OS</Link>
-          <div className="nav-links">
-            <Link href="/knowledge" style={isActive('/knowledge') ? { color: '#eeebe1' } : {}}>
-              Knowledge Base
-            </Link>
-            <Link href="/admin" style={isActive('/admin') ? { color: '#eeebe1' } : {}}>
-              Add Entry
-            </Link>
-          </div>
+
+      <header className="site-header">
+        <div className="header-bar">
+          <Link href="/" className="header-brand">
+            Natroceutics<sup>®</sup>
+          </Link>
+          <nav className="header-nav">
+            {NAV.map(({ href, label }) => (
+              <Link
+                key={href}
+                href={href}
+                className={`nav-link${router.pathname === href ? ' active' : ''}`}
+              >
+                {label}
+              </Link>
+            ))}
+          </nav>
+          <span className="header-badge">Internal</span>
+          <a href="/api/logout" className="logout-btn" title="Log out">↩ Logout</a>
         </div>
-      </nav>
+      </header>
+
       {children}
-      <footer className="footer">
-        NATROCEUTICS® · KNOWLEDGE BASE OS · WE ARE EFFICACY FIRST.
+
+      <footer className="site-footer">
+        <div className="footer-inner">
+          <span className="footer-brand">Natroceutics<sup>®</sup></span>
+          <span className="footer-tagline">We are efficacy first · Internal · Confidential</span>
+        </div>
       </footer>
     </>
   );

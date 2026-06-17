@@ -1,0 +1,1181 @@
+import { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/router';
+import OsLayout from '../components/OsLayout';
+import ProductsSection from '../components/ProductsSection';
+import SortableTable from '../components/SortableTable';
+import {
+  getUKTasks, getUKPriorities, getUKRisks,
+  getUKAmazon, getUKAmazonCat,
+  getUKShopify, getUKOrders, getUKDiscounts, getUKRefunds, getUKPayouts,
+  getUKStock, getUKInbound,
+  getUKReporting, getUKReconcile, getUKSoftware,
+  getUKB2B, getUKCS, getUKCustomers,
+  getUKAffiliates, getUKMarketing, getUKSubscriptions,
+  getUKEmailList,
+  getProducts,
+} from '../lib/airtable';
+import { getShopifyOrdersLive } from '../lib/shopify';
+
+/* ── Section / Tab structure ──────────────────── */
+const SECTIONS = ['Overview', 'Shopify UK', 'Amazon UK', 'Warehouse'];
+const SECTION_TABS = {
+  'Overview':   ['Tasks', 'Priorities', 'Risks', 'Reporting', 'Products'],
+  'Shopify UK': ['Orders', 'Shopify', 'Customers', 'B2B', 'Affiliates', 'Email / Klaviyo', 'Marketing', 'Subscriptions', 'Customer Service', 'Finance'],
+  'Amazon UK':  ['Amazon UK'],
+  'Warehouse':  ['Stock on Hand', 'Inbound Stock'],
+};
+const TABS = Object.values(SECTION_TABS).flat();
+
+function sectionForTab(t) {
+  return Object.keys(SECTION_TABS).find(s => SECTION_TABS[s].includes(t)) || 'Overview';
+}
+
+const SECTION_ICON = {
+  'Overview':   '📊',
+  'Shopify UK': '🛒',
+  'Amazon UK':  '📦',
+  'Warehouse':  '🏭',
+};
+
+/* ── Helpers ──────────────────────────────────── */
+const STATUS_CLASS = {
+  'Done': 'pill-done', 'Complete': 'pill-done', 'Completed': 'pill-done', 'Paid': 'pill-done', 'Active': 'pill-done',
+  'In Progress': 'pill-progress', 'Active Expired': 'pill-progress',
+  'To Do': 'pill-todo', 'Not Started': 'pill-todo', 'Pending': 'pill-todo', 'Draft': 'pill-todo',
+  'Blocked': 'pill-blocked', 'At Risk': 'pill-blocked', 'Overdue': 'pill-blocked',
+};
+function sc(s) { return STATUS_CLASS[s] || 'pill-default'; }
+function fmt(v) { return (v === null || v === undefined || v === '') ? '—' : v; }
+function gbp(v) { return v ? `£${Number(v).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'; }
+function gbp0(v) { return v ? `£${Number(v).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '—'; }
+
+/* ── Tasks ────────────────────────────────────── */
+function TaskTable({ tasks }) {
+  const [search, setSearch] = useState('');
+  const [sf, setSF] = useState('');
+  const statuses = [...new Set(tasks.map(t => t.Status).filter(Boolean))];
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return tasks.filter(t => {
+      const mQ = !q || (t.Task || '').toLowerCase().includes(q) || (t.Owner || '').toLowerCase().includes(q);
+      const mS = !sf || t.Status === sf;
+      return mQ && mS;
+    });
+  }, [tasks, search, sf]);
+  return (
+    <>
+      <div className="os-toolbar">
+        <input className="os-search" placeholder="Search tasks…" value={search} onChange={e => setSearch(e.target.value)} />
+        {statuses.length > 0 && (
+          <select className="os-select" value={sf} onChange={e => setSF(e.target.value)}>
+            <option value="">All Statuses</option>
+            {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        )}
+        <span className="os-count">{filtered.length} tasks</span>
+      </div>
+      <SortableTable
+        cols={[
+          { label: 'Task', key: 'Task' },
+          { label: 'Business Area', key: 'Business Area', w: 130 },
+          { label: 'Status', key: 'Status', w: 120 },
+          { label: 'Priority', key: 'Priority', w: 110 },
+          { label: 'Owner', key: 'Owner', w: 120 },
+          { label: 'Due', key: 'Due Date', type: 'date', w: 100 },
+        ]}
+        data={filtered}
+        renderRow={t => (
+          <tr key={t.id}>
+            <td><strong>{fmt(t.Task)}</strong>{t.Notes && <p className="os-table-note">{t.Notes}</p>}</td>
+            <td className="os-muted">{fmt(t['Business Area'])}</td>
+            <td>{t.Status ? <span className={`os-pill ${sc(t.Status)}`}>{t.Status}</span> : '—'}</td>
+            <td>{t.Priority ? <span className="os-pill pill-default">{t.Priority}</span> : '—'}</td>
+            <td className="os-muted">{fmt(t.Owner)}</td>
+            <td className="os-mono">{fmt(t['Due Date'])}</td>
+          </tr>
+        )}
+        emptyMsg="No tasks found."
+      />
+    </>
+  );
+}
+
+/* ── Priorities ───────────────────────────────── */
+function PriorityList({ items }) {
+  if (!items.length) return <div className="os-empty">No priorities this week.</div>;
+  return (
+    <div className="priority-list">
+      {items.map((p, i) => (
+        <div key={p.id} className="priority-item">
+          <span className="priority-num">{i + 1}</span>
+          <div className="priority-body">
+            <strong>{fmt(p['Priority Item'])}</strong>
+            {p.Notes && <p className="os-muted">{p.Notes}</p>}
+            <div className="priority-meta">
+              {p['Business Area'] && <span className="os-tag">{p['Business Area']}</span>}
+              {p.Owner && <span className="os-tag">{p.Owner}</span>}
+              {p.Week && <span className="os-tag os-tag-week">W{p.Week}</span>}
+            </div>
+          </div>
+          {p.Status && <span className={`os-pill ${sc(p.Status)}`}>{p.Status}</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── Risks ────────────────────────────────────── */
+function RiskList({ items }) {
+  const open = items.filter(r => !['Resolved', 'Closed', 'Done'].includes(r.Status));
+  if (!items.length) return <div className="os-empty">No risks logged.</div>;
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card os-stat-red"><div className="os-stat-num">{open.length}</div><div className="os-stat-label">Open Risks</div></div>
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{items.length - open.length}</div><div className="os-stat-label">Resolved</div></div>
+      </div>
+      <div style={{ marginTop: 24 }}>
+        <SortableTable
+          cols={[
+            { label: 'Risk / Blocker', key: 'Risk / Blocker' },
+            { label: 'Status', key: 'Status', w: 110 },
+            { label: 'Impact', key: 'Impact', w: 90 },
+            { label: 'Mitigation Plan', key: 'Mitigation Plan' },
+            { label: 'Owner', key: 'Owner', w: 110 },
+          ]}
+          data={items}
+          renderRow={r => (
+            <tr key={r.id}>
+              <td><strong>{fmt(r['Risk / Blocker'])}</strong></td>
+              <td>{r.Status ? <span className={`os-pill ${sc(r.Status)}`}>{r.Status}</span> : '—'}</td>
+              <td>{r.Impact ? <span className="os-pill pill-blocked">{r.Impact}</span> : '—'}</td>
+              <td className="os-muted">{fmt(r['Mitigation Plan'])}</td>
+              <td className="os-muted">{fmt(r.Owner)}</td>
+            </tr>
+          )}
+        />
+      </div>
+    </>
+  );
+}
+
+/* ── Orders (date-filtered, KPI summary) ─────── */
+function OrdersTab({ orders, ordersSource, discounts, refunds }) {
+  const [range, setRange] = useState('MTD');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const [sub, setSub] = useState('Summary');
+
+  const today = new Date();
+
+  const { dateFrom, dateTo } = useMemo(() => {
+    const d = new Date();
+    if (range === 'MTD') return { dateFrom: new Date(d.getFullYear(), d.getMonth(), 1), dateTo: today };
+    if (range === 'Last Month') {
+      const start = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+      const end = new Date(d.getFullYear(), d.getMonth(), 0);
+      return { dateFrom: start, dateTo: end };
+    }
+    if (range === '30 Days') { const f = new Date(); f.setDate(f.getDate() - 30); return { dateFrom: f, dateTo: today }; }
+    if (range === '90 Days') { const f = new Date(); f.setDate(f.getDate() - 90); return { dateFrom: f, dateTo: today }; }
+    if (range === 'YTD') return { dateFrom: new Date(d.getFullYear(), 0, 1), dateTo: today };
+    if (range === 'Custom') return { dateFrom: customFrom ? new Date(customFrom) : null, dateTo: customTo ? new Date(customTo) : today };
+    return { dateFrom: null, dateTo: today };
+  }, [range, customFrom, customTo]);
+
+  const filteredOrders = useMemo(() => {
+    if (!dateFrom) return orders;
+    return orders.filter(o => {
+      if (!o['Order Date']) return false;
+      const d = new Date(o['Order Date']);
+      return d >= dateFrom && d <= dateTo;
+    });
+  }, [orders, dateFrom, dateTo]);
+
+  const kpis = useMemo(() => {
+    const count = filteredOrders.length;
+    const gross = filteredOrders.reduce((s, o) => s + (Number(o['Gross Total (£)']) || 0), 0);
+    const disc = filteredOrders.reduce((s, o) => s + (Number(o['Discount Amount (£)']) || 0), 0);
+    const refund = filteredOrders.reduce((s, o) => s + (Number(o['Refund Amount (£)']) || 0), 0);
+    const net = filteredOrders.reduce((s, o) => s + (Number(o['Net Total (£)']) || 0), 0);
+    const aov = count > 0 ? gross / count : 0;
+    return { count, gross, disc, refund, net, aov };
+  }, [filteredOrders]);
+
+  const RANGES = ['MTD', 'Last Month', '30 Days', '90 Days', 'YTD', 'Custom'];
+
+  return (
+    <>
+      {/* ── Date filter bar ── */}
+      <div className="orders-filter-bar">
+        <div className="orders-range-group">
+          {RANGES.map(r => (
+            <button key={r} className={`orders-range-btn${range === r ? ' active' : ''}`} onClick={() => setRange(r)}>{r}</button>
+          ))}
+          {ordersSource === 'live' && <span className="orders-live-badge">🟢 LIVE · Shopify</span>}
+          {ordersSource !== 'live' && <span className="orders-live-badge orders-live-airtable">📋 Airtable</span>}
+        </div>
+        {range === 'Custom' && (
+          <div className="orders-custom-dates">
+            <input type="date" className="os-date-input" value={customFrom} onChange={e => setCustomFrom(e.target.value)} />
+            <span className="os-muted">→</span>
+            <input type="date" className="os-date-input" value={customTo} onChange={e => setCustomTo(e.target.value)} />
+          </div>
+        )}
+      </div>
+
+      {/* ── KPI cards ── */}
+      <div className="orders-kpi-row">
+        <div className="orders-kpi-card">
+          <div className="orders-kpi-num">{kpis.count}</div>
+          <div className="orders-kpi-label">ORDERS</div>
+          <div className="orders-kpi-sub">{orders.length} total</div>
+        </div>
+        <div className="orders-kpi-card">
+          <div className="orders-kpi-num">{gbp0(kpis.gross)}</div>
+          <div className="orders-kpi-label">GROSS REVENUE</div>
+        </div>
+        <div className={`orders-kpi-card${kpis.disc > 0 ? ' orders-kpi-warn' : ''}`}>
+          <div className="orders-kpi-num">{gbp(kpis.disc)}</div>
+          <div className="orders-kpi-label">DISCOUNTS</div>
+        </div>
+        <div className={`orders-kpi-card${kpis.refund > 0 ? ' orders-kpi-alert' : ''}`}>
+          <div className="orders-kpi-num">{gbp(kpis.refund)}</div>
+          <div className="orders-kpi-label">REFUNDS</div>
+        </div>
+        <div className="orders-kpi-card">
+          <div className="orders-kpi-num">{gbp0(kpis.net)}</div>
+          <div className="orders-kpi-label">NET REVENUE</div>
+        </div>
+        <div className="orders-kpi-card">
+          <div className="orders-kpi-num">{gbp(kpis.aov)}</div>
+          <div className="orders-kpi-label">AOV (GROSS)</div>
+        </div>
+      </div>
+
+      {/* ── Sub-tabs ── */}
+      <div className="os-sub-tabs" style={{ marginTop: 24 }}>
+        {['Summary', 'Orders', 'Discounts', 'Refunds'].map(s => (
+          <button key={s} className={`os-sub-tab${sub === s ? ' active' : ''}`} onClick={() => setSub(s)}>{s}</button>
+        ))}
+      </div>
+
+      {/* ── Summary ── */}
+      {sub === 'Summary' && (
+        <div className="orders-summary-grid">
+          <div className="orders-summary-card">
+            <h4 className="orders-summary-title">BY FINANCIAL STATUS</h4>
+            <table className="os-table" style={{ marginTop: 8 }}>
+              <thead><tr><th>Status</th><th style={{ width: 80 }}>Count</th></tr></thead>
+              <tbody>
+                {[...new Set(filteredOrders.map(o => o['Financial Status']).filter(Boolean))].map(s => (
+                  <tr key={s}>
+                    <td><span className={`os-pill ${sc(s)}`}>{s}</span></td>
+                    <td className="os-mono">{filteredOrders.filter(o => o['Financial Status'] === s).length}</td>
+                  </tr>
+                ))}
+                {filteredOrders.filter(o => !o['Financial Status']).length > 0 && (
+                  <tr><td className="os-muted">—</td><td className="os-mono">{filteredOrders.filter(o => !o['Financial Status']).length}</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div className="orders-summary-card">
+            <h4 className="orders-summary-title">BY FULFILMENT STATUS</h4>
+            <table className="os-table" style={{ marginTop: 8 }}>
+              <thead><tr><th>Status</th><th style={{ width: 80 }}>Count</th></tr></thead>
+              <tbody>
+                {[...new Set(filteredOrders.map(o => o['Fulfilment Status']).filter(Boolean))].map(s => (
+                  <tr key={s}>
+                    <td><span className={`os-pill ${sc(s)}`}>{s}</span></td>
+                    <td className="os-mono">{filteredOrders.filter(o => o['Fulfilment Status'] === s).length}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="orders-summary-card">
+            <h4 className="orders-summary-title">BY CHANNEL</h4>
+            <table className="os-table" style={{ marginTop: 8 }}>
+              <thead><tr><th>Channel</th><th style={{ width: 80 }}>Count</th></tr></thead>
+              <tbody>
+                {[...new Set(filteredOrders.map(o => o.Channel).filter(Boolean))].map(c => (
+                  <tr key={c}>
+                    <td className="os-muted">{c}</td>
+                    <td className="os-mono">{filteredOrders.filter(o => o.Channel === c).length}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Orders list ── */}
+      {sub === 'Orders' && (
+        <SortableTable
+          cols={[
+            { label: 'Order', key: 'Order Number' },
+            { label: 'Customer', key: 'Customer Name', w: 130 },
+            { label: 'Date', key: 'Order Date', type: 'date', w: 100 },
+            { label: 'Gross', key: 'Gross Total (£)', type: 'number', w: 90 },
+            { label: 'Discount', key: 'Discount Amount (£)', type: 'number', w: 90 },
+            { label: 'Net', key: 'Net Total (£)', type: 'number', w: 90 },
+            { label: 'Status', key: 'Financial Status', w: 110 },
+            { label: 'Fulfilment', key: 'Fulfilment Status', w: 120 },
+          ]}
+          data={filteredOrders}
+          renderRow={o => (
+            <tr key={o.id}>
+              <td><strong>{fmt(o['Order Number'])}</strong></td>
+              <td className="os-muted">{fmt(o['Customer Name'])}</td>
+              <td className="os-mono">{fmt(o['Order Date'])}</td>
+              <td className="os-mono">{gbp(o['Gross Total (£)'])}</td>
+              <td className="os-mono">{o['Discount Amount (£)'] ? <span style={{ color: 'var(--amber)' }}>{gbp(o['Discount Amount (£)'])}</span> : '—'}</td>
+              <td className="os-mono">{gbp(o['Net Total (£)'])}</td>
+              <td>{o['Financial Status'] ? <span className={`os-pill ${sc(o['Financial Status'])}`}>{o['Financial Status']}</span> : '—'}</td>
+              <td>{o['Fulfilment Status'] ? <span className={`os-pill ${sc(o['Fulfilment Status'])}`}>{o['Fulfilment Status']}</span> : '—'}</td>
+            </tr>
+          )}
+          emptyMsg="No orders in this date range."
+        />
+      )}
+
+      {/* ── Discounts ── */}
+      {sub === 'Discounts' && (
+        <SortableTable
+          cols={[
+            { label: 'Code', key: 'Voucher Code' },
+            { label: 'Type', key: 'Discount Type', w: 120 },
+            { label: 'Value', key: 'Discount Value', w: 80 },
+            { label: 'Orders', key: 'Orders Using Code', type: 'number', w: 80 },
+            { label: 'Revenue', key: 'Revenue Generated (£)', type: 'number', w: 110 },
+            { label: 'Discount Cost', key: 'Gross Discount Value (£)', type: 'number', w: 110 },
+            { label: 'Status', key: 'Active / Expired', w: 110 },
+          ]}
+          data={discounts}
+          renderRow={d => (
+            <tr key={d.id}>
+              <td><strong>{fmt(d['Voucher Code'])}</strong><p className="os-table-note">{fmt(d.Campaign)}</p></td>
+              <td className="os-muted">{fmt(d['Discount Type'])}</td>
+              <td className="os-mono">{fmt(d['Discount Value'])}</td>
+              <td className="os-mono">{fmt(d['Orders Using Code'])}</td>
+              <td className="os-mono">{gbp(d['Revenue Generated (£)'])}</td>
+              <td className="os-mono">{gbp(d['Gross Discount Value (£)'])}</td>
+              <td>{d['Active / Expired'] ? <span className={`os-pill ${sc(d['Active / Expired'])}`}>{d['Active / Expired']}</span> : '—'}</td>
+            </tr>
+          )}
+          emptyMsg="No discount codes."
+        />
+      )}
+
+      {/* ── Refunds ── */}
+      {sub === 'Refunds' && (
+        <SortableTable
+          cols={[
+            { label: 'Reference', key: 'Refund Reference' },
+            { label: 'Order', key: 'Order Number', w: 100 },
+            { label: 'Customer', key: 'Customer Name', w: 130 },
+            { label: 'Date', key: 'Refund Date', type: 'date', w: 100 },
+            { label: 'Amount', key: 'Refund Amount (£)', type: 'number', w: 90 },
+            { label: 'Reason', key: 'Reason', w: 130 },
+          ]}
+          data={refunds}
+          renderRow={r => (
+            <tr key={r.id}>
+              <td><strong>{fmt(r['Refund Reference'])}</strong></td>
+              <td className="os-mono">{fmt(r['Order Number'])}</td>
+              <td className="os-muted">{fmt(r['Customer Name'])}</td>
+              <td className="os-mono">{fmt(r['Refund Date'])}</td>
+              <td className="os-mono">{gbp(r['Refund Amount (£)'])}</td>
+              <td className="os-muted">{fmt(r.Reason)}</td>
+            </tr>
+          )}
+          emptyMsg="No refunds."
+        />
+      )}
+    </>
+  );
+}
+
+/* ── Shopify Products ─────────────────────────── */
+function ShopifyTab({ products }) {
+  const [search, setSearch] = useState('');
+  const [cat, setCat] = useState('');
+  const cats = [...new Set(products.map(p => p.Category).filter(Boolean))].sort();
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return products.filter(p => {
+      const mQ = !q || (p.Product || '').toLowerCase().includes(q) || (p.SKU || '').toLowerCase().includes(q);
+      const mC = !cat || p.Category === cat;
+      return mQ && mC;
+    });
+  }, [products, search, cat]);
+
+  return (
+    <>
+      <div className="os-toolbar">
+        <input className="os-search" placeholder="Search products, SKU…" value={search} onChange={e => setSearch(e.target.value)} />
+        {cats.length > 0 && (
+          <select className="os-select" value={cat} onChange={e => setCat(e.target.value)}>
+            <option value="">All Categories</option>
+            {cats.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        )}
+        <span className="os-count">{filtered.length} products</span>
+      </div>
+      <SortableTable
+        cols={[
+          { label: 'Product', key: 'Product' },
+          { label: 'SKU', key: 'SKU', w: 100 },
+          { label: 'Category', key: 'Category', w: 110 },
+          { label: 'Price', key: 'Price (GBP)', type: 'number', w: 80 },
+          { label: 'Stock', key: 'Shopify Stock', type: 'number', w: 80 },
+          { label: 'Margin %', key: 'Gross Margin %', type: 'number', w: 100 },
+          { label: 'Status', key: 'Status', w: 110 },
+        ]}
+        data={filtered}
+        renderRow={p => (
+          <tr key={p.id}>
+            <td><strong>{fmt(p.Product)}</strong></td>
+            <td className="os-mono">{fmt(p.SKU)}</td>
+            <td className="os-muted">{fmt(p.Category)}</td>
+            <td className="os-mono">{p['Price (GBP)'] ? `£${p['Price (GBP)']}` : '—'}</td>
+            <td className="os-mono">{fmt(p['Shopify Stock'])}</td>
+            <td className="os-mono">{p['Gross Margin %'] ? `${p['Gross Margin %']}%` : '—'}</td>
+            <td>{p.Status ? <span className={`os-pill ${sc(p.Status)}`}>{p.Status}</span> : '—'}</td>
+          </tr>
+        )}
+        emptyMsg="No products found."
+      />
+    </>
+  );
+}
+
+/* ── Amazon UK ────────────────────────────────── */
+function AmazonTab({ fba, catalogue }) {
+  return (
+    <>
+      <h3 className="os-section-heading">FBA Stock</h3>
+      {!fba.length ? <div className="os-empty">No Amazon FBA stock data.</div> : (
+        <>
+          <div className="os-stat-row">
+            <div className="os-stat-card os-stat-red">
+              <div className="os-stat-num">{fba.filter(p => p.Reorder === 'Yes' || p.Reorder === true).length}</div>
+              <div className="os-stat-label">Reorder Required</div>
+            </div>
+            <div className="os-stat-card"><div className="os-stat-num">{fba.length}</div><div className="os-stat-label">Total SKUs</div></div>
+            <div className="os-stat-card"><div className="os-stat-num">{fba.reduce((s, p) => s + (Number(p['FBA Stock']) || 0), 0)}</div><div className="os-stat-label">Total FBA Units</div></div>
+          </div>
+          <div style={{ marginTop: 16 }}>
+            <SortableTable
+              cols={[
+                { label: 'Product', key: 'Product' },
+                { label: 'ASIN', key: 'ASIN', w: 130 },
+                { label: 'FBA Stock', key: 'FBA Stock', type: 'number', w: 90 },
+                { label: 'Velocity/day', key: 'Velocity (daily)', type: 'number', w: 100 },
+                { label: 'Days Left', key: 'Days Left', type: 'number', w: 90 },
+                { label: 'Margin %', key: 'Margin %', type: 'number', w: 90 },
+                { label: 'P30 Forecast', key: 'P30 Forecast £', type: 'number', w: 120 },
+                { label: 'Reorder', key: 'Reorder', w: 90 },
+                { label: 'Status', key: 'Status', w: 110 },
+              ]}
+              data={fba}
+              renderRow={p => (
+                <tr key={p.id}>
+                  <td><strong>{fmt(p.Product)}</strong><p className="os-table-note os-mono" style={{ fontSize: 10 }}>{fmt(p['Amazon SKU'])}</p></td>
+                  <td className="os-mono" style={{ fontSize: 11 }}>{fmt(p.ASIN)}</td>
+                  <td className="os-mono">{fmt(p['FBA Stock'])}</td>
+                  <td className="os-mono">{fmt(p['Velocity (daily)'])}</td>
+                  <td className="os-mono">{p['Days Left'] && p['Days Left'] < 30 ? <span style={{ color: 'var(--red-500, #ef4444)', fontWeight: 700 }}>{p['Days Left']}</span> : fmt(p['Days Left'])}</td>
+                  <td className="os-mono">{p['Margin %'] ? `${p['Margin %']}%` : '—'}</td>
+                  <td className="os-mono">{gbp(p['P30 Forecast £'])}</td>
+                  <td>{(p.Reorder === 'Yes' || p.Reorder === true) ? <span className="os-pill pill-blocked">Yes</span> : <span className="os-pill pill-done">No</span>}</td>
+                  <td>{p.Status ? <span className={`os-pill ${sc(p.Status)}`}>{p.Status}</span> : '—'}</td>
+                </tr>
+              )}
+            />
+          </div>
+        </>
+      )}
+
+      <h3 className="os-section-heading" style={{ marginTop: 32 }}>Catalogue Management</h3>
+      <SortableTable
+        cols={[
+          { label: 'Task / Update', key: 'Task / Update' },
+          { label: 'Category', key: 'Category', w: 130 },
+          { label: 'Status', key: 'Status', w: 110 },
+          { label: 'Priority', key: 'Priority', w: 100 },
+          { label: 'Owner', key: 'Owner', w: 110 },
+          { label: 'ASIN / SKU', key: 'ASIN / SKU', w: 120 },
+        ]}
+        data={catalogue}
+        renderRow={t => (
+          <tr key={t.id}>
+            <td><strong>{fmt(t['Task / Update'])}</strong>{t['Notes / Detail'] && <p className="os-table-note">{t['Notes / Detail']}</p>}</td>
+            <td className="os-muted">{fmt(t.Category)}</td>
+            <td>{t.Status ? <span className={`os-pill ${sc(t.Status)}`}>{t.Status}</span> : '—'}</td>
+            <td>{t.Priority ? <span className="os-pill pill-default">{t.Priority}</span> : '—'}</td>
+            <td className="os-muted">{fmt(t.Owner)}</td>
+            <td className="os-mono" style={{ fontSize: 11 }}>{fmt(t['ASIN / SKU'])}</td>
+          </tr>
+        )}
+        emptyMsg="No catalogue tasks."
+      />
+    </>
+  );
+}
+
+/* ── Warehouse: Stock on Hand (Bio-nature) ────── */
+function SOHTab({ soh }) {
+  const [chanFilter, setChan] = useState('');
+  const [search, setSearch] = useState('');
+  const channels = [...new Set(soh.flatMap(s => Array.isArray(s.Channel) ? s.Channel : [s.Channel]).filter(Boolean))].sort();
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return soh.filter(s => {
+      const mQ = !q || (s.Product || '').toLowerCase().includes(q) || (s.SKU || '').toLowerCase().includes(q);
+      const mC = !chanFilter || (Array.isArray(s.Channel) ? s.Channel.includes(chanFilter) : s.Channel === chanFilter);
+      return mQ && mC;
+    });
+  }, [soh, search, chanFilter]);
+
+  const totalUnits = filtered.reduce((sum, s) => sum + (Number(s['Total QTY']) || 0), 0);
+
+  return (
+    <>
+      <div className="wh-banner">
+        <div className="wh-banner-inner">
+          <span className="wh-banner-label">🏭 Bio-nature UK Warehouse</span>
+          <span className="wh-banner-sub">Stock on hand — allocated by channel</span>
+        </div>
+        <div className="wh-banner-stats">
+          <div className="wh-banner-stat"><span className="wh-banner-num">{filtered.length}</span><span className="wh-banner-unit">SKUs</span></div>
+          <div className="wh-banner-stat"><span className="wh-banner-num">{totalUnits.toLocaleString()}</span><span className="wh-banner-unit">Units</span></div>
+        </div>
+      </div>
+
+      <div className="os-toolbar" style={{ marginTop: 16 }}>
+        <input className="os-search" placeholder="Search product, SKU…" value={search} onChange={e => setSearch(e.target.value)} />
+        {channels.length > 0 && (
+          <select className="os-select" value={chanFilter} onChange={e => setChan(e.target.value)}>
+            <option value="">All Channels</option>
+            {channels.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        )}
+        <span className="os-count">{filtered.length} SKUs</span>
+      </div>
+
+      <SortableTable
+        cols={[
+          { label: 'Product', key: 'Product' },
+          { label: 'SKU', key: 'SKU', w: 110 },
+          { label: 'Total QTY', key: 'Total QTY', type: 'number', w: 100 },
+          { label: 'Batch Info', key: 'Batch Info', w: 140 },
+          { label: 'Channel', w: 150 },
+          { label: 'Status', key: 'Status', w: 110 },
+          { label: 'Last Updated', key: 'Last Updated', type: 'date', w: 120 },
+        ]}
+        data={filtered}
+        renderRow={s => (
+          <tr key={s.id}>
+            <td><strong>{fmt(s.Product)}</strong></td>
+            <td className="os-mono">{fmt(s.SKU)}</td>
+            <td className="os-mono"><strong>{fmt(s['Total QTY'])}</strong></td>
+            <td className="os-muted">{fmt(s['Batch Info'])}</td>
+            <td>
+              {(Array.isArray(s.Channel) ? s.Channel : [s.Channel]).filter(Boolean).map(c => (
+                <span key={c} className="os-tag" style={{ marginRight: 4 }}>{c}</span>
+              ))}
+            </td>
+            <td>{s.Status ? <span className={`os-pill ${sc(s.Status)}`}>{s.Status}</span> : '—'}</td>
+            <td className="os-mono">{fmt(s['Last Updated'])}</td>
+          </tr>
+        )}
+        emptyMsg="No stock on hand data."
+      />
+    </>
+  );
+}
+
+/* ── Warehouse: Inbound Stock ─────────────────── */
+function InboundTab({ inbound }) {
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatus] = useState('');
+  const statuses = [...new Set(inbound.map(s => s.Status).filter(Boolean))];
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return inbound.filter(s => {
+      const mQ = !q || (s.Product || '').toLowerCase().includes(q) || (s.SKU || '').toLowerCase().includes(q) || (s['PO Reference'] || '').toLowerCase().includes(q);
+      const mS = !statusFilter || s.Status === statusFilter;
+      return mQ && mS;
+    });
+  }, [inbound, search, statusFilter]);
+
+  const totalInbound = filtered.reduce((sum, s) => sum + (Number(s['Inbound QTY']) || 0), 0);
+
+  return (
+    <>
+      <div className="wh-banner">
+        <div className="wh-banner-inner">
+          <span className="wh-banner-label">🏭 Bio-nature UK Warehouse</span>
+          <span className="wh-banner-sub">Inbound stock — en route from supplier</span>
+        </div>
+        <div className="wh-banner-stats">
+          <div className="wh-banner-stat"><span className="wh-banner-num">{filtered.length}</span><span className="wh-banner-unit">Lines</span></div>
+          <div className="wh-banner-stat"><span className="wh-banner-num">{totalInbound.toLocaleString()}</span><span className="wh-banner-unit">Units</span></div>
+        </div>
+      </div>
+
+      <div className="os-toolbar" style={{ marginTop: 16 }}>
+        <input className="os-search" placeholder="Search product, SKU, PO ref…" value={search} onChange={e => setSearch(e.target.value)} />
+        {statuses.length > 0 && (
+          <select className="os-select" value={statusFilter} onChange={e => setStatus(e.target.value)}>
+            <option value="">All Statuses</option>
+            {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        )}
+        <span className="os-count">{filtered.length} lines</span>
+      </div>
+
+      <SortableTable
+        cols={[
+          { label: 'Product', key: 'Product' },
+          { label: 'SKU', key: 'SKU', w: 110 },
+          { label: 'Inbound QTY', key: 'Inbound QTY', type: 'number', w: 110 },
+          { label: 'PO Reference', key: 'PO Reference', w: 140 },
+          { label: 'Location', key: 'Location', w: 130 },
+          { label: 'Channel', w: 130 },
+          { label: 'Status', key: 'Status', w: 110 },
+          { label: 'Expected Arrival', key: 'Expected Arrival', type: 'date', w: 140 },
+        ]}
+        data={filtered}
+        renderRow={s => (
+          <tr key={s.id}>
+            <td><strong>{fmt(s.Product)}</strong></td>
+            <td className="os-mono">{fmt(s.SKU)}</td>
+            <td className="os-mono"><strong>{fmt(s['Inbound QTY'])}</strong></td>
+            <td className="os-mono">{fmt(s['PO Reference'])}</td>
+            <td className="os-muted">{fmt(s.Location)}</td>
+            <td>
+              {(Array.isArray(s.Channel) ? s.Channel : [s.Channel]).filter(Boolean).map(c => (
+                <span key={c} className="os-tag" style={{ marginRight: 4 }}>{c}</span>
+              ))}
+            </td>
+            <td>{s.Status ? <span className={`os-pill ${sc(s.Status)}`}>{s.Status}</span> : '—'}</td>
+            <td className="os-mono">{fmt(s['Expected Arrival'])}</td>
+          </tr>
+        )}
+        emptyMsg="No inbound stock."
+      />
+    </>
+  );
+}
+
+/* ── B2B ──────────────────────────────────────── */
+function B2BTab({ items }) {
+  if (!items.length) return <div className="os-empty">No B2B accounts.</div>;
+  const active = items.filter(i => i['Account Status'] === 'Active').length;
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{active}</div><div className="os-stat-label">Active Accounts</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Total</div></div>
+      </div>
+      <div style={{ marginTop: 24 }}>
+        <SortableTable
+          cols={[
+            { label: 'Business', key: 'Business Name' },
+            { label: 'Type', key: 'Business Type', w: 130 },
+            { label: 'Contact', key: 'Contact Name', w: 130 },
+            { label: 'Status', key: 'Account Status', w: 110 },
+            { label: 'Monthly Value', key: 'Monthly Order Value (£)', type: 'number', w: 140 },
+          ]}
+          data={items}
+          renderRow={b => (
+            <tr key={b.id}>
+              <td><strong>{fmt(b['Business Name'])}</strong>{b.Email && <p className="os-table-note">{b.Email}</p>}</td>
+              <td className="os-muted">{fmt(b['Business Type'])}</td>
+              <td className="os-muted">{fmt(b['Contact Name'])}</td>
+              <td>{b['Account Status'] ? <span className={`os-pill ${sc(b['Account Status'])}`}>{b['Account Status']}</span> : '—'}</td>
+              <td className="os-mono">{gbp(b['Monthly Order Value (£)'])}</td>
+            </tr>
+          )}
+          emptyMsg="No B2B accounts."
+        />
+      </div>
+    </>
+  );
+}
+
+/* ── Customers ────────────────────────────────── */
+function CustomersTab({ items }) {
+  return (
+    <SortableTable
+      cols={[
+        { label: 'Customer', key: 'Customer Name' },
+        { label: 'Source', key: 'Source', w: 120 },
+        { label: 'Type', key: 'Customer Type', w: 120 },
+        { label: 'Status', key: 'Status', w: 110 },
+        { label: 'LTV', key: 'LTV (£)', type: 'number', w: 90 },
+        { label: 'Orders', key: 'Total Orders', type: 'number', w: 80 },
+      ]}
+      data={items}
+      renderRow={c => (
+        <tr key={c.id}>
+          <td><strong>{fmt(c['Customer Name'])}</strong>{c.Email && <p className="os-table-note">{c.Email}</p>}</td>
+          <td className="os-muted">{fmt(c.Source)}</td>
+          <td className="os-muted">{fmt(c['Customer Type'])}</td>
+          <td>{c.Status ? <span className={`os-pill ${sc(c.Status)}`}>{c.Status}</span> : '—'}</td>
+          <td className="os-mono">{gbp(c['LTV (£)'])}</td>
+          <td className="os-mono">{fmt(c['Total Orders'])}</td>
+        </tr>
+      )}
+      emptyMsg="No customer records."
+    />
+  );
+}
+
+/* ── Affiliates ───────────────────────────────── */
+function AffiliatesTab({ items }) {
+  if (!items.length) return <div className="os-empty">No affiliates.</div>;
+  const signed = items.filter(i => i['Agreement Signed'] === true || i['Agreement Signed'] === 'true').length;
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{signed}</div><div className="os-stat-label">Agreements Signed</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Total</div></div>
+      </div>
+      <div style={{ marginTop: 24 }}>
+        <SortableTable
+          cols={[
+            { label: 'Name', key: 'Name' },
+            { label: 'Type', key: 'Type', w: 120 },
+            { label: 'Platform', key: 'Platform', w: 120 },
+            { label: 'Market', key: 'Market', w: 130 },
+            { label: 'Commission Tier', key: 'Commission Tier', w: 140 },
+            { label: 'Status', key: 'Onboarding Status', w: 140 },
+          ]}
+          data={items}
+          renderRow={a => (
+            <tr key={a.id}>
+              <td><strong>{fmt(a.Name)}</strong>{a.Email && <p className="os-table-note">{a.Email}</p>}</td>
+              <td className="os-muted">{fmt(a.Type)}</td>
+              <td className="os-muted">{fmt(a.Platform)}</td>
+              <td className="os-muted">{Array.isArray(a.Market) ? a.Market.join(', ') : fmt(a.Market)}</td>
+              <td>{a['Commission Tier'] ? <span className="os-pill pill-default">{a['Commission Tier']}</span> : '—'}</td>
+              <td>{a['Onboarding Status'] ? <span className={`os-pill ${sc(a['Onboarding Status'])}`}>{a['Onboarding Status']}</span> : '—'}</td>
+            </tr>
+          )}
+          emptyMsg="No affiliates."
+        />
+      </div>
+    </>
+  );
+}
+
+/* ── Email / Klaviyo ──────────────────────────── */
+function EmailTab({ items }) {
+  const [search, setSearch] = useState('');
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return !q ? items : items.filter(i =>
+      (i.Email || '').toLowerCase().includes(q) ||
+      (i['First Name'] || '').toLowerCase().includes(q) ||
+      (i['Last Name'] || '').toLowerCase().includes(q)
+    );
+  }, [items, search]);
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Email Subscribers</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{items.filter(i => i['Email Marketing Consent'] === 'True' || i['Email Marketing Consent'] === 'SUBSCRIBED').length}</div><div className="os-stat-label">Consented</div></div>
+      </div>
+      <div className="os-toolbar" style={{ marginTop: 16 }}>
+        <input className="os-search" placeholder="Search email, name…" value={search} onChange={e => setSearch(e.target.value)} />
+        <span className="os-count">{filtered.length} subscribers</span>
+      </div>
+      <div style={{ marginTop: 12 }}>
+        <SortableTable
+          cols={[
+            { label: 'Email', key: 'Email' },
+            { label: 'Name', w: 160 },
+            { label: 'Source', key: 'Initial Source', w: 130 },
+            { label: 'Country', key: 'Locale: Country', w: 100 },
+            { label: 'Consent', key: 'Email Marketing Consent', w: 120 },
+          ]}
+          data={filtered.slice(0, 200)}
+          renderRow={s => (
+            <tr key={s.id}>
+              <td className="os-mono" style={{ fontSize: 12 }}>{fmt(s.Email)}</td>
+              <td className="os-muted">{[s['First Name'], s['Last Name']].filter(Boolean).join(' ') || '—'}</td>
+              <td className="os-muted">{fmt(s['Initial Source'] || s.Source)}</td>
+              <td className="os-muted">{fmt(s['Locale: Country'] || s.Country)}</td>
+              <td>{s['Email Marketing Consent'] ? <span className="os-pill pill-done">{s['Email Marketing Consent']}</span> : '—'}</td>
+            </tr>
+          )}
+        />
+        {filtered.length > 200 && <p className="os-muted" style={{ marginTop: 8, fontSize: 12 }}>Showing 200 of {filtered.length} — use search to narrow down.</p>}
+      </div>
+    </>
+  );
+}
+
+/* ── Marketing ────────────────────────────────── */
+function MarketingTab({ items }) {
+  return (
+    <SortableTable
+      cols={[
+        { label: 'Campaign', key: 'Campaign / Launch Name' },
+        { label: 'Type', key: 'Type', w: 110 },
+        { label: 'Status', key: 'Status', w: 110 },
+        { label: 'Owner', key: 'Owner', w: 110 },
+        { label: 'Start', key: 'Start Date', type: 'date', w: 100 },
+        { label: 'End', key: 'End Date', type: 'date', w: 100 },
+        { label: 'Budget', key: 'Budget (£)', type: 'number', w: 100 },
+        { label: 'Revenue', key: 'Revenue Generated (£)', type: 'number', w: 110 },
+      ]}
+      data={items}
+      renderRow={m => (
+        <tr key={m.id}>
+          <td><strong>{fmt(m['Campaign / Launch Name'])}</strong></td>
+          <td className="os-muted">{fmt(m.Type)}</td>
+          <td>{m.Status ? <span className={`os-pill ${sc(m.Status)}`}>{m.Status}</span> : '—'}</td>
+          <td className="os-muted">{fmt(m.Owner)}</td>
+          <td className="os-mono">{fmt(m['Start Date'])}</td>
+          <td className="os-mono">{fmt(m['End Date'])}</td>
+          <td className="os-mono">{gbp(m['Budget (£)'])}</td>
+          <td className="os-mono">{gbp(m['Revenue Generated (£)'])}</td>
+        </tr>
+      )}
+      emptyMsg="No marketing campaigns."
+    />
+  );
+}
+
+/* ── Subscriptions ────────────────────────────── */
+function SubscriptionsTab({ items }) {
+  if (!items.length) return <div className="os-empty">No subscription plans yet.</div>;
+  const totalSubs = items.reduce((s, i) => s + (Number(i['Active Subscribers']) || 0), 0);
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{totalSubs}</div><div className="os-stat-label">Active Subscribers</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Plans</div></div>
+      </div>
+      <div style={{ marginTop: 24 }}>
+        <SortableTable
+          cols={[
+            { label: 'Plan', key: 'Plan Name' },
+            { label: 'Product / SKU', key: 'Product', w: 160 },
+            { label: 'Subscribers', key: 'Active Subscribers', type: 'number', w: 120 },
+            { label: 'Monthly Rev', key: 'Monthly Revenue £', type: 'number', w: 130 },
+            { label: 'Status', key: 'Status', w: 110 },
+          ]}
+          data={items}
+          renderRow={s => (
+            <tr key={s.id}>
+              <td><strong>{fmt(s['Plan Name'])}</strong></td>
+              <td className="os-muted">{fmt(s.Product)}{s.SKU ? ` · ${s.SKU}` : ''}</td>
+              <td className="os-mono">{fmt(s['Active Subscribers'])}</td>
+              <td className="os-mono">{gbp(s['Monthly Revenue £'])}</td>
+              <td>{s.Status ? <span className={`os-pill ${sc(s.Status)}`}>{s.Status}</span> : '—'}</td>
+            </tr>
+          )}
+          emptyMsg="No subscription plans yet."
+        />
+      </div>
+    </>
+  );
+}
+
+/* ── Customer Service ─────────────────────────── */
+function CSTab({ items }) {
+  const open = items.filter(i => !['Resolved', 'Closed', 'Done'].includes(i.Status));
+  if (!items.length) return <div className="os-empty">No CS tickets.</div>;
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card os-stat-red"><div className="os-stat-num">{open.length}</div><div className="os-stat-label">Open</div></div>
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{items.length - open.length}</div><div className="os-stat-label">Resolved</div></div>
+      </div>
+      <div style={{ marginTop: 24 }}>
+        <SortableTable
+          cols={[
+            { label: 'Reference', key: 'Issue Reference' },
+            { label: 'Customer', key: 'Customer Name', w: 130 },
+            { label: 'Category', key: 'Category', w: 130 },
+            { label: 'Status', key: 'Status', w: 110 },
+            { label: 'Owner', key: 'Owner', w: 110 },
+            { label: 'Raised', key: 'Date Raised', type: 'date', w: 100 },
+          ]}
+          data={items}
+          renderRow={t => (
+            <tr key={t.id}>
+              <td><strong>{fmt(t['Issue Reference'])}</strong></td>
+              <td className="os-muted">{fmt(t['Customer Name'])}</td>
+              <td className="os-muted">{fmt(t.Category)}</td>
+              <td>{t.Status ? <span className={`os-pill ${sc(t.Status)}`}>{t.Status}</span> : '—'}</td>
+              <td className="os-muted">{fmt(t.Owner)}</td>
+              <td className="os-mono">{fmt(t['Date Raised'])}</td>
+            </tr>
+          )}
+          emptyMsg="No CS tickets."
+        />
+      </div>
+    </>
+  );
+}
+
+/* ── Finance ──────────────────────────────────── */
+function FinanceTab({ reconcile, software, payouts }) {
+  const [sub, setSub] = useState('Reconciliation');
+  return (
+    <>
+      <div className="os-sub-tabs">
+        {['Reconciliation', 'Payouts', 'Software'].map(s => (
+          <button key={s} className={`os-sub-tab${sub === s ? ' active' : ''}`} onClick={() => setSub(s)}>{s}</button>
+        ))}
+      </div>
+
+      {sub === 'Reconciliation' && (
+        <SortableTable
+          cols={[
+            { label: 'Period', key: 'Period' },
+            { label: 'Channel', key: 'Channel', w: 120 },
+            { label: 'Gross', key: 'Gross Revenue (£)', type: 'number', w: 100 },
+            { label: 'Discounts', key: 'Discounts (£)', type: 'number', w: 90 },
+            { label: 'Refunds', key: 'Refunds (£)', type: 'number', w: 90 },
+            { label: 'Fees', key: 'Platform Fees (£)', type: 'number', w: 90 },
+            { label: 'Net', key: 'Net Revenue (£)', type: 'number', w: 100 },
+            { label: 'Variance', key: 'Variance (£)', type: 'number', w: 90 },
+            { label: 'Status', key: 'Status', w: 110 },
+          ]}
+          data={reconcile}
+          renderRow={r => (
+            <tr key={r.id}>
+              <td><strong>{fmt(r.Period)}</strong></td>
+              <td className="os-muted">{fmt(r.Channel)}</td>
+              <td className="os-mono">{gbp(r['Gross Revenue (£)'])}</td>
+              <td className="os-mono">{gbp(r['Discounts (£)'])}</td>
+              <td className="os-mono">{gbp(r['Refunds (£)'])}</td>
+              <td className="os-mono">{gbp(r['Platform Fees (£)'])}</td>
+              <td className="os-mono"><strong>{gbp(r['Net Revenue (£)'])}</strong></td>
+              <td className="os-mono">{gbp(r['Variance (£)'])}</td>
+              <td>{r.Status ? <span className={`os-pill ${sc(r.Status)}`}>{r.Status}</span> : '—'}</td>
+            </tr>
+          )}
+          emptyMsg="No reconciliation records."
+        />
+      )}
+
+      {sub === 'Payouts' && (
+        <SortableTable
+          cols={[
+            { label: 'Reference', key: 'Payout Reference' },
+            { label: 'Date', key: 'Payout Date', type: 'date', w: 110 },
+            { label: 'Gross', key: 'Gross Amount (£)', type: 'number', w: 100 },
+            { label: 'Fees', key: 'Fees Deducted (£)', type: 'number', w: 90 },
+            { label: 'Net Payout', key: 'Net Payout (£)', type: 'number', w: 110 },
+            { label: 'Status', key: 'Status', w: 110 },
+          ]}
+          data={payouts}
+          renderRow={p => (
+            <tr key={p.id}>
+              <td><strong>{fmt(p['Payout Reference'])}</strong></td>
+              <td className="os-mono">{fmt(p['Payout Date'])}</td>
+              <td className="os-mono">{gbp(p['Gross Amount (£)'])}</td>
+              <td className="os-mono">{gbp(p['Fees Deducted (£)'])}</td>
+              <td className="os-mono"><strong>{gbp(p['Net Payout (£)'])}</strong></td>
+              <td>{p.Status ? <span className={`os-pill ${sc(p.Status)}`}>{p.Status}</span> : '—'}</td>
+            </tr>
+          )}
+          emptyMsg="No payouts."
+        />
+      )}
+
+      {sub === 'Software' && (
+        <SortableTable
+          cols={[
+            { label: 'Platform', key: 'Platform' },
+            { label: 'Cost/mo', key: 'Cost (£)', type: 'number', w: 90 },
+            { label: 'Annual', key: 'Annual Cost (£)', type: 'number', w: 100 },
+            { label: 'Billing', key: 'Billing Frequency', w: 110 },
+            { label: 'Renewal', key: 'Renewal Date', type: 'date', w: 110 },
+            { label: 'Department', key: 'Department', w: 120 },
+            { label: 'Status', key: 'Status', w: 110 },
+          ]}
+          data={software}
+          renderRow={s => (
+            <tr key={s.id}>
+              <td><strong>{fmt(s.Platform)}</strong></td>
+              <td className="os-mono">{gbp(s['Cost (£)'])}</td>
+              <td className="os-mono">{gbp(s['Annual Cost (£)'])}</td>
+              <td className="os-muted">{fmt(s['Billing Frequency'])}</td>
+              <td className="os-mono">{fmt(s['Renewal Date'])}</td>
+              <td className="os-muted">{fmt(s.Department)}</td>
+              <td>{s.Status ? <span className={`os-pill ${sc(s.Status)}`}>{s.Status}</span> : '—'}</td>
+            </tr>
+          )}
+          emptyMsg="No software costs logged."
+        />
+      )}
+    </>
+  );
+}
+
+/* ── Reporting ────────────────────────────────── */
+function ReportingTab({ items }) {
+  return (
+    <SortableTable
+      cols={[
+        { label: 'Period', key: 'Period' },
+        { label: 'Shopify Rev', key: 'Shopify Revenue (£)', type: 'number', w: 120 },
+        { label: 'Shopify Orders', key: 'Shopify Orders', type: 'number', w: 110 },
+        { label: 'Amazon Rev', key: 'Amazon Revenue (£)', type: 'number', w: 110 },
+        { label: 'Total Rev', key: 'Total Revenue (£)', type: 'number', w: 110 },
+        { label: 'Affiliate Rev', key: 'Affiliate Revenue (£)', type: 'number', w: 120 },
+        { label: 'New Customers', key: 'New Customers', type: 'number', w: 120 },
+        { label: 'MoM %', key: 'MoM Growth %', type: 'number', w: 80 },
+        { label: 'Status', key: 'Status', w: 110 },
+      ]}
+      data={items}
+      renderRow={r => (
+        <tr key={r.id}>
+          <td><strong>{fmt(r.Period)}</strong></td>
+          <td className="os-mono">{gbp(r['Shopify Revenue (£)'])}</td>
+          <td className="os-mono">{fmt(r['Shopify Orders'])}</td>
+          <td className="os-mono">{gbp(r['Amazon Revenue (£)'])}</td>
+          <td className="os-mono">{gbp(r['Total Revenue (£)'])}</td>
+          <td className="os-mono">{gbp(r['Affiliate Revenue (£)'])}</td>
+          <td className="os-mono">{fmt(r['New Customers'])}</td>
+          <td className="os-mono">{r['MoM Growth %'] ? `${r['MoM Growth %']}%` : '—'}</td>
+          <td>{r.Status ? <span className={`os-pill ${sc(r.Status)}`}>{r.Status}</span> : '—'}</td>
+        </tr>
+      )}
+      emptyMsg="No reporting data yet."
+    />
+  );
+}
+
+/* ── Page ─────────────────────────────────────── */
+export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, error }) {
+  const router = useRouter();
+  const [section, setSection] = useState('Overview');
+  const [tab, setTab] = useState('Tasks');
+
+  useEffect(() => {
+    if (router.query.tab && TABS.includes(router.query.tab)) {
+      const t = router.query.tab;
+      setTab(t);
+      setSection(sectionForTab(t));
+    }
+  }, [router.query.tab]);
+
+  function switchSection(s) {
+    setSection(s);
+    setTab(SECTION_TABS[s][0]);
+  }
+
+  const openRisks = risks.filter(r => !['Resolved', 'Closed', 'Done'].includes(r.Status)).length;
+  const totalSubs = subscriptions.reduce((s, i) => s + (Number(i['Active Subscribers']) || 0), 0);
+  const reorderCount = amazon.filter(p => p.Reorder === 'Yes' || p.Reorder === true).length;
+  const totalSOH = soh.reduce((s, i) => s + (Number(i['Total QTY']) || 0), 0);
+
+  return (
+    <OsLayout title="UK Dashboard" region="United Kingdom">
+      <section className="region-hero region-hero-uk">
+        <div className="os-hero-inner">
+          <p className="os-eyebrow">Regional Module</p>
+          <h1 className="os-region-title">🇬🇧 United Kingdom</h1>
+          <div className="region-hero-stats">
+            <div className="rhs"><span className="rhs-num">{orders.length}</span><span className="rhs-label">Orders{ordersSource === 'live' ? ' 🟢' : ''}</span></div>
+            <div className="rhs"><span className="rhs-num">{shopifyProducts.length}</span><span className="rhs-label">Shopify SKUs</span></div>
+            <div className="rhs"><span className="rhs-num">{amazon.length}</span><span className="rhs-label">Amazon SKUs</span></div>
+            {reorderCount > 0 && <div className="rhs"><span className="rhs-num rhs-alert">{reorderCount}</span><span className="rhs-label">Reorder</span></div>}
+            <div className="rhs"><span className="rhs-num">{totalSOH}</span><span className="rhs-label">Units SOH</span></div>
+            <div className="rhs"><span className="rhs-num">{openRisks}</span><span className="rhs-label">Open Risks</span></div>
+            <div className="rhs"><span className="rhs-num">{totalSubs}</span><span className="rhs-label">Subscribers</span></div>
+            <div className="rhs"><span className="rhs-num">{emailList.length}</span><span className="rhs-label">Email List</span></div>
+          </div>
+        </div>
+      </section>
+
+      <div className="os-page-wrap">
+        {error && <div className="os-alert-error">{error}</div>}
+
+        {/* ── Section switcher ── */}
+        <div className="uk-section-nav">
+          {SECTIONS.map(s => (
+            <button key={s} className={`uk-section-btn${section === s ? ' active' : ''}`} onClick={() => switchSection(s)}>
+              {SECTION_ICON[s]} {s}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Tab nav ── */}
+        <div className="os-subnav">
+          {SECTION_TABS[section].map(t => (
+            <button key={t} className={`os-subnav-btn${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{t}</button>
+          ))}
+        </div>
+
+        {/* ── Tab content ── */}
+        <div className="os-tab-content">
+          {tab === 'Tasks'            && <TaskTable tasks={tasks} />}
+          {tab === 'Priorities'       && <PriorityList items={priorities} />}
+          {tab === 'Risks'            && <RiskList items={risks} />}
+          {tab === 'Reporting'        && <ReportingTab items={reporting} />}
+          {tab === 'Products'         && <ProductsSection products={products} />}
+          {tab === 'Orders'           && <OrdersTab orders={orders} ordersSource={ordersSource} discounts={discounts} refunds={refunds} />}
+          {tab === 'Shopify'          && <ShopifyTab products={shopifyProducts} />}
+          {tab === 'Customers'        && <CustomersTab items={customers} />}
+          {tab === 'B2B'              && <B2BTab items={b2b} />}
+          {tab === 'Affiliates'       && <AffiliatesTab items={affiliates} />}
+          {tab === 'Email / Klaviyo'  && <EmailTab items={emailList} />}
+          {tab === 'Marketing'        && <MarketingTab items={marketing} />}
+          {tab === 'Subscriptions'    && <SubscriptionsTab items={subscriptions} />}
+          {tab === 'Customer Service' && <CSTab items={cs} />}
+          {tab === 'Finance'          && <FinanceTab reconcile={reconcile} software={software} payouts={payouts} />}
+          {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} />}
+          {tab === 'Stock on Hand'    && <SOHTab soh={soh} />}
+          {tab === 'Inbound Stock'    && <InboundTab inbound={inbound} />}
+        </div>
+      </div>
+    </OsLayout>
+  );
+}
+
+export async function getServerSideProps() {
+  try {
+    const [tasks, priorities, risks, amazon, catalogue, shopifyProducts, airtableOrders, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products] = await Promise.all([
+      getUKTasks(), getUKPriorities(), getUKRisks(),
+      getUKAmazon(), getUKAmazonCat(),
+      getUKShopify(), getUKOrders(), getUKDiscounts(), getUKRefunds(), getUKPayouts(),
+      getUKStock(), getUKInbound(),
+      getUKB2B(), getUKCustomers(), getUKAffiliates(), getUKEmailList(),
+      getUKMarketing(), getUKSubscriptions(), getUKCS(),
+      getUKReconcile(), getUKSoftware(), getUKReporting(),
+      getProducts(),
+    ]);
+
+    // Live Shopify orders — falls back to Airtable if env vars are not set
+    let orders = airtableOrders;
+    let ordersSource = 'airtable';
+    try {
+      const liveOrders = await getShopifyOrdersLive({ maxOrders: 500 });
+      if (liveOrders !== null) {
+        orders = liveOrders;
+        ordersSource = 'live';
+      }
+    } catch (shopifyErr) {
+      console.warn('Shopify live orders failed, using Airtable fallback:', shopifyErr.message);
+    }
+
+    return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, error: null } };
+  } catch (e) {
+    return { props: { tasks: [], priorities: [], risks: [], amazon: [], catalogue: [], shopifyProducts: [], orders: [], ordersSource: 'airtable', discounts: [], refunds: [], payouts: [], soh: [], inbound: [], b2b: [], customers: [], affiliates: [], emailList: [], marketing: [], subscriptions: [], cs: [], reconcile: [], software: [], reporting: [], products: [], error: e.message } };
+  }
+}
