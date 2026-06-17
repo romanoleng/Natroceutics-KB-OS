@@ -1203,7 +1203,7 @@ a { text-decoration: none; color: inherit; }
   font-family: var(--sans);
 }
 .os-table td {
-  padding: 12px 14px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--cream-dark);
   color: var(--charcoal);
   vertical-align: top;
@@ -1725,11 +1725,11 @@ th.th-sort:hover { background: rgba(29,65,48,0.85); }
 .dp-body {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 16px 20px;
   background: var(--white);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 .dp-field { display: flex; flex-direction: column; gap: 4px; }
 .dp-field-notes .dp-value { font-size: 13px; line-height: 1.6; color: var(--charcoal-70); }
@@ -1807,7 +1807,7 @@ th.th-sort:hover { background: rgba(29,65,48,0.85); }
   .os-region-pill-code { display: block; }
   .os-airtable-btn { font-size: 10px; padding: 3px 8px; }
   .os-logout { font-size: 10px; padding: 3px 8px; }
-  .os-last-updated { display: none; }
+  .os-last-updated { font-size: 9px; }
 
   /* Detail panel — full width on small screens */
   .dp-panel { width: 100vw; border-radius: 0; }

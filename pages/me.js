@@ -115,11 +115,11 @@ function TaskTable({ tasks }) {
       </div>
       <SortableTable
         cols={[
-          { label: 'Date', key: 'Date of Entry', type: 'date', w: 88 },
           { label: 'Task', key: 'Task' },
-          { label: 'Status', key: 'Status', w: 140 },
-          { label: 'Owner', key: 'Owner', w: 110 },
-          { label: 'Due', key: 'Due Date', type: 'date', w: 88 },
+          { label: 'Status', key: 'Status', w: 120 },
+          { label: 'Owner', key: 'Owner', w: 100 },
+          { label: 'Created', key: 'Date of Entry', type: 'date', w: 80 },
+          { label: 'Due', key: 'Due Date', type: 'date', w: 80 },
         ]}
         data={dataWithStatus}
         sinkCompleted="Status"
@@ -127,12 +127,10 @@ function TaskTable({ tasks }) {
           const isDone = DONE_VALS_ME.has(t.Status);
           return (
             <tr key={t.id} className={isDone ? 'row-done' : ''} onClick={() => setSelectedTask({ ...t, Status: localStatus[t.id] || t.Status })} style={{ cursor: 'pointer' }}>
-              <td className="os-mono" style={{ fontSize: 11, color: 'var(--charcoal-45)', whiteSpace: 'nowrap' }}>{fmtEntryDate(t['Date of Entry'], t.createdTime)}</td>
               <td>
                 <strong>{fmt(t.Task)}</strong>
-                {t.Notes && <p className="os-table-note">{t.Notes}</p>}
                 {isDone && doneAt[t.id] && (
-                  <p className="done-stamp">✓ {new Date(doneAt[t.id]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · {new Date(doneAt[t.id]).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</p>
+                  <span className="done-stamp"> ✓ {new Date(doneAt[t.id]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
                 )}
               </td>
               <td onClick={e => e.stopPropagation()}>
@@ -146,6 +144,7 @@ function TaskTable({ tasks }) {
                 </select>
               </td>
               <td className="os-muted">{fmt(t.Owner)}</td>
+              <td className="os-mono" style={{ fontSize: 11, color: 'var(--charcoal-45)', whiteSpace: 'nowrap' }}>{fmtEntryDate(t['Date of Entry'], t.createdTime)}</td>
               <td className="os-mono" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{fmt(t['Due Date'])}</td>
             </tr>
           );
@@ -652,15 +651,13 @@ export default function MEPage({ tasks, priorities, risks, registrations, invent
 }
 
 export async function getServerSideProps() {
-  try {
-    const [tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, marketing, cs, customers, reporting, products] = await Promise.all([
-      getMETasks(), getMEPriorities(), getMERisks(), getMERegistrations(),
-      getMEInventory(), getMEAffiliates(), getMEB2B(), getMEPartners(),
-      getMEFinance(), getMEMarketing(), getMECS(), getMECustomers(), getMEReporting(),
-      getProducts(),
-    ]);
-    return { props: { tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, marketing, cs, customers, reporting, products, error: null, serverTime: new Date().toISOString() } };
-  } catch (e) {
-    return { props: { tasks: [], priorities: [], risks: [], registrations: [], inventory: [], affiliates: [], b2b: [], partners: [], finance: [], marketing: [], cs: [], customers: [], reporting: [], products: [], error: e.message } };
-  }
+  const safe = p => p.catch(e => { console.warn('[me] fetch partial fail:', e.message); return []; });
+
+  const [tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, marketing, cs, customers, reporting, products] = await Promise.all([
+    safe(getMETasks()), safe(getMEPriorities()), safe(getMERisks()), safe(getMERegistrations()),
+    safe(getMEInventory()), safe(getMEAffiliates()), safe(getMEB2B()), safe(getMEPartners()),
+    safe(getMEFinance()), safe(getMEMarketing()), safe(getMECS()), safe(getMECustomers()), safe(getMEReporting()),
+    safe(getProducts()),
+  ]);
+  return { props: { tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, marketing, cs, customers, reporting, products, error: null, serverTime: new Date().toISOString() } };
 }
