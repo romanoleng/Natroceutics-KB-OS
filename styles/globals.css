@@ -2183,6 +2183,56 @@ th.th-sort:hover { background: rgba(29,65,48,0.85); }
 .wh-banner-num { font-family: var(--mono); font-size: 22px; font-weight: 500; color: var(--cream); }
 .wh-banner-unit { font-size: 10px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase; color: rgba(238,235,225,0.6); }
 
+/* ── WAREHOUSE INSIGHTS (top5 / bottom5) ─────── */
+.wh-insights {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.wh-insight-block {
+  flex: 1;
+  min-width: 200px;
+  background: var(--white);
+  border: 1px solid var(--cream-dark);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+}
+.wh-insight-title {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--charcoal-45);
+  margin-bottom: 8px;
+}
+.wh-insight-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--cream-dark);
+  gap: 8px;
+}
+.wh-insight-row:last-child { border-bottom: none; }
+.wh-insight-name {
+  font-size: 11px;
+  color: var(--charcoal);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wh-insight-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--forest-700);
+  flex-shrink: 0;
+}
+.wh-insight-low { color: var(--red); }
+
 /* ── UK SECTION SWITCHER ─────────────────────── */
 .uk-section-nav {
   display: flex;

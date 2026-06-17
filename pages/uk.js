@@ -21,7 +21,7 @@ import { getShopifyOrdersLive } from '../lib/shopify';
 const SECTIONS = ['Overview', 'Shopify UK', 'Amazon UK', 'Warehouse'];
 const SECTION_TABS = {
   'Overview':   ['Tasks', 'Priorities', 'Risks', 'Reporting', 'Products'],
-  'Shopify UK': ['Orders', 'Shopify', 'Customers', 'B2B', 'Affiliates', 'Email / Klaviyo', 'Marketing', 'Subscriptions', 'Customer Service', 'Finance'],
+  'Shopify UK': ['Tasks', 'Priorities', 'Risks', 'Orders', 'Shopify', 'Customers', 'B2B', 'Affiliates', 'Email / Klaviyo', 'Marketing', 'Subscriptions', 'Customer Service', 'Finance'],
   'Amazon UK':  ['Amazon UK'],
   'Warehouse':  ['Stock on Hand', 'Inbound Stock'],
 };
@@ -501,8 +501,49 @@ function ShopifyTab({ products }) {
     });
   }, [products, search, cat]);
 
+  const totalShopifyStock = filtered.reduce((s, p) => s + (Number(p['Shopify Stock']) || 0), 0);
+  const byStock = useMemo(() => [...filtered].filter(p => Number(p['Shopify Stock']) > 0).sort((a, b) => (Number(b['Shopify Stock']) || 0) - (Number(a['Shopify Stock']) || 0)), [filtered]);
+  const top5 = byStock.slice(0, 5);
+  const bottom5 = [...byStock].reverse().slice(0, 5);
+
   return (
     <>
+      <div className="wh-banner">
+        <div className="wh-banner-inner">
+          <span className="wh-banner-label">🛍 Shopify UK</span>
+          <span className="wh-banner-sub">Live product catalogue</span>
+        </div>
+        <div className="wh-banner-stats">
+          <div className="wh-banner-stat"><span className="wh-banner-num">{filtered.length}</span><span className="wh-banner-unit">SKUs</span></div>
+          <div className="wh-banner-stat"><span className="wh-banner-num">{totalShopifyStock.toLocaleString()}</span><span className="wh-banner-unit">Units</span></div>
+        </div>
+      </div>
+      {(top5.length > 0 || bottom5.length > 0) && (
+        <div className="wh-insights">
+          {top5.length > 0 && (
+            <div className="wh-insight-block">
+              <div className="wh-insight-title">↑ Top 5 Stock</div>
+              {top5.map(p => (
+                <div key={p.id} className="wh-insight-row">
+                  <span className="wh-insight-name">{p.Product || p.SKU || '—'}</span>
+                  <span className="wh-insight-num">{p['Shopify Stock']}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {bottom5.length > 0 && (
+            <div className="wh-insight-block">
+              <div className="wh-insight-title">↓ Lowest Stock</div>
+              {bottom5.map(p => (
+                <div key={p.id} className="wh-insight-row">
+                  <span className="wh-insight-name">{p.Product || p.SKU || '—'}</span>
+                  <span className="wh-insight-num wh-insight-low">{p['Shopify Stock']}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <div className="os-toolbar">
         <input className="os-search" placeholder="Search products, SKU…" value={search} onChange={e => setSearch(e.target.value)} />
         {cats.length > 0 && (
@@ -754,15 +795,49 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound }) {
 
       {/* ── FBA Stock ── */}
       {sub === 'FBA Stock' && (
-        !fba.length ? <div className="os-empty">No Amazon FBA stock data.</div> : (
+        !fba.length ? <div className="os-empty">No Amazon FBA stock data.</div> : (() => {
+          const fbaByStock = [...fba].filter(p => Number(p['FBA Stock']) > 0).sort((a, b) => (Number(b['FBA Stock']) || 0) - (Number(a['FBA Stock']) || 0));
+          const fbaTop5 = fbaByStock.slice(0, 5);
+          const fbaBottom5 = [...fbaByStock].reverse().slice(0, 5);
+          return (
           <>
-            <div className="os-stat-row" style={{ marginTop: 8 }}>
-              <div className={`os-stat-card${reorderCount > 0 ? ' os-stat-red' : ''}`}>
-                <div className="os-stat-num">{reorderCount}</div><div className="os-stat-label">Reorder Required</div>
+            <div className="wh-banner" style={{ marginTop: 8 }}>
+              <div className="wh-banner-inner">
+                <span className="wh-banner-label">📦 Amazon UK — FBA Stock</span>
+                <span className="wh-banner-sub">Fulfilment by Amazon inventory</span>
               </div>
-              <div className="os-stat-card"><div className="os-stat-num">{fba.length}</div><div className="os-stat-label">Total SKUs</div></div>
-              <div className="os-stat-card"><div className="os-stat-num">{totalFBA.toLocaleString()}</div><div className="os-stat-label">Total FBA Units</div></div>
+              <div className="wh-banner-stats">
+                <div className="wh-banner-stat"><span className="wh-banner-num">{fba.length}</span><span className="wh-banner-unit">SKUs</span></div>
+                <div className="wh-banner-stat"><span className="wh-banner-num">{totalFBA.toLocaleString()}</span><span className="wh-banner-unit">Units</span></div>
+                {reorderCount > 0 && <div className="wh-banner-stat"><span className="wh-banner-num" style={{ color: '#f87171' }}>{reorderCount}</span><span className="wh-banner-unit">Reorder</span></div>}
+              </div>
             </div>
+            {(fbaTop5.length > 0 || fbaBottom5.length > 0) && (
+              <div className="wh-insights">
+                {fbaTop5.length > 0 && (
+                  <div className="wh-insight-block">
+                    <div className="wh-insight-title">↑ Top 5 FBA Stock</div>
+                    {fbaTop5.map(p => (
+                      <div key={p.id} className="wh-insight-row">
+                        <span className="wh-insight-name">{p.Product || p['Amazon SKU'] || '—'}</span>
+                        <span className="wh-insight-num">{p['FBA Stock']}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {fbaBottom5.length > 0 && (
+                  <div className="wh-insight-block">
+                    <div className="wh-insight-title">↓ Lowest FBA Stock</div>
+                    {fbaBottom5.map(p => (
+                      <div key={p.id} className="wh-insight-row">
+                        <span className="wh-insight-name">{p.Product || p['Amazon SKU'] || '—'}</span>
+                        <span className="wh-insight-num wh-insight-low">{p['FBA Stock']}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <div style={{ marginTop: 16 }}>
               <SortableTable
                 cols={[
@@ -793,7 +868,8 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound }) {
               />
             </div>
           </>
-        )
+          );
+        })()
       )}
 
       {/* ── Inbound (Bio-nature → Amazon FBA) ── */}
@@ -923,6 +999,9 @@ function SOHTab({ soh }) {
   }, [soh, search, chanFilter]);
 
   const totalUnits = filtered.reduce((sum, s) => sum + (Number(s['Total QTY']) || 0), 0);
+  const byQty = useMemo(() => [...filtered].filter(s => Number(s['Total QTY']) > 0).sort((a, b) => (Number(b['Total QTY']) || 0) - (Number(a['Total QTY']) || 0)), [filtered]);
+  const top5soh = byQty.slice(0, 5);
+  const bottom5soh = [...byQty].reverse().slice(0, 5);
 
   return (
     <>
@@ -936,6 +1015,32 @@ function SOHTab({ soh }) {
           <div className="wh-banner-stat"><span className="wh-banner-num">{totalUnits.toLocaleString()}</span><span className="wh-banner-unit">Units</span></div>
         </div>
       </div>
+      {(top5soh.length > 0 || bottom5soh.length > 0) && (
+        <div className="wh-insights">
+          {top5soh.length > 0 && (
+            <div className="wh-insight-block">
+              <div className="wh-insight-title">↑ Top 5 Stock</div>
+              {top5soh.map(s => (
+                <div key={s.id} className="wh-insight-row">
+                  <span className="wh-insight-name">{s.Product || s.SKU || '—'}</span>
+                  <span className="wh-insight-num">{s['Total QTY']}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {bottom5soh.length > 0 && (
+            <div className="wh-insight-block">
+              <div className="wh-insight-title">↓ Lowest Stock</div>
+              {bottom5soh.map(s => (
+                <div key={s.id} className="wh-insight-row">
+                  <span className="wh-insight-name">{s.Product || s.SKU || '—'}</span>
+                  <span className="wh-insight-num wh-insight-low">{s['Total QTY']}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="os-toolbar" style={{ marginTop: 16 }}>
         <input className="os-search" placeholder="Search product, SKU…" value={search} onChange={e => setSearch(e.target.value)} />
@@ -1509,7 +1614,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
           {tab === 'Priorities'       && <PriorityList items={priorities} />}
           {tab === 'Risks'            && <RiskList items={risks} />}
           {tab === 'Reporting'        && <ReportingTab items={reporting} />}
-          {tab === 'Products'         && <ProductsSection products={products} />}
+          {tab === 'Products'         && <ProductsSection products={products} markets={[['UK','Shopify UK'],['AMZN','Amazon UK']]} />}
           {tab === 'Orders'           && <OrdersTab orders={orders} ordersSource={ordersSource} discounts={discounts} refunds={refunds} />}
           {tab === 'Shopify'          && <ShopifyTab products={shopifyProducts} />}
           {tab === 'Customers'        && <CustomersTab items={customers} />}
