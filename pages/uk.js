@@ -69,6 +69,16 @@ function fmtEntryDate(dateEntry, createdTime) {
   } catch { return raw; }
 }
 
+function downloadCSV(rows, filename) {
+  if (!rows || !rows.length) return;
+  const keys = Object.keys(rows[0]).filter(k => !k.startsWith('_'));
+  const csv = [keys.join(','), ...rows.map(r => keys.map(k => JSON.stringify(r[k] ?? '')).join(','))].join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = filename + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
 /* ── Shared inline-status constants ──────────── */
 const DONE_VALS = new Set(['Done', 'Complete', 'Completed', 'Approved']);
 const BASE_STATUSES = ['Not Started', 'To Do', 'In Progress', 'Under Review', 'Done', 'Blocked', 'Cancelled'];
@@ -297,13 +307,30 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
 
   const RANGES = ['MTD', 'Last Month', '30 Days', '90 Days', 'YTD', 'Custom'];
 
+  // Determine which range buttons have no data so they can be visually disabled
+  const disabledRanges = useMemo(() => {
+    if (!orders.length) return new Set(RANGES);
+    const disabled = new Set();
+    const t = new Date();
+    const lmStart = new Date(t.getFullYear(), t.getMonth() - 1, 1);
+    const lmEnd   = new Date(t.getFullYear(), t.getMonth(), 0);
+    if (!orders.some(o => { const d = new Date(o['Order Date']); return d >= lmStart && d <= lmEnd; })) disabled.add('Last Month');
+    return disabled;
+  }, [orders]);
+
   return (
     <>
       {/* ── Date filter bar ── */}
       <div className="orders-filter-bar">
-        <div className="orders-range-group">
+        <div className="orders-range-group" style={{ overflowX: 'auto', display: 'flex', flexWrap: 'nowrap', gap: 4 }}>
           {RANGES.map(r => (
-            <button key={r} className={`orders-range-btn${range === r ? ' active' : ''}`} onClick={() => setRange(r)}>{r}</button>
+            <button
+              key={r}
+              className={`orders-range-btn${range === r ? ' active' : ''}`}
+              style={disabledRanges.has(r) ? { opacity: 0.38, cursor: 'not-allowed' } : undefined}
+              title={disabledRanges.has(r) ? 'No data for this period' : undefined}
+              onClick={() => setRange(r)}
+            >{r}</button>
           ))}
           {ordersSource === 'live'      && <span className="orders-live-badge">🟢 LIVE · Shopify</span>}
           {ordersSource === 'csv'       && <span className="orders-live-badge" style={{ background: 'var(--teal)', color: '#fff' }}>📊 CSV Export</span>}
@@ -348,7 +375,7 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
       </div>
 
       {/* ── Sub-tabs ── */}
-      <div className="os-sub-tabs" style={{ marginTop: 24 }}>
+      <div className="os-sub-tabs" style={{ marginTop: 24, overflowX: 'auto', display: 'flex', flexWrap: 'nowrap', gap: 4 }}>
         {['Summary', 'Orders', 'Daily Sales', 'By Product', 'Discounts', 'Refunds'].map(s => (
           <button key={s} className={`os-sub-tab${sub === s ? ' active' : ''}`} onClick={() => setSub(s)}>{s}</button>
         ))}
@@ -407,32 +434,37 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
 
       {/* ── Orders list ── */}
       {sub === 'Orders' && (
-        <SortableTable
-          cols={[
-            { label: 'Order', key: 'Order Number' },
-            { label: 'Customer', key: 'Customer Name', w: 130 },
-            { label: 'Date', key: 'Order Date', type: 'date', w: 100 },
-            { label: 'Gross', key: 'Gross Total (£)', type: 'number', w: 90 },
-            { label: 'Discount', key: 'Discount Amount (£)', type: 'number', w: 90 },
-            { label: 'Net', key: 'Net Total (£)', type: 'number', w: 90 },
-            { label: 'Status', key: 'Financial Status', w: 110 },
-            { label: 'Fulfilment', key: 'Fulfilment Status', w: 120 },
-          ]}
-          data={filteredOrders}
-          renderRow={o => (
-            <tr key={o.id}>
-              <td><strong>{fmt(o['Order Number'])}</strong></td>
-              <td className="os-muted">{fmt(o['Customer Name'])}</td>
-              <td className="os-mono">{fmt(o['Order Date'])}</td>
-              <td className="os-mono">{gbp(o['Gross Total (£)'])}</td>
-              <td className="os-mono">{o['Discount Amount (£)'] ? <span style={{ color: 'var(--amber)' }}>{gbp(o['Discount Amount (£)'])}</span> : '—'}</td>
-              <td className="os-mono">{gbp(o['Net Total (£)'])}</td>
-              <td>{o['Financial Status'] ? <span className={`os-pill ${sc(o['Financial Status'])}`}>{o['Financial Status']}</span> : '—'}</td>
-              <td>{o['Fulfilment Status'] ? <span className={`os-pill ${sc(o['Fulfilment Status'])}`}>{o['Fulfilment Status']}</span> : '—'}</td>
-            </tr>
-          )}
-          emptyMsg="No orders in this date range."
-        />
+        <>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+            <button className="os-sub-tab" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => downloadCSV(filteredOrders, 'shopify-orders-export')}>↓ CSV</button>
+          </div>
+          <SortableTable
+            cols={[
+              { label: 'Order', key: 'Order Number' },
+              { label: 'Customer', key: 'Customer Name', w: 130 },
+              { label: 'Date', key: 'Order Date', type: 'date', w: 100 },
+              { label: 'Gross', key: 'Gross Total (£)', type: 'number', w: 90 },
+              { label: 'Discount', key: 'Discount Amount (£)', type: 'number', w: 90 },
+              { label: 'Net', key: 'Net Total (£)', type: 'number', w: 90 },
+              { label: 'Status', key: 'Financial Status', w: 110 },
+              { label: 'Fulfilment', key: 'Fulfilment Status', w: 120 },
+            ]}
+            data={filteredOrders}
+            renderRow={o => (
+              <tr key={o.id}>
+                <td><strong>{fmt(o['Order Number'])}</strong></td>
+                <td className="os-muted">{fmt(o['Customer Name'])}</td>
+                <td className="os-mono">{fmt(o['Order Date'])}</td>
+                <td className="os-mono">{gbp(o['Gross Total (£)'])}</td>
+                <td className="os-mono">{o['Discount Amount (£)'] ? <span style={{ color: 'var(--amber)' }}>{gbp(o['Discount Amount (£)'])}</span> : '—'}</td>
+                <td className="os-mono">{gbp(o['Net Total (£)'])}</td>
+                <td>{o['Financial Status'] ? <span className={`os-pill ${sc(o['Financial Status'])}`}>{o['Financial Status']}</span> : '—'}</td>
+                <td>{o['Fulfilment Status'] ? <span className={`os-pill ${sc(o['Fulfilment Status'])}`}>{o['Fulfilment Status']}</span> : '—'}</td>
+              </tr>
+            )}
+            emptyMsg="No orders in this date range."
+          />
+        </>
       )}
 
       {/* ── Discounts ── */}
@@ -513,7 +545,11 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
                 {totDisc > 0 && <div className="wh-banner-stat"><span className="wh-banner-num" style={{ color: 'var(--amber)' }}>£{totDisc.toFixed(2)}</span><span className="wh-banner-unit">Discounts</span></div>}
               </div>
             </div>
-            <table className="os-table" style={{ marginTop: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8, marginBottom: 2 }}>
+              <button className="os-sub-tab" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => downloadCSV(dailySales, 'shopify-daily-sales')}>↓ CSV</button>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+            <table className="os-table" style={{ marginTop: 4 }}>
               <thead>
                 <tr>
                   <th>Date</th>
@@ -545,6 +581,7 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
                 </tr>
               </tbody>
             </table>
+            </div>
           </>
         );
       })()}
@@ -565,6 +602,9 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
                   <div className="wh-banner-stat"><span className="wh-banner-num">{salesByProduct.reduce((s, r) => s + r.qty, 0)}</span><span className="wh-banner-unit">Units</span></div>
                   <div className="wh-banner-stat"><span className="wh-banner-num">£{salesByProduct.reduce((s, r) => s + r.netSales, 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span><span className="wh-banner-unit">Net Sales</span></div>
                 </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+                <button className="os-sub-tab" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => downloadCSV(salesByProduct, 'shopify-sales-by-product')}>↓ CSV</button>
               </div>
               <SortableTable
                 cols={[
@@ -1864,7 +1904,7 @@ function CSTab({ items }) {
 }
 
 /* ── Finance ──────────────────────────────────── */
-function FinanceTab({ reconcile, software, payouts, payoutsCsv = [] }) {
+function FinanceTab({ reconcile, software, payouts, payoutsCsv = [], serverTime }) {
   const [sub, setSub] = useState('Shopify Payments');
   const reconcileEditor = useStatusEditor(reconcile);
   const payoutsEditor   = useStatusEditor(payouts);
@@ -1873,7 +1913,7 @@ function FinanceTab({ reconcile, software, payouts, payoutsCsv = [] }) {
 
   // MTD + 7-day computed from payoutsCsv
   const payoutKpis = useMemo(() => {
-    const today = new Date('2026-06-18'); // update when redeploying
+    const today = new Date(serverTime || Date.now());
     const mtdStart = new Date(today.getFullYear(), today.getMonth(), 1);
     const d7Start  = new Date(today); d7Start.setDate(today.getDate() - 6);
     const inRange  = (d, from) => { const dt = new Date(d); return dt >= from && dt <= today; };
@@ -1934,7 +1974,11 @@ function FinanceTab({ reconcile, software, payouts, payoutsCsv = [] }) {
               </div>
 
               {/* Payout history table */}
-              <table className="os-table" style={{ marginTop: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+                <button className="os-sub-tab" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => downloadCSV(payoutsCsv, 'shopify-payouts-export')}>↓ CSV</button>
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+              <table className="os-table" style={{ marginTop: 0 }}>
                 <thead>
                   <tr>
                     <th>Date</th>
@@ -1960,6 +2004,7 @@ function FinanceTab({ reconcile, software, payouts, payoutsCsv = [] }) {
                   ))}
                 </tbody>
               </table>
+              </div>
             </>
           )
       )}
@@ -2186,7 +2231,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
           {tab === 'Marketing'        && <MarketingTab items={marketing} />}
           {tab === 'Subscriptions'    && <SubscriptionsTab items={subscriptions} />}
           {tab === 'Customer Service' && <CSTab items={cs} />}
-          {tab === 'Finance'          && <FinanceTab reconcile={reconcile} software={software} payouts={payouts} payoutsCsv={payoutsCsv || []} />}
+          {tab === 'Finance'          && <FinanceTab reconcile={reconcile} software={software} payouts={payouts} payoutsCsv={payoutsCsv || []} serverTime={serverTime} />}
           {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} tasks={tasks} priorities={priorities} marketing={marketing} inbound={inbound} reporting={reporting} />}
           {tab === 'Stock on Hand'    && <SOHTab soh={soh} sohSource={sohSource} />}
           {tab === 'Inbound Stock'    && <InboundTab inbound={inbound} />}
