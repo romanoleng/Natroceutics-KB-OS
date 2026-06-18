@@ -16,7 +16,7 @@ import {
   getUKEmailList,
   getProducts,
 } from '../lib/airtable';
-import { getShopifyOrdersLive } from '../lib/shopify';
+import { getShopifyOrdersLive, getSalesByProduct } from '../lib/shopify';
 
 /* ── Section / Tab structure ──────────────────── */
 const SECTIONS = ['Overview', 'Shopify UK', 'Amazon UK', 'Warehouse'];
@@ -253,7 +253,7 @@ function RiskList({ items }) {
 }
 
 /* ── Orders (date-filtered, KPI summary) ─────── */
-function OrdersTab({ orders, ordersSource, discounts, refunds }) {
+function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = [] }) {
   const [range, setRange] = useState('MTD');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
@@ -348,7 +348,7 @@ function OrdersTab({ orders, ordersSource, discounts, refunds }) {
 
       {/* ── Sub-tabs ── */}
       <div className="os-sub-tabs" style={{ marginTop: 24 }}>
-        {['Summary', 'Orders', 'Discounts', 'Refunds'].map(s => (
+        {['Summary', 'Orders', 'Discounts', 'Refunds', 'By Product'].map(s => (
           <button key={s} className={`os-sub-tab${sub === s ? ' active' : ''}`} onClick={() => setSub(s)}>{s}</button>
         ))}
       </div>
@@ -486,6 +486,53 @@ function OrdersTab({ orders, ordersSource, discounts, refunds }) {
           )}
           emptyMsg="No refunds."
         />
+      )}
+
+      {/* ── By Product ── */}
+      {sub === 'By Product' && (
+        salesByProduct.length === 0
+          ? <div className="wh-banner" style={{ marginTop: 12 }}><div className="wh-banner-inner"><span className="wh-banner-label">No data</span><span className="wh-banner-sub">Live Shopify sales data unavailable — check SHOPIFY_SHOP_URL / SHOPIFY_ADMIN_TOKEN env vars.</span></div></div>
+          : (
+            <>
+              <div className="wh-banner" style={{ marginTop: 12 }}>
+                <div className="wh-banner-inner">
+                  <span className="wh-banner-label">Sales by Product</span>
+                  <span className="wh-banner-sub">Live · Last 30 days · Shopify UK</span>
+                </div>
+                <div className="wh-banner-stats">
+                  <div className="wh-banner-stat"><span className="wh-banner-num">{salesByProduct.length}</span><span className="wh-banner-unit">SKUs</span></div>
+                  <div className="wh-banner-stat"><span className="wh-banner-num">{salesByProduct.reduce((s, r) => s + r.qty, 0)}</span><span className="wh-banner-unit">Units</span></div>
+                  <div className="wh-banner-stat"><span className="wh-banner-num">£{salesByProduct.reduce((s, r) => s + r.netSales, 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span><span className="wh-banner-unit">Net Sales</span></div>
+                </div>
+              </div>
+              <SortableTable
+                cols={[
+                  { label: 'Product', key: 'product' },
+                  { label: 'Product ID', key: 'productId', w: 150 },
+                  { label: 'Qty', key: 'qty', type: 'number', w: 70 },
+                  { label: 'Orders', key: 'orders', type: 'number', w: 80 },
+                  { label: 'Avg Price', key: 'price', type: 'number', w: 95 },
+                  { label: 'Gross Sales', key: 'grossSales', type: 'number', w: 105 },
+                  { label: 'Discounts', key: 'discounts', type: 'number', w: 95 },
+                  { label: 'Val excl VAT', key: 'netSales', type: 'number', w: 110 },
+                ]}
+                data={salesByProduct}
+                renderRow={r => (
+                  <tr key={r.productId}>
+                    <td><strong>{r.product}</strong></td>
+                    <td className="os-mono os-muted" style={{ fontSize: 11 }}>{r.productId}</td>
+                    <td className="os-mono">{r.qty}</td>
+                    <td className="os-mono">{r.orders}</td>
+                    <td className="os-mono">{gbp(r.price)}</td>
+                    <td className="os-mono">{gbp(r.grossSales)}</td>
+                    <td className="os-mono">{r.discounts > 0 ? <span style={{ color: 'var(--amber)' }}>-{gbp(r.discounts)}</span> : '—'}</td>
+                    <td className="os-mono"><strong>{gbp(r.netSales)}</strong></td>
+                  </tr>
+                )}
+                emptyMsg="No product sales in this period."
+              />
+            </>
+          )
       )}
     </>
   );
@@ -1868,7 +1915,7 @@ function ReportingTab({ items }) {
 }
 
 /* ── Page ─────────────────────────────────────── */
-export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, error, serverTime }) {
+export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, error, serverTime }) {
   const router = useRouter();
   const [section, setSection] = useState('Overview');
   const [tab, setTab] = useState('Tasks');
@@ -1950,7 +1997,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
           {tab === 'Risks'            && <RiskList items={risks} />}
           {tab === 'Reporting'        && <ReportingTab items={reporting} />}
           {tab === 'Products'         && <ProductsSection products={products} markets={[['UK','Shopify UK'],['AMZN','Amazon UK']]} />}
-          {tab === 'Orders'           && <OrdersTab orders={orders} ordersSource={ordersSource} discounts={discounts} refunds={refunds} />}
+          {tab === 'Orders'           && <OrdersTab orders={orders} ordersSource={ordersSource} discounts={discounts} refunds={refunds} salesByProduct={salesByProduct} />}
           {tab === 'Shopify'          && <ShopifyTab products={shopifyProducts} />}
           {tab === 'Customers'        && <CustomersTab items={customers} />}
           {tab === 'B2B'              && <B2BTab items={b2b} />}
@@ -1996,5 +2043,14 @@ export async function getServerSideProps() {
     console.warn('Shopify live orders failed, using Airtable fallback:', shopifyErr.message);
   }
 
-  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, error: null, serverTime: new Date().toISOString() } };
+  // Live Shopify sales by product (ShopifyQL) — falls back to [] on error
+  let salesByProduct = [];
+  try {
+    const sbp = await getSalesByProduct({ days: 30 });
+    if (sbp) salesByProduct = sbp;
+  } catch (sbpErr) {
+    console.warn('getSalesByProduct failed:', sbpErr.message);
+  }
+
+  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, error: null, serverTime: new Date().toISOString() } };
 }
