@@ -4,7 +4,7 @@ import OsLayout from '../components/OsLayout';
 import ProductsSection from '../components/ProductsSection';
 import SortableTable from '../components/SortableTable';
 import TaskDetailPanel from '../components/TaskDetailPanel';
-import { useStatusEditor, StatusSelect, sc as scShared, DONE_VALS as DONE_VALS_SHARED, BASE_STATUSES as BASE_STATUSES_SHARED } from '../components/StatusSelect';
+import { useStatusEditor, StatusSelect, DateCell, sc as scShared, DONE_VALS as DONE_VALS_SHARED, BASE_STATUSES as BASE_STATUSES_SHARED } from '../components/StatusSelect';
 import {
   getUKTasks, getUKPriorities, getUKRisks,
   getUKAmazon, getUKAmazonCat,
@@ -89,11 +89,11 @@ async function patchRecord(baseId, tableId, recordId, fields) {
 function TaskTable({ tasks }) {
   const [search, setSearch] = useState('');
   const [sf, setSF] = useState('');
-  const [localStatus, setLocalStatus] = useState({});
   const [doneAt, setDoneAt] = useState({});
-  const [saving, setSaving] = useState({});
   const [selectedTask, setSelectedTask] = useState(null);
-  const [updateError, setUpdateError] = useState('');
+
+  // useStatusEditor handles optimistic updates + sessionStorage persistence across tab switches
+  const editor = useStatusEditor(tasks);
 
   const allStatuses = useMemo(() =>
     [...new Set([...BASE_STATUSES, ...tasks.map(t => t.Status).filter(Boolean)])],
@@ -102,44 +102,26 @@ function TaskTable({ tasks }) {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return tasks.filter(t => {
-      const eff = localStatus[t.id] || t.Status;
+    return editor.dataWithStatus.filter(t => {
       const mQ = !q || (t.Task || '').toLowerCase().includes(q) || (t.Owner || '').toLowerCase().includes(q);
-      const mS = !sf || eff === sf;
+      const mS = !sf || t.Status === sf;
       return mQ && mS;
     });
-  }, [tasks, search, sf, localStatus]);
-
-  const dataWithStatus = useMemo(() =>
-    filtered.map(t => ({ ...t, Status: localStatus[t.id] || t.Status })),
-    [filtered, localStatus]
-  );
+  }, [editor.dataWithStatus, search, sf]);
 
   async function handleStatusChange(recordId, newStatus) {
-    setLocalStatus(prev => ({ ...prev, [recordId]: newStatus }));
-    setSaving(prev => ({ ...prev, [recordId]: true }));
     if (DONE_VALS.has(newStatus)) {
       setDoneAt(prev => ({ ...prev, [recordId]: new Date().toISOString() }));
     }
-    // Keep panel record in sync
     setSelectedTask(prev => prev?.id === recordId ? { ...prev, Status: newStatus } : prev);
-    try {
-      await patchRecord(UK_BASE, UK_TABLES_CLIENT.TASKS, recordId, { Status: newStatus });
-    } catch (err) {
-      setLocalStatus(prev => { const n = { ...prev }; delete n[recordId]; return n; });
-      setDoneAt(prev => { const n = { ...prev }; delete n[recordId]; return n; });
-      setSelectedTask(prev => prev?.id === recordId ? { ...prev, Status: tasks.find(t => t.id === recordId)?.Status } : prev);
-      setUpdateError(`Save failed: ${err.message}`);
-      setTimeout(() => setUpdateError(''), 6000);
-    } finally {
-      setSaving(prev => { const n = { ...prev }; delete n[recordId]; return n; });
-    }
+    const record = editor.dataWithStatus.find(t => t.id === recordId);
+    if (record) await editor.handleStatusChange(recordId, newStatus, record);
   }
 
   return (
     <>
-      {updateError && (
-        <div className="os-alert-error" style={{ marginBottom: 8 }}>{updateError}</div>
+      {editor.updateError && (
+        <div className="os-alert-error" style={{ marginBottom: 8 }}>{editor.updateError}</div>
       )}
       <div className="os-toolbar">
         <input className="os-search" placeholder="Search tasks…" value={search} onChange={e => setSearch(e.target.value)} />
@@ -156,15 +138,15 @@ function TaskTable({ tasks }) {
           { label: 'Task', key: 'Task' },
           { label: 'Status', key: 'Status', w: 120 },
           { label: 'Owner', key: 'Owner', w: 100 },
-          { label: 'Created', key: 'Date of Entry', type: 'date', w: 80 },
-          { label: 'Due', key: 'Due Date', type: 'date', w: 80 },
+          { label: 'Created', key: 'Date of Entry', type: 'date', w: 90 },
+          { label: 'Due Date', key: 'Due Date', type: 'date', w: 120 },
         ]}
-        data={dataWithStatus}
+        data={filtered}
         sinkCompleted="Status"
         renderRow={t => {
           const isDone = DONE_VALS.has(t.Status);
           return (
-            <tr key={t.id} className={isDone ? 'row-done' : ''} onClick={() => setSelectedTask({ ...t, Status: localStatus[t.id] || t.Status })} style={{ cursor: 'pointer' }}>
+            <tr key={t.id} className={isDone ? 'row-done' : ''} onClick={() => setSelectedTask(t)} style={{ cursor: 'pointer' }}>
               <td>
                 <strong>{fmt(t.Task)}</strong>
                 {isDone && doneAt[t.id] && (
@@ -176,14 +158,16 @@ function TaskTable({ tasks }) {
                   className={`os-pill status-select ${sc(t.Status)}`}
                   value={t.Status || ''}
                   onChange={e => handleStatusChange(t.id, e.target.value)}
-                  disabled={!!saving[t.id]}
+                  disabled={!!editor.saving[t.id]}
                 >
                   {allStatuses.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </td>
               <td className="os-muted">{fmt(t.Owner)}</td>
               <td className="os-mono" style={{ fontSize: 11, color: 'var(--charcoal-45)', whiteSpace: 'nowrap' }}>{fmtEntryDate(t['Date of Entry'], t.createdTime)}</td>
-              <td className="os-mono" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{fmt(t['Due Date'])}</td>
+              <td onClick={e => e.stopPropagation()}>
+                <DateCell record={t} fieldName="Due Date" />
+              </td>
             </tr>
           );
         }}
@@ -194,7 +178,7 @@ function TaskTable({ tasks }) {
         onClose={() => setSelectedTask(null)}
         allStatuses={allStatuses}
         onStatusChange={handleStatusChange}
-        saving={selectedTask ? saving[selectedTask.id] : false}
+        saving={selectedTask ? editor.saving[selectedTask.id] : false}
       />
     </>
   );
@@ -202,10 +186,12 @@ function TaskTable({ tasks }) {
 
 /* ── Priorities ───────────────────────────────── */
 function PriorityList({ items }) {
+  const editor = useStatusEditor(items);
+  const allStatuses = useMemo(() => [...new Set([...BASE_STATUSES, ...items.map(p => p.Status).filter(Boolean)])], [items]);
   if (!items.length) return <div className="os-empty">No priorities this week.</div>;
   return (
     <div className="priority-list">
-      {items.map((p, i) => (
+      {editor.dataWithStatus.map((p, i) => (
         <div key={p.id} className="priority-item">
           <span className="priority-num">{i + 1}</span>
           <div className="priority-body">
@@ -217,7 +203,9 @@ function PriorityList({ items }) {
               {p.Week && <span className="os-tag os-tag-week">W{p.Week}</span>}
             </div>
           </div>
-          {p.Status && <span className={`os-pill ${sc(p.Status)}`}>{p.Status}</span>}
+          <div onClick={e => e.stopPropagation()}>
+            <StatusSelect record={p} allStatuses={allStatuses} handleStatusChange={editor.handleStatusChange} saving={editor.saving} />
+          </div>
         </div>
       ))}
     </div>
@@ -226,28 +214,33 @@ function PriorityList({ items }) {
 
 /* ── Risks ────────────────────────────────────── */
 function RiskList({ items }) {
-  const open = items.filter(r => !['Resolved', 'Closed', 'Done'].includes(r.Status));
+  const editor = useStatusEditor(items);
+  const riskStatuses = useMemo(() => [...new Set(['Open', 'Mitigating', 'Resolved', 'Closed', ...BASE_STATUSES, ...items.map(r => r.Status).filter(Boolean)])], [items]);
+  const open = editor.dataWithStatus.filter(r => !['Resolved', 'Closed', 'Done', 'Mitigated'].includes(r.Status));
   if (!items.length) return <div className="os-empty">No risks logged.</div>;
   return (
     <>
       <div className="os-stat-row">
         <div className="os-stat-card os-stat-red"><div className="os-stat-num">{open.length}</div><div className="os-stat-label">Open Risks</div></div>
-        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{items.length - open.length}</div><div className="os-stat-label">Resolved</div></div>
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{editor.dataWithStatus.length - open.length}</div><div className="os-stat-label">Resolved</div></div>
       </div>
+      {editor.updateError && <div className="os-alert-error" style={{ marginTop: 8 }}>{editor.updateError}</div>}
       <div style={{ marginTop: 24 }}>
         <SortableTable
           cols={[
             { label: 'Risk / Blocker', key: 'Risk / Blocker' },
-            { label: 'Status', key: 'Status', w: 110 },
+            { label: 'Status', key: 'Status', w: 120 },
             { label: 'Impact', key: 'Impact', w: 90 },
             { label: 'Mitigation Plan', key: 'Mitigation Plan' },
             { label: 'Owner', key: 'Owner', w: 110 },
           ]}
-          data={items}
+          data={editor.dataWithStatus}
           renderRow={r => (
             <tr key={r.id}>
               <td><strong>{fmt(r['Risk / Blocker'])}</strong></td>
-              <td>{r.Status ? <span className={`os-pill ${sc(r.Status)}`}>{r.Status}</span> : '—'}</td>
+              <td onClick={e => e.stopPropagation()}>
+                <StatusSelect record={r} allStatuses={riskStatuses} handleStatusChange={editor.handleStatusChange} saving={editor.saving} />
+              </td>
               <td>{r.Impact ? <span className="os-pill pill-blocked">{r.Impact}</span> : '—'}</td>
               <td className="os-muted">{fmt(r['Mitigation Plan'])}</td>
               <td className="os-muted">{fmt(r.Owner)}</td>
@@ -502,15 +495,17 @@ function OrdersTab({ orders, ordersSource, discounts, refunds }) {
 function ShopifyTab({ products }) {
   const [search, setSearch] = useState('');
   const [cat, setCat] = useState('');
+  const shopifyEditor = useStatusEditor(products);
+  const shopifyStatuses = useMemo(() => [...new Set([...BASE_STATUSES, ...products.map(p => p.Status).filter(Boolean)])], [products]);
   const cats = [...new Set(products.map(p => p.Category).filter(Boolean))].sort();
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return products.filter(p => {
+    return shopifyEditor.dataWithStatus.filter(p => {
       const mQ = !q || (p.Product || '').toLowerCase().includes(q) || (p.SKU || '').toLowerCase().includes(q);
       const mC = !cat || p.Category === cat;
       return mQ && mC;
     });
-  }, [products, search, cat]);
+  }, [shopifyEditor.dataWithStatus, search, cat]);
 
   const totalShopifyStock = filtered.reduce((s, p) => s + (Number(p['Shopify Stock']) || 0), 0);
   const byStock = useMemo(() => [...filtered].filter(p => Number(p['Shopify Stock']) > 0).sort((a, b) => (Number(b['Shopify Stock']) || 0) - (Number(a['Shopify Stock']) || 0)), [filtered]);
@@ -573,9 +568,9 @@ function ShopifyTab({ products }) {
           { label: 'Price', key: 'Price (GBP)', type: 'number', w: 80 },
           { label: 'Stock', key: 'Shopify Stock', type: 'number', w: 80 },
           { label: 'Margin %', key: 'Gross Margin %', type: 'number', w: 100 },
-          { label: 'Status', key: 'Status', w: 110 },
+          { label: 'Status', key: 'Status', w: 120 },
         ]}
-        data={filtered}
+        data={shopifyEditor.dataWithStatus}
         renderRow={p => (
           <tr key={p.id}>
             <td><strong>{fmt(p.Product)}</strong></td>
@@ -584,7 +579,9 @@ function ShopifyTab({ products }) {
             <td className="os-mono">{p['Price (GBP)'] ? `£${p['Price (GBP)']}` : '—'}</td>
             <td className="os-mono">{fmt(p['Shopify Stock'])}</td>
             <td className="os-mono">{p['Gross Margin %'] ? `${p['Gross Margin %']}%` : '—'}</td>
-            <td>{p.Status ? <span className={`os-pill ${sc(p.Status)}`}>{p.Status}</span> : '—'}</td>
+            <td onClick={e => e.stopPropagation()}>
+              <StatusSelect record={p} allStatuses={shopifyStatuses} handleStatusChange={shopifyEditor.handleStatusChange} saving={shopifyEditor.saving} />
+            </td>
           </tr>
         )}
         emptyMsg="No products found."
@@ -1105,16 +1102,18 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
 function SOHTab({ soh }) {
   const [chanFilter, setChan] = useState('');
   const [search, setSearch] = useState('');
+  const sohEditor = useStatusEditor(soh);
+  const sohStatuses = useMemo(() => [...new Set([...BASE_STATUSES, ...soh.map(s => s.Status).filter(Boolean)])], [soh]);
   const channels = [...new Set(soh.flatMap(s => Array.isArray(s.Channel) ? s.Channel : [s.Channel]).filter(Boolean))].sort();
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return soh.filter(s => {
+    return sohEditor.dataWithStatus.filter(s => {
       const mQ = !q || (s.Product || '').toLowerCase().includes(q) || (s.SKU || '').toLowerCase().includes(q);
       const mC = !chanFilter || (Array.isArray(s.Channel) ? s.Channel.includes(chanFilter) : s.Channel === chanFilter);
       return mQ && mC;
     });
-  }, [soh, search, chanFilter]);
+  }, [sohEditor.dataWithStatus, search, chanFilter]);
 
   const totalUnits = filtered.reduce((sum, s) => sum + (Number(s['Total QTY']) || 0), 0);
   const byQty = useMemo(() => [...filtered].filter(s => Number(s['Total QTY']) > 0).sort((a, b) => (Number(b['Total QTY']) || 0) - (Number(a['Total QTY']) || 0)), [filtered]);
@@ -1178,7 +1177,7 @@ function SOHTab({ soh }) {
           { label: 'Total QTY', key: 'Total QTY', type: 'number', w: 100 },
           { label: 'Batch Info', key: 'Batch Info', w: 140 },
           { label: 'Channel', w: 150 },
-          { label: 'Status', key: 'Status', w: 110 },
+          { label: 'Status', key: 'Status', w: 120 },
           { label: 'Last Updated', key: 'Last Updated', type: 'date', w: 120 },
         ]}
         data={filtered}
@@ -1193,7 +1192,9 @@ function SOHTab({ soh }) {
                 <span key={c} className="os-tag" style={{ marginRight: 4 }}>{c}</span>
               ))}
             </td>
-            <td>{s.Status ? <span className={`os-pill ${sc(s.Status)}`}>{s.Status}</span> : '—'}</td>
+            <td onClick={e => e.stopPropagation()}>
+              <StatusSelect record={s} allStatuses={sohStatuses} handleStatusChange={sohEditor.handleStatusChange} saving={sohEditor.saving} />
+            </td>
             <td className="os-mono">{fmt(s['Last Updated'])}</td>
           </tr>
         )}
@@ -1207,16 +1208,18 @@ function SOHTab({ soh }) {
 function InboundTab({ inbound }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatus] = useState('');
-  const statuses = [...new Set(inbound.map(s => s.Status).filter(Boolean))];
+  const inboundEditor = useStatusEditor(inbound);
+  const inboundStatuses = useMemo(() => [...new Set(['Pending', 'In Transit', 'Received', 'Done', 'Delayed', ...BASE_STATUSES, ...inbound.map(s => s.Status).filter(Boolean)])], [inbound]);
+  const statuses = inboundStatuses;
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return inbound.filter(s => {
+    return inboundEditor.dataWithStatus.filter(s => {
       const mQ = !q || (s.Product || '').toLowerCase().includes(q) || (s.SKU || '').toLowerCase().includes(q) || (s['PO Reference'] || '').toLowerCase().includes(q);
       const mS = !statusFilter || s.Status === statusFilter;
       return mQ && mS;
     });
-  }, [inbound, search, statusFilter]);
+  }, [inboundEditor.dataWithStatus, search, statusFilter]);
 
   const totalInbound = filtered.reduce((sum, s) => sum + (Number(s['Inbound QTY']) || 0), 0);
 
@@ -1252,7 +1255,7 @@ function InboundTab({ inbound }) {
           { label: 'PO Reference', key: 'PO Reference', w: 140 },
           { label: 'Location', key: 'Location', w: 130 },
           { label: 'Channel', w: 130 },
-          { label: 'Status', key: 'Status', w: 110 },
+          { label: 'Status', key: 'Status', w: 120 },
           { label: 'Expected Arrival', key: 'Expected Arrival', type: 'date', w: 140 },
         ]}
         data={filtered}
@@ -1268,7 +1271,9 @@ function InboundTab({ inbound }) {
                 <span key={c} className="os-tag" style={{ marginRight: 4 }}>{c}</span>
               ))}
             </td>
-            <td>{s.Status ? <span className={`os-pill ${sc(s.Status)}`}>{s.Status}</span> : '—'}</td>
+            <td onClick={e => e.stopPropagation()}>
+              <StatusSelect record={s} allStatuses={inboundStatuses} handleStatusChange={inboundEditor.handleStatusChange} saving={inboundEditor.saving} />
+            </td>
             <td className="os-mono">{fmt(s['Expected Arrival'])}</td>
           </tr>
         )}
@@ -1280,30 +1285,35 @@ function InboundTab({ inbound }) {
 
 /* ── B2B ──────────────────────────────────────── */
 function B2BTab({ items }) {
+  const editor = useStatusEditor(items, 'Account Status');
+  const b2bStatuses = useMemo(() => [...new Set(['Active', 'Inactive', 'Prospect', 'On Hold', ...items.map(i => i['Account Status']).filter(Boolean)])], [items]);
+  const active = editor.dataWithStatus.filter(i => i['Account Status'] === 'Active').length;
   if (!items.length) return <div className="os-empty">No B2B accounts.</div>;
-  const active = items.filter(i => i['Account Status'] === 'Active').length;
   return (
     <>
       <div className="os-stat-row">
         <div className="os-stat-card os-stat-green"><div className="os-stat-num">{active}</div><div className="os-stat-label">Active Accounts</div></div>
         <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Total</div></div>
       </div>
+      {editor.updateError && <div className="os-alert-error" style={{ marginTop: 8 }}>{editor.updateError}</div>}
       <div style={{ marginTop: 24 }}>
         <SortableTable
           cols={[
             { label: 'Business', key: 'Business Name' },
             { label: 'Type', key: 'Business Type', w: 130 },
             { label: 'Contact', key: 'Contact Name', w: 130 },
-            { label: 'Status', key: 'Account Status', w: 110 },
+            { label: 'Status', key: 'Account Status', w: 120 },
             { label: 'Monthly Value', key: 'Monthly Order Value (£)', type: 'number', w: 140 },
           ]}
-          data={items}
+          data={editor.dataWithStatus}
           renderRow={b => (
             <tr key={b.id}>
               <td><strong>{fmt(b['Business Name'])}</strong>{b.Email && <p className="os-table-note">{b.Email}</p>}</td>
               <td className="os-muted">{fmt(b['Business Type'])}</td>
               <td className="os-muted">{fmt(b['Contact Name'])}</td>
-              <td>{b['Account Status'] ? <span className={`os-pill ${sc(b['Account Status'])}`}>{b['Account Status']}</span> : '—'}</td>
+              <td onClick={e => e.stopPropagation()}>
+                <StatusSelect record={b} allStatuses={b2bStatuses} handleStatusChange={editor.handleStatusChange} saving={editor.saving} fieldName="Account Status" />
+              </td>
               <td className="os-mono">{gbp(b['Monthly Order Value (£)'])}</td>
             </tr>
           )}
@@ -1316,23 +1326,27 @@ function B2BTab({ items }) {
 
 /* ── Customers ────────────────────────────────── */
 function CustomersTab({ items }) {
+  const editor = useStatusEditor(items);
+  const custStatuses = useMemo(() => [...new Set([...BASE_STATUSES, ...items.map(c => c.Status).filter(Boolean)])], [items]);
   return (
     <SortableTable
       cols={[
         { label: 'Customer', key: 'Customer Name' },
         { label: 'Source', key: 'Source', w: 120 },
         { label: 'Type', key: 'Customer Type', w: 120 },
-        { label: 'Status', key: 'Status', w: 110 },
+        { label: 'Status', key: 'Status', w: 120 },
         { label: 'LTV', key: 'LTV (£)', type: 'number', w: 90 },
         { label: 'Orders', key: 'Total Orders', type: 'number', w: 80 },
       ]}
-      data={items}
+      data={editor.dataWithStatus}
       renderRow={c => (
         <tr key={c.id}>
           <td><strong>{fmt(c['Customer Name'])}</strong>{c.Email && <p className="os-table-note">{c.Email}</p>}</td>
           <td className="os-muted">{fmt(c.Source)}</td>
           <td className="os-muted">{fmt(c['Customer Type'])}</td>
-          <td>{c.Status ? <span className={`os-pill ${sc(c.Status)}`}>{c.Status}</span> : '—'}</td>
+          <td onClick={e => e.stopPropagation()}>
+            <StatusSelect record={c} allStatuses={custStatuses} handleStatusChange={editor.handleStatusChange} saving={editor.saving} />
+          </td>
           <td className="os-mono">{gbp(c['LTV (£)'])}</td>
           <td className="os-mono">{fmt(c['Total Orders'])}</td>
         </tr>
@@ -1344,6 +1358,8 @@ function CustomersTab({ items }) {
 
 /* ── Affiliates ───────────────────────────────── */
 function AffiliatesTab({ items }) {
+  const editor = useStatusEditor(items, 'Onboarding Status');
+  const affStatuses = useMemo(() => [...new Set(['Invited', 'Applied', 'Approved', 'Active', 'Inactive', 'Rejected', ...items.map(a => a['Onboarding Status']).filter(Boolean)])], [items]);
   if (!items.length) return <div className="os-empty">No affiliates.</div>;
   const signed = items.filter(i => i['Agreement Signed'] === true || i['Agreement Signed'] === 'true').length;
   return (
@@ -1352,6 +1368,7 @@ function AffiliatesTab({ items }) {
         <div className="os-stat-card os-stat-green"><div className="os-stat-num">{signed}</div><div className="os-stat-label">Agreements Signed</div></div>
         <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Total</div></div>
       </div>
+      {editor.updateError && <div className="os-alert-error" style={{ marginTop: 8 }}>{editor.updateError}</div>}
       <div style={{ marginTop: 24 }}>
         <SortableTable
           cols={[
@@ -1360,9 +1377,9 @@ function AffiliatesTab({ items }) {
             { label: 'Platform', key: 'Platform', w: 120 },
             { label: 'Market', key: 'Market', w: 130 },
             { label: 'Commission Tier', key: 'Commission Tier', w: 140 },
-            { label: 'Status', key: 'Onboarding Status', w: 140 },
+            { label: 'Status', key: 'Onboarding Status', w: 150 },
           ]}
-          data={items}
+          data={editor.dataWithStatus}
           renderRow={a => (
             <tr key={a.id}>
               <td><strong>{fmt(a.Name)}</strong>{a.Email && <p className="os-table-note">{a.Email}</p>}</td>
@@ -1370,7 +1387,9 @@ function AffiliatesTab({ items }) {
               <td className="os-muted">{fmt(a.Platform)}</td>
               <td className="os-muted">{Array.isArray(a.Market) ? a.Market.join(', ') : fmt(a.Market)}</td>
               <td>{a['Commission Tier'] ? <span className="os-pill pill-default">{a['Commission Tier']}</span> : '—'}</td>
-              <td>{a['Onboarding Status'] ? <span className={`os-pill ${sc(a['Onboarding Status'])}`}>{a['Onboarding Status']}</span> : '—'}</td>
+              <td onClick={e => e.stopPropagation()}>
+                <StatusSelect record={a} allStatuses={affStatuses} handleStatusChange={editor.handleStatusChange} saving={editor.saving} fieldName="Onboarding Status" />
+              </td>
             </tr>
           )}
           emptyMsg="No affiliates."
@@ -1429,24 +1448,28 @@ function EmailTab({ items }) {
 
 /* ── Marketing ────────────────────────────────── */
 function MarketingTab({ items }) {
+  const editor = useStatusEditor(items);
+  const mktStatuses = useMemo(() => [...new Set([...BASE_STATUSES, ...items.map(m => m.Status).filter(Boolean)])], [items]);
   return (
     <SortableTable
       cols={[
         { label: 'Campaign', key: 'Campaign / Launch Name' },
         { label: 'Type', key: 'Type', w: 110 },
-        { label: 'Status', key: 'Status', w: 110 },
+        { label: 'Status', key: 'Status', w: 120 },
         { label: 'Owner', key: 'Owner', w: 110 },
         { label: 'Start', key: 'Start Date', type: 'date', w: 100 },
         { label: 'End', key: 'End Date', type: 'date', w: 100 },
         { label: 'Budget', key: 'Budget (£)', type: 'number', w: 100 },
         { label: 'Revenue', key: 'Revenue Generated (£)', type: 'number', w: 110 },
       ]}
-      data={items}
+      data={editor.dataWithStatus}
       renderRow={m => (
         <tr key={m.id}>
           <td><strong>{fmt(m['Campaign / Launch Name'])}</strong></td>
           <td className="os-muted">{fmt(m.Type)}</td>
-          <td>{m.Status ? <span className={`os-pill ${sc(m.Status)}`}>{m.Status}</span> : '—'}</td>
+          <td onClick={e => e.stopPropagation()}>
+            <StatusSelect record={m} allStatuses={mktStatuses} handleStatusChange={editor.handleStatusChange} saving={editor.saving} />
+          </td>
           <td className="os-muted">{fmt(m.Owner)}</td>
           <td className="os-mono">{fmt(m['Start Date'])}</td>
           <td className="os-mono">{fmt(m['End Date'])}</td>
@@ -1461,6 +1484,8 @@ function MarketingTab({ items }) {
 
 /* ── Subscriptions ────────────────────────────── */
 function SubscriptionsTab({ items }) {
+  const editor = useStatusEditor(items);
+  const subStatuses = useMemo(() => [...new Set([...BASE_STATUSES, ...items.map(s => s.Status).filter(Boolean)])], [items]);
   if (!items.length) return <div className="os-empty">No subscription plans yet.</div>;
   const totalSubs = items.reduce((s, i) => s + (Number(i['Active Subscribers']) || 0), 0);
   return (
@@ -1476,16 +1501,18 @@ function SubscriptionsTab({ items }) {
             { label: 'Product / SKU', key: 'Product', w: 160 },
             { label: 'Subscribers', key: 'Active Subscribers', type: 'number', w: 120 },
             { label: 'Monthly Rev', key: 'Monthly Revenue £', type: 'number', w: 130 },
-            { label: 'Status', key: 'Status', w: 110 },
+            { label: 'Status', key: 'Status', w: 120 },
           ]}
-          data={items}
+          data={editor.dataWithStatus}
           renderRow={s => (
             <tr key={s.id}>
               <td><strong>{fmt(s['Plan Name'])}</strong></td>
               <td className="os-muted">{fmt(s.Product)}{s.SKU ? ` · ${s.SKU}` : ''}</td>
               <td className="os-mono">{fmt(s['Active Subscribers'])}</td>
               <td className="os-mono">{gbp(s['Monthly Revenue £'])}</td>
-              <td>{s.Status ? <span className={`os-pill ${sc(s.Status)}`}>{s.Status}</span> : '—'}</td>
+              <td onClick={e => e.stopPropagation()}>
+                <StatusSelect record={s} allStatuses={subStatuses} handleStatusChange={editor.handleStatusChange} saving={editor.saving} />
+              </td>
             </tr>
           )}
           emptyMsg="No subscription plans yet."
@@ -1497,31 +1524,36 @@ function SubscriptionsTab({ items }) {
 
 /* ── Customer Service ─────────────────────────── */
 function CSTab({ items }) {
-  const open = items.filter(i => !['Resolved', 'Closed', 'Done'].includes(i.Status));
+  const editor = useStatusEditor(items);
+  const csStatuses = useMemo(() => [...new Set(['Open', 'In Progress', 'Resolved', 'Closed', ...BASE_STATUSES, ...items.map(i => i.Status).filter(Boolean)])], [items]);
+  const open = editor.dataWithStatus.filter(i => !['Resolved', 'Closed', 'Done'].includes(i.Status));
   if (!items.length) return <div className="os-empty">No CS tickets.</div>;
   return (
     <>
       <div className="os-stat-row">
         <div className="os-stat-card os-stat-red"><div className="os-stat-num">{open.length}</div><div className="os-stat-label">Open</div></div>
-        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{items.length - open.length}</div><div className="os-stat-label">Resolved</div></div>
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{editor.dataWithStatus.length - open.length}</div><div className="os-stat-label">Resolved</div></div>
       </div>
+      {editor.updateError && <div className="os-alert-error" style={{ marginTop: 8 }}>{editor.updateError}</div>}
       <div style={{ marginTop: 24 }}>
         <SortableTable
           cols={[
             { label: 'Reference', key: 'Issue Reference' },
             { label: 'Customer', key: 'Customer Name', w: 130 },
             { label: 'Category', key: 'Category', w: 130 },
-            { label: 'Status', key: 'Status', w: 110 },
+            { label: 'Status', key: 'Status', w: 120 },
             { label: 'Owner', key: 'Owner', w: 110 },
             { label: 'Raised', key: 'Date Raised', type: 'date', w: 100 },
           ]}
-          data={items}
+          data={editor.dataWithStatus}
           renderRow={t => (
             <tr key={t.id}>
               <td><strong>{fmt(t['Issue Reference'])}</strong></td>
               <td className="os-muted">{fmt(t['Customer Name'])}</td>
               <td className="os-muted">{fmt(t.Category)}</td>
-              <td>{t.Status ? <span className={`os-pill ${sc(t.Status)}`}>{t.Status}</span> : '—'}</td>
+              <td onClick={e => e.stopPropagation()}>
+                <StatusSelect record={t} allStatuses={csStatuses} handleStatusChange={editor.handleStatusChange} saving={editor.saving} />
+              </td>
               <td className="os-muted">{fmt(t.Owner)}</td>
               <td className="os-mono">{fmt(t['Date Raised'])}</td>
             </tr>
@@ -1536,6 +1568,12 @@ function CSTab({ items }) {
 /* ── Finance ──────────────────────────────────── */
 function FinanceTab({ reconcile, software, payouts }) {
   const [sub, setSub] = useState('Reconciliation');
+  const reconcileEditor = useStatusEditor(reconcile);
+  const payoutsEditor   = useStatusEditor(payouts);
+  const softwareEditor  = useStatusEditor(software);
+  const finStatuses = useMemo(() => [...new Set(['Pending', 'Reconciled', 'Paid', 'Under Review', 'Active', 'Cancelled', ...BASE_STATUSES])], []);
+
+  const anyError = reconcileEditor.updateError || payoutsEditor.updateError || softwareEditor.updateError;
   return (
     <>
       <div className="os-sub-tabs">
@@ -1543,6 +1581,7 @@ function FinanceTab({ reconcile, software, payouts }) {
           <button key={s} className={`os-sub-tab${sub === s ? ' active' : ''}`} onClick={() => setSub(s)}>{s}</button>
         ))}
       </div>
+      {anyError && <div className="os-alert-error" style={{ marginTop: 8 }}>{anyError}</div>}
 
       {sub === 'Reconciliation' && (
         <SortableTable
@@ -1555,9 +1594,9 @@ function FinanceTab({ reconcile, software, payouts }) {
             { label: 'Fees', key: 'Platform Fees (£)', type: 'number', w: 90 },
             { label: 'Net', key: 'Net Revenue (£)', type: 'number', w: 100 },
             { label: 'Variance', key: 'Variance (£)', type: 'number', w: 90 },
-            { label: 'Status', key: 'Status', w: 110 },
+            { label: 'Status', key: 'Status', w: 120 },
           ]}
-          data={reconcile}
+          data={reconcileEditor.dataWithStatus}
           renderRow={r => (
             <tr key={r.id}>
               <td><strong>{fmt(r.Period)}</strong></td>
@@ -1568,7 +1607,9 @@ function FinanceTab({ reconcile, software, payouts }) {
               <td className="os-mono">{gbp(r['Platform Fees (£)'])}</td>
               <td className="os-mono"><strong>{gbp(r['Net Revenue (£)'])}</strong></td>
               <td className="os-mono">{gbp(r['Variance (£)'])}</td>
-              <td>{r.Status ? <span className={`os-pill ${sc(r.Status)}`}>{r.Status}</span> : '—'}</td>
+              <td onClick={e => e.stopPropagation()}>
+                <StatusSelect record={r} allStatuses={finStatuses} handleStatusChange={reconcileEditor.handleStatusChange} saving={reconcileEditor.saving} />
+              </td>
             </tr>
           )}
           emptyMsg="No reconciliation records."
@@ -1583,9 +1624,9 @@ function FinanceTab({ reconcile, software, payouts }) {
             { label: 'Gross', key: 'Gross Amount (£)', type: 'number', w: 100 },
             { label: 'Fees', key: 'Fees Deducted (£)', type: 'number', w: 90 },
             { label: 'Net Payout', key: 'Net Payout (£)', type: 'number', w: 110 },
-            { label: 'Status', key: 'Status', w: 110 },
+            { label: 'Status', key: 'Status', w: 120 },
           ]}
-          data={payouts}
+          data={payoutsEditor.dataWithStatus}
           renderRow={p => (
             <tr key={p.id}>
               <td><strong>{fmt(p['Payout Reference'])}</strong></td>
@@ -1593,7 +1634,9 @@ function FinanceTab({ reconcile, software, payouts }) {
               <td className="os-mono">{gbp(p['Gross Amount (£)'])}</td>
               <td className="os-mono">{gbp(p['Fees Deducted (£)'])}</td>
               <td className="os-mono"><strong>{gbp(p['Net Payout (£)'])}</strong></td>
-              <td>{p.Status ? <span className={`os-pill ${sc(p.Status)}`}>{p.Status}</span> : '—'}</td>
+              <td onClick={e => e.stopPropagation()}>
+                <StatusSelect record={p} allStatuses={finStatuses} handleStatusChange={payoutsEditor.handleStatusChange} saving={payoutsEditor.saving} />
+              </td>
             </tr>
           )}
           emptyMsg="No payouts."
@@ -1609,9 +1652,9 @@ function FinanceTab({ reconcile, software, payouts }) {
             { label: 'Billing', key: 'Billing Frequency', w: 110 },
             { label: 'Renewal', key: 'Renewal Date', type: 'date', w: 110 },
             { label: 'Department', key: 'Department', w: 120 },
-            { label: 'Status', key: 'Status', w: 110 },
+            { label: 'Status', key: 'Status', w: 120 },
           ]}
-          data={software}
+          data={softwareEditor.dataWithStatus}
           renderRow={s => (
             <tr key={s.id}>
               <td><strong>{fmt(s.Platform)}</strong></td>
@@ -1620,7 +1663,9 @@ function FinanceTab({ reconcile, software, payouts }) {
               <td className="os-muted">{fmt(s['Billing Frequency'])}</td>
               <td className="os-mono">{fmt(s['Renewal Date'])}</td>
               <td className="os-muted">{fmt(s.Department)}</td>
-              <td>{s.Status ? <span className={`os-pill ${sc(s.Status)}`}>{s.Status}</span> : '—'}</td>
+              <td onClick={e => e.stopPropagation()}>
+                <StatusSelect record={s} allStatuses={finStatuses} handleStatusChange={softwareEditor.handleStatusChange} saving={softwareEditor.saving} />
+              </td>
             </tr>
           )}
           emptyMsg="No software costs logged."
@@ -1632,6 +1677,8 @@ function FinanceTab({ reconcile, software, payouts }) {
 
 /* ── Reporting ────────────────────────────────── */
 function ReportingTab({ items }) {
+  const editor = useStatusEditor(items);
+  const rptStatuses = useMemo(() => [...new Set(['Draft', 'In Review', 'Approved', 'Done', ...BASE_STATUSES, ...items.map(r => r.Status).filter(Boolean)])], [items]);
   return (
     <SortableTable
       cols={[
@@ -1643,9 +1690,9 @@ function ReportingTab({ items }) {
         { label: 'Affiliate Rev', key: 'Affiliate Revenue (£)', type: 'number', w: 120 },
         { label: 'New Customers', key: 'New Customers', type: 'number', w: 120 },
         { label: 'MoM %', key: 'MoM Growth %', type: 'number', w: 80 },
-        { label: 'Status', key: 'Status', w: 110 },
+        { label: 'Status', key: 'Status', w: 120 },
       ]}
-      data={items}
+      data={editor.dataWithStatus}
       renderRow={r => (
         <tr key={r.id}>
           <td><strong>{fmt(r.Period)}</strong></td>
@@ -1656,7 +1703,9 @@ function ReportingTab({ items }) {
           <td className="os-mono">{gbp(r['Affiliate Revenue (£)'])}</td>
           <td className="os-mono">{fmt(r['New Customers'])}</td>
           <td className="os-mono">{r['MoM Growth %'] ? `${r['MoM Growth %']}%` : '—'}</td>
-          <td>{r.Status ? <span className={`os-pill ${sc(r.Status)}`}>{r.Status}</span> : '—'}</td>
+          <td onClick={e => e.stopPropagation()}>
+            <StatusSelect record={r} allStatuses={rptStatuses} handleStatusChange={editor.handleStatusChange} saving={editor.saving} />
+          </td>
         </tr>
       )}
       emptyMsg="No reporting data yet."

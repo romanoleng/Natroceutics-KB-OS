@@ -3,11 +3,12 @@
  * Shared inline-status editing utilities used site-wide.
  *
  * Exports:
- *   useStatusEditor(data)  — hook: optimistic local status state + Airtable PATCH
- *   StatusSelect           — component: renders an editable status pill select
- *   DONE_VALS              — Set of "done" status strings
- *   BASE_STATUSES          — default status options
- *   sc(status)             — returns the CSS pill class for a given status string
+ *   useStatusEditor(data, fieldName)  — hook: optimistic state + Airtable PATCH, sessionStorage-backed
+ *   StatusSelect     — editable status pill <select>
+ *   DateCell         — inline date <input> that patches Airtable on change
+ *   DONE_VALS        — Set of "done" status strings
+ *   BASE_STATUSES    — default status option list
+ *   sc(status)       — returns the CSS pill class for a given status string
  */
 import { useState, useMemo, useEffect, useRef } from 'react';
 
@@ -26,9 +27,9 @@ const STATUS_CLASS = {
   'Active': 'pill-done', 'Resolved': 'pill-done', 'Closed': 'pill-done',
   'Paid': 'pill-done',
   'In Progress': 'pill-progress', 'Under Review': 'pill-progress',
-  'Submitted': 'pill-progress', 'Active Expired': 'pill-progress',
+  'Submitted': 'pill-progress', 'Active Expired': 'pill-progress', 'Mitigating': 'pill-progress',
   'To Do': 'pill-todo', 'Not Started': 'pill-todo', 'Pending': 'pill-todo',
-  'Draft': 'pill-todo',
+  'Draft': 'pill-todo', 'Open': 'pill-todo',
   'Blocked': 'pill-blocked', 'At Risk': 'pill-blocked', 'Rejected': 'pill-blocked',
   'Overdue': 'pill-blocked',
 };
@@ -48,49 +49,42 @@ async function patchRecord(baseId, tableId, recordId, fields) {
 }
 
 /**
- * useStatusEditor(data)
+ * useStatusEditor(data, fieldName)
  *
- * Manages optimistic status updates for a list of Airtable records.
+ * Manages optimistic field updates for a list of Airtable records.
  * Each record must carry _baseId and _tableId (injected by lib/airtable.js).
  *
- * Status changes are persisted to sessionStorage keyed by base+table ID so
- * they survive tab switches and section changes within the same page session.
+ * Changes are persisted to sessionStorage keyed by base + table + fieldName so they
+ * survive tab switches and section changes within the same browser session.
  *
- * Returns:
- *   dataWithStatus   — data with localStatus overlaid
- *   handleStatusChange(recordId, newStatus, record) — call on <select onChange>
- *   saving           — { [recordId]: true } while saving
- *   updateError      — string error shown to user; auto-clears after 6s
+ * @param {Array}  data      - array of Airtable records
+ * @param {string} fieldName - which field to track and patch (default: 'Status')
  */
-export function useStatusEditor(data) {
+export function useStatusEditor(data, fieldName = 'Status') {
   const [localStatus, setLocalStatus] = useState({});
   const [saving, setSaving] = useState({});
   const [updateError, setUpdateError] = useState('');
   const hydrated = useRef(false);
 
-  // Derive a stable storage key from the first record's table coordinates.
-  // All records in a given tab come from the same base+table so the first is enough.
+  // Stable storage key derived from the first record's table coordinates + field name.
   const storageKey = useMemo(() => {
     const r = data?.[0];
     if (!r?._baseId || !r?._tableId) return null;
-    return `natro_status_${r._baseId}_${r._tableId}`;
+    return `natro_status_${r._baseId}_${r._tableId}_${fieldName}`;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data?.[0]?._baseId, data?.[0]?._tableId]);
+  }, [data?.[0]?._baseId, data?.[0]?._tableId, fieldName]);
 
-  // Hydrate from sessionStorage when the key is first known (component mounts or remounts)
+  // Hydrate from sessionStorage on mount / when key changes (component remounts on tab switch)
   useEffect(() => {
     if (!storageKey) return;
     try {
       const raw = sessionStorage.getItem(storageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        setLocalStatus(parsed);
-      }
+      if (raw) setLocalStatus(JSON.parse(raw));
     } catch {}
     hydrated.current = true;
   }, [storageKey]);
 
-  // Persist to sessionStorage whenever localStatus changes (skip the empty initial state)
+  // Persist to sessionStorage whenever localStatus changes
   useEffect(() => {
     if (!storageKey || !hydrated.current) return;
     try {
@@ -101,9 +95,9 @@ export function useStatusEditor(data) {
   const dataWithStatus = useMemo(() =>
     (data || []).map(r => ({
       ...r,
-      Status: localStatus[r.id] !== undefined ? localStatus[r.id] : r.Status,
+      [fieldName]: localStatus[r.id] !== undefined ? localStatus[r.id] : r[fieldName],
     })),
-    [data, localStatus]
+    [data, localStatus, fieldName]
   );
 
   async function handleStatusChange(recordId, newStatus, record) {
@@ -117,9 +111,8 @@ export function useStatusEditor(data) {
     setLocalStatus(prev => ({ ...prev, [recordId]: newStatus }));
     setSaving(prev => ({ ...prev, [recordId]: true }));
     try {
-      await patchRecord(baseId, tableId, recordId, { Status: newStatus });
+      await patchRecord(baseId, tableId, recordId, { [fieldName]: newStatus });
     } catch (err) {
-      // Revert optimistic update
       setLocalStatus(prev => { const n = { ...prev }; delete n[recordId]; return n; });
       setUpdateError(`Save failed: ${err.message}`);
       setTimeout(() => setUpdateError(''), 6000);
@@ -135,16 +128,16 @@ export function useStatusEditor(data) {
  * StatusSelect
  *
  * Drop-in replacement for a static status pill. Renders an editable <select>.
- * Automatically derives available status options from allStatuses or BASE_STATUSES.
  *
  * Props:
- *   record           — the row record (must have .Status, .id, ._baseId, ._tableId)
- *   allStatuses      — array of status strings for the <select> options
+ *   record             — row record (must have .id, ._baseId, ._tableId)
+ *   allStatuses        — option strings for the <select>
  *   handleStatusChange — from useStatusEditor
- *   saving           — from useStatusEditor
+ *   saving             — from useStatusEditor
+ *   fieldName          — which field to read/display (default: 'Status')
  */
-export function StatusSelect({ record, allStatuses, handleStatusChange, saving }) {
-  const status = record.Status || '';
+export function StatusSelect({ record, allStatuses, handleStatusChange, saving, fieldName = 'Status' }) {
+  const status = record[fieldName] || '';
   const rawOptions = allStatuses?.length ? allStatuses : BASE_STATUSES;
   // Case-insensitive dedup — prevents duplicates when Airtable casing differs from defaults
   const seen = new Set();
@@ -167,5 +160,53 @@ export function StatusSelect({ record, allStatuses, handleStatusChange, saving }
       )}
       {options.map(s => <option key={s} value={s}>{s}</option>)}
     </select>
+  );
+}
+
+/**
+ * DateCell
+ *
+ * Inline date input that patches a single Airtable date field on change.
+ * Normalises the stored value to YYYY-MM-DD for the <input type="date">.
+ *
+ * Props:
+ *   record    — row record (must have .id, ._baseId, ._tableId)
+ *   fieldName — which Airtable field to patch (e.g. 'Due Date', 'Start Date')
+ */
+export function DateCell({ record, fieldName }) {
+  const toInput = v => {
+    if (!v) return '';
+    try {
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+    } catch { return ''; }
+  };
+  const [localDate, setLocalDate] = useState(() => toInput(record[fieldName] || ''));
+  const [saving, setSaving] = useState(false);
+
+  async function handleChange(e) {
+    const val = e.target.value; // 'YYYY-MM-DD' or ''
+    setLocalDate(val);
+    if (!record._baseId || !record._tableId) return;
+    setSaving(true);
+    try {
+      await patchRecord(record._baseId, record._tableId, record.id, { [fieldName]: val || null });
+    } catch {
+      setLocalDate(toInput(record[fieldName] || '')); // revert on error
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <input
+      type="date"
+      className={`os-date-cell${saving ? ' os-date-cell--saving' : ''}`}
+      value={localDate}
+      onChange={handleChange}
+      disabled={saving}
+      onClick={e => e.stopPropagation()}
+      title={fieldName}
+    />
   );
 }

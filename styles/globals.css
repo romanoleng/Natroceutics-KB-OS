@@ -2223,6 +2223,22 @@ th.th-sort:hover { background: rgba(29,65,48,0.85); }
 }
 .os-date-input:focus { outline: none; border-color: var(--forest-600); }
 
+/* Inline date cell — used in table rows via DateCell component */
+.os-date-cell {
+  font-family: var(--mono);
+  font-size: 11px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 5px;
+  background: var(--white);
+  color: var(--charcoal);
+  cursor: pointer;
+  min-width: 110px;
+}
+.os-date-cell:disabled, .os-date-cell--saving { opacity: 0.5; cursor: wait; }
+.os-date-cell:hover:not(:disabled) { border-color: var(--forest-600); }
+.os-date-cell:focus { outline: none; border-color: var(--forest-600); }
+
 .orders-kpi-row {
   display: flex;
   flex-wrap: wrap;
