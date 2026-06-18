@@ -16,7 +16,7 @@ import {
   getUKEmailList,
   getProducts,
 } from '../lib/airtable';
-import { getShopifyOrdersLive, getShopifySalesCSV, getWarehouseSOHFromDrive, getOrdersFromDriveCSV } from '../lib/shopify';
+import { getLocalOrders, getLocalDailySales, getLocalSalesByProduct, getLocalPayouts } from '../lib/shopify';
 
 /* ── Section / Tab structure ──────────────────── */
 const SECTIONS = ['Overview', 'Shopify UK', 'Amazon UK', 'Warehouse'];
@@ -253,7 +253,7 @@ function RiskList({ items }) {
 }
 
 /* ── Orders (date-filtered, KPI summary) ─────── */
-function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = [] }) {
+function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = [], dailySales = [] }) {
   const [range, setRange] = useState('MTD');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
@@ -305,8 +305,9 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
           {RANGES.map(r => (
             <button key={r} className={`orders-range-btn${range === r ? ' active' : ''}`} onClick={() => setRange(r)}>{r}</button>
           ))}
-          {ordersSource === 'live' && <span className="orders-live-badge">🟢 LIVE · Shopify</span>}
-          {ordersSource !== 'live' && <span className="orders-live-badge orders-live-airtable">📋 Airtable</span>}
+          {ordersSource === 'live'      && <span className="orders-live-badge">🟢 LIVE · Shopify</span>}
+          {ordersSource === 'csv'       && <span className="orders-live-badge" style={{ background: 'var(--teal)', color: '#fff' }}>📊 CSV Export</span>}
+          {ordersSource === 'airtable'  && <span className="orders-live-badge orders-live-airtable">📋 Airtable</span>}
         </div>
         {range === 'Custom' && (
           <div className="orders-custom-dates">
@@ -348,7 +349,7 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
 
       {/* ── Sub-tabs ── */}
       <div className="os-sub-tabs" style={{ marginTop: 24 }}>
-        {['Summary', 'Orders', 'Discounts', 'Refunds', 'By Product'].map(s => (
+        {['Summary', 'Orders', 'Daily Sales', 'By Product', 'Discounts', 'Refunds'].map(s => (
           <button key={s} className={`os-sub-tab${sub === s ? ' active' : ''}`} onClick={() => setSub(s)}>{s}</button>
         ))}
       </div>
@@ -488,16 +489,76 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
         />
       )}
 
+      {/* ── Daily Sales ── */}
+      {sub === 'Daily Sales' && (() => {
+        if (dailySales.length === 0) return <div className="wh-banner" style={{ marginTop: 12 }}><div className="wh-banner-inner"><span className="wh-banner-label">No daily sales data</span><span className="wh-banner-sub">Replace data/shopify-daily-sales.csv in the project and redeploy.</span></div></div>;
+        const totGross    = dailySales.reduce((s, d) => s + d.gross, 0);
+        const totNet      = dailySales.reduce((s, d) => s + d.net, 0);
+        const totDisc     = dailySales.reduce((s, d) => s + d.discounts, 0);
+        const totShipping = dailySales.reduce((s, d) => s + d.shipping, 0);
+        const totTotal    = dailySales.reduce((s, d) => s + d.total, 0);
+        const activeDays  = dailySales.filter(d => d.gross > 0).length;
+        const dateRange   = dailySales.length > 0 ? `${dailySales[0].day} → ${dailySales[dailySales.length - 1].day}` : '';
+        return (
+          <>
+            <div className="wh-banner" style={{ marginTop: 12 }}>
+              <div className="wh-banner-inner">
+                <span className="wh-banner-label">Daily Sales</span>
+                <span className="wh-banner-sub">📊 CSV Export · {dateRange}</span>
+              </div>
+              <div className="wh-banner-stats">
+                <div className="wh-banner-stat"><span className="wh-banner-num">£{totGross.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span><span className="wh-banner-unit">Gross Sales</span></div>
+                <div className="wh-banner-stat"><span className="wh-banner-num">£{totNet.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span><span className="wh-banner-unit">Net Sales</span></div>
+                <div className="wh-banner-stat"><span className="wh-banner-num">{activeDays}</span><span className="wh-banner-unit">Active Days</span></div>
+                {totDisc > 0 && <div className="wh-banner-stat"><span className="wh-banner-num" style={{ color: 'var(--amber)' }}>£{totDisc.toFixed(2)}</span><span className="wh-banner-unit">Discounts</span></div>}
+              </div>
+            </div>
+            <table className="os-table" style={{ marginTop: 12 }}>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th style={{ textAlign: 'right', width: 110 }}>Gross</th>
+                  <th style={{ textAlign: 'right', width: 100 }}>Discounts</th>
+                  <th style={{ textAlign: 'right', width: 100 }}>Net Sales</th>
+                  <th style={{ textAlign: 'right', width: 100 }}>Shipping</th>
+                  <th style={{ textAlign: 'right', width: 110 }}>Total Sales</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dailySales.map(d => (
+                  <tr key={d.day} style={{ opacity: d.gross === 0 ? 0.4 : 1 }}>
+                    <td className="os-mono">{d.day}</td>
+                    <td className="os-mono" style={{ textAlign: 'right' }}>{d.gross > 0 ? gbp(d.gross) : '—'}</td>
+                    <td className="os-mono" style={{ textAlign: 'right' }}>{d.discounts > 0 ? <span style={{ color: 'var(--amber)' }}>-{gbp(d.discounts)}</span> : '—'}</td>
+                    <td className="os-mono" style={{ textAlign: 'right' }}>{d.net > 0 ? gbp(d.net) : '—'}</td>
+                    <td className="os-mono" style={{ textAlign: 'right' }}>{d.shipping > 0 ? gbp(d.shipping) : '—'}</td>
+                    <td className="os-mono" style={{ textAlign: 'right' }}><strong>{d.total > 0 ? gbp(d.total) : '—'}</strong></td>
+                  </tr>
+                ))}
+                <tr style={{ borderTop: '2px solid var(--border)', fontWeight: 700 }}>
+                  <td className="os-mono">TOTAL</td>
+                  <td className="os-mono" style={{ textAlign: 'right' }}>{gbp(totGross)}</td>
+                  <td className="os-mono" style={{ textAlign: 'right' }}>{totDisc > 0 ? <span style={{ color: 'var(--amber)' }}>-{gbp(totDisc)}</span> : '—'}</td>
+                  <td className="os-mono" style={{ textAlign: 'right' }}>{gbp(totNet)}</td>
+                  <td className="os-mono" style={{ textAlign: 'right' }}>{gbp(totShipping)}</td>
+                  <td className="os-mono" style={{ textAlign: 'right' }}>{gbp(totTotal)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </>
+        );
+      })()}
+
       {/* ── By Product ── */}
       {sub === 'By Product' && (
         salesByProduct.length === 0
-          ? <div className="wh-banner" style={{ marginTop: 12 }}><div className="wh-banner-inner"><span className="wh-banner-label">No data</span><span className="wh-banner-sub">Live Shopify sales data unavailable — check SHOPIFY_SHOP_URL / SHOPIFY_ADMIN_TOKEN env vars.</span></div></div>
+          ? <div className="wh-banner" style={{ marginTop: 12 }}><div className="wh-banner-inner"><span className="wh-banner-label">No data</span><span className="wh-banner-sub">Replace data/shopify-sales-by-product.csv and redeploy.</span></div></div>
           : (
             <>
               <div className="wh-banner" style={{ marginTop: 12 }}>
                 <div className="wh-banner-inner">
                   <span className="wh-banner-label">Sales by Product</span>
-                  <span className="wh-banner-sub">Live · Last 30 days · Shopify UK</span>
+                  <span className="wh-banner-sub">📊 CSV Export · Last 30 days · Shopify UK</span>
                 </div>
                 <div className="wh-banner-stats">
                   <div className="wh-banner-stat"><span className="wh-banner-num">{salesByProduct.length}</span><span className="wh-banner-unit">SKUs</span></div>
@@ -513,7 +574,7 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
                   { label: 'Gross Sales', key: 'grossSales', type: 'number', w: 110 },
                   { label: 'Discounts', key: 'discounts', type: 'number', w: 100 },
                   { label: 'Returns', key: 'returns', type: 'number', w: 90 },
-                  { label: 'Val excl VAT', key: 'netSales', type: 'number', w: 115 },
+                  { label: 'Net Sales', key: 'netSales', type: 'number', w: 115 },
                 ]}
                 data={salesByProduct}
                 renderRow={r => (
@@ -527,7 +588,7 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
                     <td className="os-mono"><strong>{gbp(r.netSales)}</strong></td>
                   </tr>
                 )}
-                emptyMsg="No product sales data. Add SHOPIFY_SALES_CSV_ID env var and share the Drive file."
+                emptyMsg="No product sales data."
               />
             </>
           )
@@ -1803,22 +1864,105 @@ function CSTab({ items }) {
 }
 
 /* ── Finance ──────────────────────────────────── */
-function FinanceTab({ reconcile, software, payouts }) {
-  const [sub, setSub] = useState('Reconciliation');
+function FinanceTab({ reconcile, software, payouts, payoutsCsv = [] }) {
+  const [sub, setSub] = useState('Shopify Payments');
   const reconcileEditor = useStatusEditor(reconcile);
   const payoutsEditor   = useStatusEditor(payouts);
   const softwareEditor  = useStatusEditor(software);
   const finStatuses = useMemo(() => [...new Set(['Pending', 'Reconciled', 'Paid', 'Under Review', 'Active', 'Cancelled', ...BASE_STATUSES])], []);
 
+  // MTD + 7-day computed from payoutsCsv
+  const payoutKpis = useMemo(() => {
+    const today = new Date('2026-06-18'); // update when redeploying
+    const mtdStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const d7Start  = new Date(today); d7Start.setDate(today.getDate() - 6);
+    const inRange  = (d, from) => { const dt = new Date(d); return dt >= from && dt <= today; };
+    const sum      = (rows, from) => rows.filter(r => inRange(r.date, from) && r.status === 'paid')
+      .reduce((a, r) => ({ charges: a.charges + r.charges, fees: a.fees + r.fees, net: a.net + Math.abs(r.total) }), { charges: 0, fees: 0, net: 0 });
+    const mtd = sum(payoutsCsv, mtdStart);
+    const d7  = sum(payoutsCsv, d7Start);
+    const transit = payoutsCsv.filter(r => r.status === 'in_transit').reduce((s, r) => s + Math.abs(r.total), 0);
+    const feeRate = mtd.charges > 0 ? ((mtd.fees / mtd.charges) * 100).toFixed(1) : '—';
+    return { mtd, d7, transit, feeRate };
+  }, [payoutsCsv]);
+
   const anyError = reconcileEditor.updateError || payoutsEditor.updateError || softwareEditor.updateError;
   return (
     <>
       <div className="os-sub-tabs">
-        {['Reconciliation', 'Payouts', 'Software'].map(s => (
+        {['Shopify Payments', 'Reconciliation', 'Payouts', 'Software'].map(s => (
           <button key={s} className={`os-sub-tab${sub === s ? ' active' : ''}`} onClick={() => setSub(s)}>{s}</button>
         ))}
       </div>
       {anyError && <div className="os-alert-error" style={{ marginTop: 8 }}>{anyError}</div>}
+
+      {/* ── Shopify Payments (CSV export) ── */}
+      {sub === 'Shopify Payments' && (
+        payoutsCsv.length === 0
+          ? <div className="wh-banner" style={{ marginTop: 12 }}><div className="wh-banner-inner"><span className="wh-banner-label">No payout data</span><span className="wh-banner-sub">Replace data/shopify-payouts.csv and redeploy.</span></div></div>
+          : (
+            <>
+              {/* KPI tiles */}
+              <div className="orders-kpi-row" style={{ marginTop: 12 }}>
+                <div className="orders-kpi-card">
+                  <div className="orders-kpi-num">{gbp0(payoutKpis.mtd.charges)}</div>
+                  <div className="orders-kpi-label">MTD CHARGES</div>
+                </div>
+                <div className="orders-kpi-card">
+                  <div className="orders-kpi-num" style={{ color: 'var(--red)' }}>{gbp(payoutKpis.mtd.fees)}</div>
+                  <div className="orders-kpi-label">MTD FEES</div>
+                  <div className="orders-kpi-sub">{payoutKpis.feeRate}% rate</div>
+                </div>
+                <div className="orders-kpi-card">
+                  <div className="orders-kpi-num">{gbp0(payoutKpis.mtd.net)}</div>
+                  <div className="orders-kpi-label">MTD NET TO BANK</div>
+                </div>
+                <div className="orders-kpi-card">
+                  <div className="orders-kpi-num">{gbp0(payoutKpis.d7.charges)}</div>
+                  <div className="orders-kpi-label">7-DAY CHARGES</div>
+                </div>
+                <div className="orders-kpi-card">
+                  <div className="orders-kpi-num">{gbp0(payoutKpis.d7.net)}</div>
+                  <div className="orders-kpi-label">7-DAY NET</div>
+                </div>
+                {payoutKpis.transit > 0 && (
+                  <div className="orders-kpi-card" style={{ borderColor: 'var(--amber)' }}>
+                    <div className="orders-kpi-num" style={{ color: 'var(--amber)' }}>{gbp0(payoutKpis.transit)}</div>
+                    <div className="orders-kpi-label">IN TRANSIT</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Payout history table */}
+              <table className="os-table" style={{ marginTop: 16 }}>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th style={{ width: 100 }}>Status</th>
+                    <th style={{ textAlign: 'right', width: 110 }}>Charges</th>
+                    <th style={{ textAlign: 'right', width: 90 }}>Refunds</th>
+                    <th style={{ textAlign: 'right', width: 90 }}>Fees</th>
+                    <th style={{ textAlign: 'right', width: 110 }}>Net Payout</th>
+                    <th>Bank Ref</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payoutsCsv.map(p => (
+                    <tr key={p.id}>
+                      <td className="os-mono">{p.date}</td>
+                      <td><span className={`os-pill ${p.status === 'paid' ? 'sc-green' : p.status === 'in_transit' ? 'sc-amber' : 'sc-grey'}`}>{p.status.replace('_', ' ').toUpperCase()}</span></td>
+                      <td className="os-mono" style={{ textAlign: 'right' }}>{gbp(p.charges)}</td>
+                      <td className="os-mono" style={{ textAlign: 'right' }}>{p.refunds > 0 ? <span style={{ color: 'var(--red)' }}>-{gbp(p.refunds)}</span> : '—'}</td>
+                      <td className="os-mono" style={{ textAlign: 'right' }}><span style={{ color: 'var(--red)' }}>{gbp(p.fees)}</span></td>
+                      <td className="os-mono" style={{ textAlign: 'right' }}><strong style={{ color: p.total < 0 ? 'var(--red)' : undefined }}>{gbp(Math.abs(p.total))}</strong></td>
+                      <td className="os-muted" style={{ fontSize: '0.78rem' }}>{p.bankRef || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )
+      )}
 
       {sub === 'Reconciliation' && (
         <SortableTable
@@ -1951,7 +2095,7 @@ function ReportingTab({ items }) {
 }
 
 /* ── Page ─────────────────────────────────────── */
-export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, discounts, refunds, payouts, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, error, serverTime }) {
+export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, error, serverTime }) {
   const router = useRouter();
   const [section, setSection] = useState('Overview');
   const [tab, setTab] = useState('Tasks');
@@ -2033,7 +2177,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
           {tab === 'Risks'            && <RiskList items={risks} />}
           {tab === 'Reporting'        && <ReportingTab items={reporting} />}
           {tab === 'Products'         && <ProductsSection products={products} markets={[['UK','Shopify UK'],['AMZN','Amazon UK']]} />}
-          {tab === 'Orders'           && <OrdersTab orders={orders} ordersSource={ordersSource} discounts={discounts} refunds={refunds} salesByProduct={salesByProduct} />}
+          {tab === 'Orders'           && <OrdersTab orders={orders} ordersSource={ordersSource} discounts={discounts} refunds={refunds} salesByProduct={salesByProduct} dailySales={dailySales || []} />}
           {tab === 'Shopify'          && <ShopifyTab products={shopifyProducts} />}
           {tab === 'Customers'        && <CustomersTab items={customers} />}
           {tab === 'B2B'              && <B2BTab items={b2b} />}
@@ -2042,7 +2186,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
           {tab === 'Marketing'        && <MarketingTab items={marketing} />}
           {tab === 'Subscriptions'    && <SubscriptionsTab items={subscriptions} />}
           {tab === 'Customer Service' && <CSTab items={cs} />}
-          {tab === 'Finance'          && <FinanceTab reconcile={reconcile} software={software} payouts={payouts} />}
+          {tab === 'Finance'          && <FinanceTab reconcile={reconcile} software={software} payouts={payouts} payoutsCsv={payoutsCsv || []} />}
           {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} tasks={tasks} priorities={priorities} marketing={marketing} inbound={inbound} reporting={reporting} />}
           {tab === 'Stock on Hand'    && <SOHTab soh={soh} sohSource={sohSource} />}
           {tab === 'Inbound Stock'    && <InboundTab inbound={inbound} />}
@@ -2066,53 +2210,38 @@ export async function getServerSideProps() {
     safe(getProducts()),
   ]);
 
-  // Orders — Drive CSV first, then live Shopify API, then Airtable
+  // Orders — local CSV first, Airtable fallback
   let orders = airtableOrders;
   let ordersSource = 'airtable';
-
   try {
-    const driveOrders = await getOrdersFromDriveCSV(process.env.SHOPIFY_ORDERS_CSV_ID);
-    if (driveOrders && driveOrders.length > 0) {
-      orders = driveOrders;
-      ordersSource = 'drive';
-    }
-  } catch (driveErr) {
-    console.warn('Drive orders CSV failed:', driveErr.message);
-  }
+    const csvOrders = getLocalOrders();
+    if (csvOrders && csvOrders.length > 0) { orders = csvOrders; ordersSource = 'csv'; }
+  } catch (e) { console.warn('getLocalOrders failed:', e.message); }
 
-  if (ordersSource === 'airtable') {
-    try {
-      const liveOrders = await getShopifyOrdersLive({ maxOrders: 500 });
-      if (liveOrders !== null) {
-        orders = liveOrders;
-        ordersSource = 'live';
-      }
-    } catch (shopifyErr) {
-      console.warn('Shopify live orders failed, using Airtable fallback:', shopifyErr.message);
-    }
-  }
-
-  // Shopify sales by product — Google Drive CSV
+  // Sales by product — local CSV
   let salesByProduct = [];
   try {
-    const sbp = await getShopifySalesCSV(process.env.SHOPIFY_SALES_CSV_ID);
+    const sbp = getLocalSalesByProduct();
     if (sbp) salesByProduct = sbp;
-  } catch (sbpErr) {
-    console.warn('getShopifySalesCSV failed:', sbpErr.message);
-  }
+  } catch (e) { console.warn('getLocalSalesByProduct failed:', e.message); }
 
-  // Warehouse SOH — Google Drive XLSX (falls back to Airtable)
-  let sohData = soh;
-  let sohSource = 'airtable';
+  // Daily sales — local CSV
+  let dailySales = [];
   try {
-    const driveSoh = await getWarehouseSOHFromDrive(process.env.WAREHOUSE_SOH_FILE_ID);
-    if (driveSoh && driveSoh.length > 0) {
-      sohData = driveSoh;
-      sohSource = 'drive';
-    }
-  } catch (sohErr) {
-    console.warn('Warehouse SOH Drive fetch failed, using Airtable fallback:', sohErr.message);
-  }
+    const ds = getLocalDailySales();
+    if (ds) dailySales = ds;
+  } catch (e) { console.warn('getLocalDailySales failed:', e.message); }
 
-  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, discounts, refunds, payouts, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, error: null, serverTime: new Date().toISOString() } };
+  // Payouts CSV — local file
+  let payoutsCsv = [];
+  try {
+    const pc = getLocalPayouts();
+    if (pc) payoutsCsv = pc;
+  } catch (e) { console.warn('getLocalPayouts failed:', e.message); }
+
+  // SOH — Airtable only
+  const sohData = soh;
+  const sohSource = 'airtable';
+
+  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, error: null, serverTime: new Date().toISOString() } };
 }
