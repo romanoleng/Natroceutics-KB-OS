@@ -590,6 +590,207 @@ function ShopifyTab({ products }) {
   );
 }
 
+/* ── Amazon P&L helpers ───────────────────────── */
+function parseAmzNotes(notes) {
+  if (!notes) return {};
+  const num = key => {
+    const m = notes.match(new RegExp(key + '\\s*[-:£\\s]*([\\d,]+\\.?\\d*)', 'i'));
+    return m ? parseFloat(m[1].replace(',', '')) : 0;
+  };
+  const pct = key => {
+    const m = notes.match(new RegExp(key + '\\s*([\\d.]+)%', 'i'));
+    return m ? parseFloat(m[1]) : 0;
+  };
+  return {
+    sales: num('Sales £'), units: num('Units'), margin: pct('Margin'),
+    netProfit: num('Net profit £'), estPayout: num('Est payout £'),
+    amzFees: num('Amazon fees'), cogs: num('COGS'),
+    vat: num('VAT'), promo: num('Promo'), refunds: num('Refunds'),
+  };
+}
+
+function periodToDate(period) {
+  if (!period) return new Date('2026-01-01');
+  // "2026-W24 (Jun 9–15)" — extract end day from parentheses
+  const m = period.match(/\(([A-Za-z]+)\s+\d+[–\-](\d+)\)/);
+  if (m) {
+    const mo = { Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11 }[m[1].slice(0, 3)];
+    if (mo !== undefined) return new Date(2026, mo, parseInt(m[2]));
+  }
+  const fw = period.match(/2026-W(\d+)/);
+  if (fw) { const d = new Date(2026, 0, 1 + (parseInt(fw[1]) - 1) * 7); return d; }
+  return new Date('2026-01-01');
+}
+
+/* ── Amazon Reporting & Finance tab ──────────── */
+function AmazonReportingTab({ reporting }) {
+  const [range, setRange] = useState('All Time');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const [sub, setSub] = useState('Reporting');
+  const RANGES = ['All Time', 'MTD', 'Last Month', '30 Days', 'Custom'];
+
+  const filtered = useMemo(() => {
+    if (!reporting || !reporting.length) return [];
+    const today = new Date();
+    const d = new Date();
+    let from = null, to = today;
+    if (range === 'MTD') { from = new Date(d.getFullYear(), d.getMonth(), 1); }
+    else if (range === 'Last Month') { from = new Date(d.getFullYear(), d.getMonth()-1, 1); to = new Date(d.getFullYear(), d.getMonth(), 0); }
+    else if (range === '30 Days') { from = new Date(d); from.setDate(d.getDate()-30); }
+    else if (range === 'Custom') { from = customFrom ? new Date(customFrom) : null; to = customTo ? new Date(customTo + 'T23:59:59') : today; }
+    if (!from) return reporting;
+    return reporting.filter(r => { const rd = periodToDate(r.Period || ''); return rd >= from && rd <= to; });
+  }, [reporting, range, customFrom, customTo]);
+
+  const kpis = useMemo(() => {
+    let totSales=0, totUnits=0, totNet=0, totPayout=0, totRefunds=0, totCogs=0, totFees=0, totVat=0, totPromo=0;
+    filtered.forEach(r => {
+      const n = parseAmzNotes(r.Notes || '');
+      totSales += Number(r['Amazon Revenue (£)']) || n.sales || 0;
+      totUnits += Number(r['Amazon Orders']) || n.units || 0;
+      totNet += n.netProfit || 0;
+      totPayout += n.estPayout || 0;
+      totRefunds += n.refunds || 0;
+      totCogs += n.cogs || 0;
+      totFees += n.amzFees || 0;
+      totVat += n.vat || 0;
+      totPromo += n.promo || 0;
+    });
+    const avgMargin = totSales > 0 ? (totNet / totSales * 100) : 0;
+    return { totSales, totUnits, totNet, totPayout, totRefunds, totCogs, totFees, totVat, totPromo, avgMargin };
+  }, [filtered]);
+
+  if (!reporting || !reporting.length) return (
+    <div className="os-empty" style={{ marginTop: 20 }}>
+      <p>No reporting data yet. Seed the Airtable Reporting table with weekly P&amp;L data.</p>
+    </div>
+  );
+
+  return (
+    <>
+      <div className="orders-filter-bar">
+        <div className="orders-range-group">
+          {RANGES.map(r => (
+            <button key={r} className={`orders-range-btn${range === r ? ' active' : ''}`} onClick={() => setRange(r)}>{r}</button>
+          ))}
+        </div>
+        {range === 'Custom' && (
+          <div className="orders-custom-dates">
+            <input type="date" className="os-date-input" value={customFrom} onChange={e => setCustomFrom(e.target.value)} />
+            <span className="os-muted">→</span>
+            <input type="date" className="os-date-input" value={customTo} onChange={e => setCustomTo(e.target.value)} />
+          </div>
+        )}
+      </div>
+      <div className="os-sub-tabs" style={{ marginTop: 16 }}>
+        {['Reporting', 'Finance'].map(s => (
+          <button key={s} className={`os-sub-tab${sub === s ? ' active' : ''}`} onClick={() => setSub(s)}>{s}</button>
+        ))}
+      </div>
+      {filtered.length === 0 ? (
+        <div className="os-empty" style={{ marginTop: 16 }}>No data for this date range.</div>
+      ) : (
+        <>
+          <div className="os-stat-row" style={{ marginTop: 16 }}>
+            <div className="os-stat-card"><div className="os-stat-num">{gbp(kpis.totSales)}</div><div className="os-stat-label">Revenue</div></div>
+            <div className="os-stat-card"><div className="os-stat-num">{kpis.totUnits}</div><div className="os-stat-label">Units</div></div>
+            <div className="os-stat-card"><div className="os-stat-num">{gbp(kpis.totNet)}</div><div className="os-stat-label">Net Profit</div></div>
+            <div className={`os-stat-card${kpis.avgMargin < 20 ? ' os-stat-red' : kpis.avgMargin < 30 ? ' os-stat-amber' : ' os-stat-green'}`}>
+              <div className="os-stat-num">{kpis.avgMargin.toFixed(1)}%</div><div className="os-stat-label">Avg Margin</div>
+            </div>
+            <div className="os-stat-card"><div className="os-stat-num">{gbp(kpis.totPayout)}</div><div className="os-stat-label">Est. Payout</div></div>
+            <div className={`os-stat-card${kpis.totRefunds > 3 ? ' os-stat-red' : ''}`}>
+              <div className="os-stat-num">{kpis.totRefunds}</div><div className="os-stat-label">Refunds</div>
+            </div>
+          </div>
+
+          {sub === 'Reporting' && (
+            <SortableTable
+              cols={[
+                { label: 'Period', key: 'Period' },
+                { label: 'Revenue', key: 'Amazon Revenue (£)', type: 'number', w: 110 },
+                { label: 'Units', key: 'Amazon Orders', type: 'number', w: 80 },
+                { label: 'Margin', w: 80 },
+                { label: 'Net Profit', w: 100 },
+                { label: 'Est. Payout', w: 110 },
+                { label: 'Top SKU', key: 'Top SKU', w: 130 },
+              ]}
+              data={filtered}
+              renderRow={r => {
+                const n = parseAmzNotes(r.Notes || '');
+                return (
+                  <tr key={r.id}>
+                    <td><strong>{fmt(r.Period)}</strong></td>
+                    <td className="os-mono">{gbp(r['Amazon Revenue (£)'] || n.sales)}</td>
+                    <td className="os-mono">{r['Amazon Orders'] || n.units || '—'}</td>
+                    <td className="os-mono">{n.margin ? `${n.margin.toFixed(1)}%` : '—'}</td>
+                    <td className="os-mono"><strong>{n.netProfit ? gbp(n.netProfit) : '—'}</strong></td>
+                    <td className="os-mono">{n.estPayout ? gbp(n.estPayout) : '—'}</td>
+                    <td className="os-mono" style={{ fontSize: 11 }}>{fmt(r['Top SKU'])}</td>
+                  </tr>
+                );
+              }}
+              emptyMsg="No data in range."
+            />
+          )}
+
+          {sub === 'Finance' && (
+            <>
+              <h3 className="os-section-heading" style={{ marginTop: 24 }}>P&amp;L — {filtered.length} period{filtered.length !== 1 ? 's' : ''}</h3>
+              <table className="os-table" style={{ maxWidth: 480, marginBottom: 24 }}>
+                <tbody>
+                  <tr><td><strong>Gross Sales</strong></td><td className="os-mono">{gbp(kpis.totSales)}</td></tr>
+                  <tr><td style={{ paddingLeft: 20, color: 'rgba(45,42,38,.55)', fontSize: 13 }}>− COGS</td><td className="os-mono" style={{ color: '#ef4444' }}>({gbp(kpis.totCogs)})</td></tr>
+                  <tr style={{ background: 'rgba(238,235,225,.5)' }}><td><strong>Gross Profit</strong></td><td className="os-mono"><strong>{gbp(kpis.totSales - kpis.totCogs)}</strong></td></tr>
+                  <tr><td style={{ paddingLeft: 20, color: 'rgba(45,42,38,.55)', fontSize: 13 }}>− Amazon Fees</td><td className="os-mono" style={{ color: '#ef4444' }}>({gbp(kpis.totFees)})</td></tr>
+                  <tr><td style={{ paddingLeft: 20, color: 'rgba(45,42,38,.55)', fontSize: 13 }}>− VAT</td><td className="os-mono" style={{ color: '#ef4444' }}>({gbp(kpis.totVat)})</td></tr>
+                  <tr><td style={{ paddingLeft: 20, color: 'rgba(45,42,38,.55)', fontSize: 13 }}>− Promo / Vine</td><td className="os-mono" style={{ color: '#ef4444' }}>({gbp(kpis.totPromo)})</td></tr>
+                  <tr><td colSpan="2" style={{ padding: 4 }}></td></tr>
+                  <tr><td><strong>Net Profit</strong></td><td className="os-mono"><strong style={{ fontSize: 17 }}>{gbp(kpis.totNet)}</strong> <span style={{ fontSize: 11, color: 'rgba(45,42,38,.45)' }}>({kpis.avgMargin.toFixed(1)}%)</span></td></tr>
+                </tbody>
+              </table>
+              <p className="os-muted" style={{ fontSize: 13, marginBottom: 24 }}>Est. Amazon payout: <strong>{gbp(kpis.totPayout)}</strong></p>
+              <h3 className="os-section-heading">Weekly P&amp;L Detail</h3>
+              <SortableTable
+                cols={[
+                  { label: 'Period', key: 'Period' },
+                  { label: 'Sales', w: 100 },
+                  { label: 'COGS', w: 90 },
+                  { label: 'Amz Fees', w: 90 },
+                  { label: 'VAT', w: 80 },
+                  { label: 'Promo', w: 80 },
+                  { label: 'Net Profit', w: 100 },
+                  { label: 'Margin', w: 80 },
+                ]}
+                data={filtered}
+                renderRow={r => {
+                  const n = parseAmzNotes(r.Notes || '');
+                  const sales = Number(r['Amazon Revenue (£)']) || n.sales || 0;
+                  const mColor = n.margin > 30 ? '#16a34a' : n.margin > 20 ? '#d97706' : '#ef4444';
+                  return (
+                    <tr key={r.id}>
+                      <td><strong>{fmt(r.Period)}</strong></td>
+                      <td className="os-mono">{gbp(sales)}</td>
+                      <td className="os-mono" style={{ color: '#ef4444' }}>{n.cogs ? `(${gbp(n.cogs)})` : '—'}</td>
+                      <td className="os-mono" style={{ color: '#ef4444' }}>{n.amzFees ? `(${gbp(n.amzFees)})` : '—'}</td>
+                      <td className="os-mono" style={{ color: '#ef4444' }}>{n.vat ? `(${gbp(n.vat)})` : '—'}</td>
+                      <td className="os-mono" style={{ color: '#ef4444' }}>{n.promo ? `(${gbp(n.promo)})` : '—'}</td>
+                      <td className="os-mono"><strong>{n.netProfit ? gbp(n.netProfit) : '—'}</strong></td>
+                      <td className="os-mono"><span style={n.margin ? { color: mColor } : {}}>{n.margin ? `${n.margin.toFixed(1)}%` : '—'}</span></td>
+                    </tr>
+                  );
+                }}
+                emptyMsg="No data."
+              />
+            </>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
 /* ── Amazon UK — full hub ─────────────────────── */
 function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, reporting }) {
   const [sub, setSub] = useState('Overview');
@@ -1045,55 +1246,8 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
         </div>
       )}
 
-      {/* ── Reporting ── */}
-      {sub === 'Reporting' && (
-        <div style={{ marginTop: 8 }}>
-          <div className="wh-banner">
-            <div className="wh-banner-inner">
-              <span className="wh-banner-label">Amazon UK — Reporting</span>
-              <span className="wh-banner-sub">Monthly reconciliation, ads &amp; performance</span>
-            </div>
-            <div className="wh-banner-stats">
-              <div className="wh-banner-stat"><span className="wh-banner-num">{(reporting || []).length}</span><span className="wh-banner-unit">Periods</span></div>
-            </div>
-          </div>
-          {(!reporting || reporting.length === 0) ? (
-            <div className="os-empty" style={{ marginTop: 20 }}>
-              <p style={{ marginBottom: 8 }}>No reporting data yet.</p>
-              <p className="os-muted" style={{ fontSize: 13 }}>Add monthly periods to the Reporting table in Airtable — or upload an export here for review. Fields to add: Period, Amazon Revenue (£), Amazon Orders, Ad Spend (£), ACOS %, TACOS %, Net Revenue (£), Refunds (£), FBA Fees (£), Status.</p>
-            </div>
-          ) : (
-            <SortableTable
-              cols={[
-                { label: 'Period', key: 'Period' },
-                { label: 'Amazon Rev', key: 'Amazon Revenue (£)', type: 'number', w: 120 },
-                { label: 'Orders', key: 'Amazon Orders', type: 'number', w: 90 },
-                { label: 'Ad Spend', key: 'Ad Spend (£)', type: 'number', w: 100 },
-                { label: 'ACOS %', key: 'ACOS %', type: 'number', w: 80 },
-                { label: 'FBA Fees', key: 'FBA Fees (£)', type: 'number', w: 100 },
-                { label: 'Net Rev', key: 'Net Revenue (£)', type: 'number', w: 110 },
-                { label: 'Status', key: 'Status', w: 110 },
-              ]}
-              data={reportingEditor.dataWithStatus}
-              renderRow={r => (
-                <tr key={r.id}>
-                  <td><strong>{fmt(r.Period)}</strong></td>
-                  <td className="os-mono">{gbp(r['Amazon Revenue (£)'])}</td>
-                  <td className="os-mono">{fmt(r['Amazon Orders'])}</td>
-                  <td className="os-mono">{r['Ad Spend (£)'] ? <span style={{ color: 'var(--amber)' }}>{gbp(r['Ad Spend (£)'])}</span> : '—'}</td>
-                  <td className="os-mono">{r['ACOS %'] ? `${r['ACOS %']}%` : '—'}</td>
-                  <td className="os-mono">{gbp(r['FBA Fees (£)'])}</td>
-                  <td className="os-mono">{gbp(r['Net Revenue (£)'])}</td>
-                  <td onClick={e => e.stopPropagation()}>
-                    <StatusSelect record={r} allStatuses={reportingStatuses} handleStatusChange={reportingEditor.handleStatusChange} saving={reportingEditor.saving} />
-                  </td>
-                </tr>
-              )}
-              emptyMsg="No reporting data."
-            />
-          )}
-        </div>
-      )}
+      {/* ── Reporting / Finance (with date filter + P&L waterfall) ── */}
+      {sub === 'Reporting' && <AmazonReportingTab reporting={reporting} />}
     </>
   );
 }
