@@ -78,7 +78,10 @@ async function patchRecord(baseId, tableId, recordId, fields) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ baseId, tableId, recordId, fields }),
   });
-  if (!res.ok) throw new Error('Update failed');
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Update failed (${res.status})`);
+  }
 }
 
 /* ── Tasks ────────────────────────────────────── */
@@ -89,6 +92,7 @@ function TaskTable({ tasks }) {
   const [doneAt, setDoneAt] = useState({});
   const [saving, setSaving] = useState({});
   const [selectedTask, setSelectedTask] = useState(null);
+  const [updateError, setUpdateError] = useState('');
 
   const allStatuses = useMemo(() =>
     [...new Set([...BASE_STATUSES, ...tasks.map(t => t.Status).filter(Boolean)])],
@@ -120,10 +124,12 @@ function TaskTable({ tasks }) {
     setSelectedTask(prev => prev?.id === recordId ? { ...prev, Status: newStatus } : prev);
     try {
       await patchRecord(UK_BASE, UK_TABLES_CLIENT.TASKS, recordId, { Status: newStatus });
-    } catch {
+    } catch (err) {
       setLocalStatus(prev => { const n = { ...prev }; delete n[recordId]; return n; });
       setDoneAt(prev => { const n = { ...prev }; delete n[recordId]; return n; });
       setSelectedTask(prev => prev?.id === recordId ? { ...prev, Status: tasks.find(t => t.id === recordId)?.Status } : prev);
+      setUpdateError(`Save failed: ${err.message}`);
+      setTimeout(() => setUpdateError(''), 6000);
     } finally {
       setSaving(prev => { const n = { ...prev }; delete n[recordId]; return n; });
     }
@@ -131,6 +137,9 @@ function TaskTable({ tasks }) {
 
   return (
     <>
+      {updateError && (
+        <div className="os-alert-error" style={{ marginBottom: 8 }}>{updateError}</div>
+      )}
       <div className="os-toolbar">
         <input className="os-search" placeholder="Search tasks…" value={search} onChange={e => setSearch(e.target.value)} />
         {allStatuses.length > 0 && (
@@ -584,12 +593,12 @@ function ShopifyTab({ products }) {
 }
 
 /* ── Amazon UK — full hub ─────────────────────── */
-function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound }) {
+function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, reporting }) {
   const [sub, setSub] = useState('Overview');
   const [taskSearch, setTaskSearch] = useState('');
   const [taskStatus, setTaskStatus] = useState('');
 
-  const AMZ_SUBS = ['Overview', 'Tasks', 'Priorities', 'FBA Stock', 'Inbound', 'Catalogue', 'Marketing'];
+  const AMZ_SUBS = ['Overview', 'Tasks', 'Priorities', 'FBA Stock', 'Inbound', 'Catalogue', 'Marketing', 'Reporting'];
 
   // Filter to Amazon-related records
   const amazonTasks = useMemo(() =>
@@ -978,6 +987,54 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound }) {
             )}
             emptyMsg="No marketing campaigns."
           />
+        </div>
+      )}
+
+      {/* ── Reporting ── */}
+      {sub === 'Reporting' && (
+        <div style={{ marginTop: 8 }}>
+          <div className="wh-banner">
+            <div className="wh-banner-inner">
+              <span className="wh-banner-label">Amazon UK — Reporting</span>
+              <span className="wh-banner-sub">Monthly reconciliation, ads &amp; performance</span>
+            </div>
+            <div className="wh-banner-stats">
+              <div className="wh-banner-stat"><span className="wh-banner-num">{(reporting || []).length}</span><span className="wh-banner-unit">Periods</span></div>
+            </div>
+          </div>
+          {(!reporting || reporting.length === 0) ? (
+            <div className="os-empty" style={{ marginTop: 20 }}>
+              <p style={{ marginBottom: 8 }}>No reporting data yet.</p>
+              <p className="os-muted" style={{ fontSize: 13 }}>Add monthly periods to the Reporting table in Airtable — or upload an export here for review. Fields to add: Period, Amazon Revenue (£), Amazon Orders, Ad Spend (£), ACOS %, TACOS %, Net Revenue (£), Refunds (£), FBA Fees (£), Status.</p>
+            </div>
+          ) : (
+            <SortableTable
+              cols={[
+                { label: 'Period', key: 'Period' },
+                { label: 'Amazon Rev', key: 'Amazon Revenue (£)', type: 'number', w: 120 },
+                { label: 'Orders', key: 'Amazon Orders', type: 'number', w: 90 },
+                { label: 'Ad Spend', key: 'Ad Spend (£)', type: 'number', w: 100 },
+                { label: 'ACOS %', key: 'ACOS %', type: 'number', w: 80 },
+                { label: 'FBA Fees', key: 'FBA Fees (£)', type: 'number', w: 100 },
+                { label: 'Net Rev', key: 'Net Revenue (£)', type: 'number', w: 110 },
+                { label: 'Status', key: 'Status', w: 110 },
+              ]}
+              data={reporting}
+              renderRow={r => (
+                <tr key={r.id}>
+                  <td><strong>{fmt(r.Period)}</strong></td>
+                  <td className="os-mono">{gbp(r['Amazon Revenue (£)'])}</td>
+                  <td className="os-mono">{fmt(r['Amazon Orders'])}</td>
+                  <td className="os-mono">{r['Ad Spend (£)'] ? <span style={{ color: 'var(--amber)' }}>{gbp(r['Ad Spend (£)'])}</span> : '—'}</td>
+                  <td className="os-mono">{r['ACOS %'] ? `${r['ACOS %']}%` : '—'}</td>
+                  <td className="os-mono">{gbp(r['FBA Fees (£)'])}</td>
+                  <td className="os-mono">{gbp(r['Net Revenue (£)'])}</td>
+                  <td>{r.Status ? <span className={`os-pill ${sc(r.Status)}`}>{r.Status}</span> : '—'}</td>
+                </tr>
+              )}
+              emptyMsg="No reporting data."
+            />
+          )}
         </div>
       )}
     </>
@@ -1626,7 +1683,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
           {tab === 'Subscriptions'    && <SubscriptionsTab items={subscriptions} />}
           {tab === 'Customer Service' && <CSTab items={cs} />}
           {tab === 'Finance'          && <FinanceTab reconcile={reconcile} software={software} payouts={payouts} />}
-          {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} tasks={tasks} priorities={priorities} marketing={marketing} inbound={inbound} />}
+          {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} tasks={tasks} priorities={priorities} marketing={marketing} inbound={inbound} reporting={reporting} />}
           {tab === 'Stock on Hand'    && <SOHTab soh={soh} />}
           {tab === 'Inbound Stock'    && <InboundTab inbound={inbound} />}
         </div>

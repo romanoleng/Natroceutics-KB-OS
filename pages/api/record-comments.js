@@ -23,6 +23,10 @@ export default async function handler(req, res) {
         headers: { Authorization: `Bearer ${apiKey}` },
       });
       if (!r.ok) {
+        // 403/401 = PAT missing data.recordComments scope — return soft error so panel still opens
+        if (r.status === 403 || r.status === 401) {
+          return res.status(200).json({ permissionsError: true, comments: [] });
+        }
         const err = await r.json().catch(() => ({}));
         return res.status(r.status).json({ error: err?.error?.message || 'Airtable error' });
       }
@@ -47,6 +51,9 @@ export default async function handler(req, res) {
         body: JSON.stringify({ text: text.trim() }),
       });
       if (!r.ok) {
+        if (r.status === 403 || r.status === 401) {
+          return res.status(200).json({ permissionsError: true });
+        }
         const err = await r.json().catch(() => ({}));
         return res.status(r.status).json({ error: err?.error?.message || 'Airtable error' });
       }

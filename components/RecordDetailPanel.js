@@ -52,6 +52,7 @@ export default function RecordDetailPanel({
   const [posting, setPosting] = useState(false);
   const [commentsLoaded, setCommentsLoaded] = useState(false);
   const [commentError, setCommentError] = useState('');
+  const [commentsDisabled, setCommentsDisabled] = useState(false);
 
   useEffect(() => {
     if (!record) return;
@@ -69,11 +70,13 @@ export default function RecordDetailPanel({
   useEffect(() => {
     if (!canComment) { setCommentsLoaded(true); return; }
     setCommentsLoaded(false);
+    setCommentsDisabled(false);
     setComments([]);
     fetch(`/api/record-comments?baseId=${encodeURIComponent(baseId)}&tableId=${encodeURIComponent(tableId)}&recordId=${encodeURIComponent(recordId)}`)
       .then(r => r.json())
       .then(data => {
-        setComments(data.comments || []);
+        if (data.permissionsError) { setCommentsDisabled(true); }
+        else { setComments(data.comments || []); }
         setCommentsLoaded(true);
       })
       .catch(() => setCommentsLoaded(true));
@@ -81,7 +84,7 @@ export default function RecordDetailPanel({
 
   async function submitComment(e) {
     e.preventDefault();
-    if (!commentText.trim() || posting) return;
+    if (!commentText.trim() || posting || commentsDisabled) return;
     setPosting(true);
     setCommentError('');
     try {
@@ -91,7 +94,9 @@ export default function RecordDetailPanel({
         body: JSON.stringify({ baseId, tableId, recordId, text: commentText.trim() }),
       });
       const data = await res.json();
-      if (data.comment) {
+      if (data.permissionsError) {
+        setCommentsDisabled(true);
+      } else if (data.comment) {
         setComments(prev => [...prev, data.comment]);
         setCommentText('');
       } else {
@@ -171,47 +176,56 @@ export default function RecordDetailPanel({
         <div className="dp-comments">
           <div className="dp-comments-header">
             <span className="dp-comments-title">Notes &amp; Comments</span>
-            {commentsLoaded && comments.length > 0 && (
+            {commentsLoaded && !commentsDisabled && comments.length > 0 && (
               <span className="dp-comments-count">{comments.length}</span>
             )}
           </div>
 
-          <div className="dp-comments-list">
-            {!commentsLoaded ? (
-              <p className="dp-comment-meta" style={{ padding: '8px 0', fontStyle: 'italic' }}>Loading…</p>
-            ) : comments.length === 0 ? (
-              <p className="dp-comment-empty">No notes yet.</p>
-            ) : (
-              [...comments].reverse().map(c => (
-                <div key={c.id} className="dp-comment">
-                  <div className="dp-comment-meta">
-                    <span className="dp-comment-author">{c.author?.name || 'User'}</span>
-                    <span className="dp-comment-time">{fmtCommentDate(c.createdTime)}</span>
-                  </div>
-                  <p className="dp-comment-text">{c.text}</p>
-                </div>
-              ))
-            )}
-          </div>
+          {commentsDisabled ? (
+            <p className="dp-comment-empty" style={{ fontStyle: 'italic', fontSize: 12 }}>
+              Comments require additional API token permissions.<br />
+              Add <strong>data.recordComments:read</strong> + <strong>data.recordComments:write</strong> scopes to your Airtable PAT.
+            </p>
+          ) : (
+            <>
+              <div className="dp-comments-list">
+                {!commentsLoaded ? (
+                  <p className="dp-comment-meta" style={{ padding: '8px 0', fontStyle: 'italic' }}>Loading…</p>
+                ) : comments.length === 0 ? (
+                  <p className="dp-comment-empty">No notes yet.</p>
+                ) : (
+                  [...comments].reverse().map(c => (
+                    <div key={c.id} className="dp-comment">
+                      <div className="dp-comment-meta">
+                        <span className="dp-comment-author">{c.author?.name || 'User'}</span>
+                        <span className="dp-comment-time">{fmtCommentDate(c.createdTime)}</span>
+                      </div>
+                      <p className="dp-comment-text">{c.text}</p>
+                    </div>
+                  ))
+                )}
+              </div>
 
-          <form className="dp-comment-form" onSubmit={submitComment}>
-            <textarea
-              className="dp-comment-input"
-              placeholder="Add a note or comment…"
-              value={commentText}
-              onChange={e => setCommentText(e.target.value)}
-              rows={2}
-              disabled={posting}
-            />
-            {commentError && <p className="dp-comment-error">{commentError}</p>}
-            <button
-              className="dp-comment-submit"
-              type="submit"
-              disabled={posting || !commentText.trim()}
-            >
-              {posting ? 'Saving…' : 'Add Note'}
-            </button>
-          </form>
+              <form className="dp-comment-form" onSubmit={submitComment}>
+                <textarea
+                  className="dp-comment-input"
+                  placeholder="Add a note or comment…"
+                  value={commentText}
+                  onChange={e => setCommentText(e.target.value)}
+                  rows={2}
+                  disabled={posting}
+                />
+                {commentError && <p className="dp-comment-error">{commentError}</p>}
+                <button
+                  className="dp-comment-submit"
+                  type="submit"
+                  disabled={posting || !commentText.trim()}
+                >
+                  {posting ? 'Saving…' : 'Add Note'}
+                </button>
+              </form>
+            </>
+          )}
         </div>
 
         <div className="dp-footer">

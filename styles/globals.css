@@ -1886,6 +1886,21 @@ th.th-sort:hover { background: rgba(29,65,48,0.85); }
   color: var(--charcoal-45);
 }
 
+/* ── DATE INPUT IN PANEL ─────────────────────── */
+.dp-date-input {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--charcoal);
+  background: var(--cream);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  padding: 3px 7px;
+  cursor: pointer;
+}
+.dp-date-input:hover { border-color: var(--forest-secondary); }
+.dp-date-input:focus { outline: none; border-color: var(--forest-primary); }
+.dp-date-input:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* ── MOBILE RESPONSIVE ───────────────────────── */
 @media (max-width: 768px) {
   /* Header — two-row layout on mobile */

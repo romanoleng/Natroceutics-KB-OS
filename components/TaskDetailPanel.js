@@ -43,6 +43,18 @@ function fmtCommentDate(iso) {
   } catch { return iso; }
 }
 
+/* Parse any date string to YYYY-MM-DD for <input type="date"> */
+function toDateInputVal(v) {
+  if (!v) return '';
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0, 10);
+  try {
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString().slice(0, 10);
+  } catch { return ''; }
+}
+
 export default function TaskDetailPanel({
   task,
   onClose,
@@ -55,11 +67,19 @@ export default function TaskDetailPanel({
   const [posting, setPosting] = useState(false);
   const [commentsLoaded, setCommentsLoaded] = useState(false);
   const [commentError, setCommentError] = useState('');
+  const [commentsDisabled, setCommentsDisabled] = useState(false);
+  const [dateEntry, setDateEntry] = useState('');
+  const [dateSaving, setDateSaving] = useState(false);
 
   const baseId = task?._baseId;
   const tableId = task?._tableId;
   const recordId = task?.id;
   const canComment = !!(baseId && tableId && recordId);
+
+  /* Reset date input when task changes */
+  useEffect(() => {
+    setDateEntry(toDateInputVal(task?.['Date of Entry']));
+  }, [task?.id]);
 
   /* Close on Escape */
   useEffect(() => {
@@ -73,16 +93,35 @@ export default function TaskDetailPanel({
   useEffect(() => {
     if (!canComment) { setCommentsLoaded(true); return; }
     setCommentsLoaded(false);
+    setCommentsDisabled(false);
     setComments([]);
     fetch(`/api/record-comments?baseId=${encodeURIComponent(baseId)}&tableId=${encodeURIComponent(tableId)}&recordId=${encodeURIComponent(recordId)}`)
       .then(r => r.json())
-      .then(data => { setComments(data.comments || []); setCommentsLoaded(true); })
+      .then(data => {
+        if (data.permissionsError) { setCommentsDisabled(true); }
+        else { setComments(data.comments || []); }
+        setCommentsLoaded(true);
+      })
       .catch(() => setCommentsLoaded(true));
   }, [baseId, tableId, recordId]);
 
+  async function handleDateBlur() {
+    if (!dateEntry || !baseId || !tableId || !recordId) return;
+    if (dateEntry === toDateInputVal(task?.['Date of Entry'])) return; // unchanged
+    setDateSaving(true);
+    try {
+      await fetch('/api/update-record', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseId, tableId, recordId, fields: { 'Date of Entry': dateEntry } }),
+      });
+    } catch { /* silent — show field still has new value */ }
+    setDateSaving(false);
+  }
+
   async function submitComment(e) {
     e.preventDefault();
-    if (!commentText.trim() || posting) return;
+    if (!commentText.trim() || posting || commentsDisabled) return;
     setPosting(true);
     setCommentError('');
     try {
@@ -92,7 +131,9 @@ export default function TaskDetailPanel({
         body: JSON.stringify({ baseId, tableId, recordId, text: commentText.trim() }),
       });
       const data = await res.json();
-      if (data.comment) {
+      if (data.permissionsError) {
+        setCommentsDisabled(true);
+      } else if (data.comment) {
         setComments(prev => [...prev, data.comment]);
         setCommentText('');
       } else {
@@ -114,6 +155,19 @@ export default function TaskDetailPanel({
   });
 
   function renderValue(key, value) {
+    if (key === 'Date of Entry') {
+      return (
+        <input
+          type="date"
+          className="dp-date-input"
+          value={dateEntry}
+          onChange={e => setDateEntry(e.target.value)}
+          onBlur={handleDateBlur}
+          disabled={dateSaving}
+          title={dateSaving ? 'Saving…' : 'Click to set date'}
+        />
+      );
+    }
     if (value === null || value === undefined || value === '') {
       return <span className="dp-empty">—</span>;
     }
@@ -160,7 +214,7 @@ export default function TaskDetailPanel({
           {/* Primary fields */}
           {PRIMARY_FIELDS.map(({ key, label }) => (
             <div key={key} className="dp-field">
-              <span className="dp-label">{label}</span>
+              <span className="dp-label">{label}{key === 'Date of Entry' && dateSaving ? ' ·saving' : ''}</span>
               <div className="dp-value">{renderValue(key, task[key])}</div>
             </div>
           ))}
@@ -197,47 +251,56 @@ export default function TaskDetailPanel({
         <div className="dp-comments">
           <div className="dp-comments-header">
             <span className="dp-comments-title">Activity &amp; Notes</span>
-            {commentsLoaded && comments.length > 0 && (
+            {commentsLoaded && !commentsDisabled && comments.length > 0 && (
               <span className="dp-comments-count">{comments.length}</span>
             )}
           </div>
 
-          <div className="dp-comments-list">
-            {!commentsLoaded ? (
-              <p className="dp-comment-meta" style={{ padding: '8px 0', fontStyle: 'italic' }}>Loading…</p>
-            ) : comments.length === 0 ? (
-              <p className="dp-comment-empty">No activity yet.</p>
-            ) : (
-              [...comments].reverse().map(c => (
-                <div key={c.id} className="dp-comment">
-                  <div className="dp-comment-meta">
-                    <span className="dp-comment-author">{c.author?.name || 'System'}</span>
-                    <span className="dp-comment-time">{fmtCommentDate(c.createdTime)}</span>
-                  </div>
-                  <p className="dp-comment-text">{c.text}</p>
-                </div>
-              ))
-            )}
-          </div>
+          {commentsDisabled ? (
+            <p className="dp-comment-empty" style={{ fontStyle: 'italic', fontSize: 12 }}>
+              Comments require additional API token permissions.<br />
+              Add <strong>data.recordComments:read</strong> + <strong>data.recordComments:write</strong> to your Airtable PAT.
+            </p>
+          ) : (
+            <>
+              <div className="dp-comments-list">
+                {!commentsLoaded ? (
+                  <p className="dp-comment-meta" style={{ padding: '8px 0', fontStyle: 'italic' }}>Loading…</p>
+                ) : comments.length === 0 ? (
+                  <p className="dp-comment-empty">No activity yet.</p>
+                ) : (
+                  [...comments].reverse().map(c => (
+                    <div key={c.id} className="dp-comment">
+                      <div className="dp-comment-meta">
+                        <span className="dp-comment-author">{c.author?.name || 'System'}</span>
+                        <span className="dp-comment-time">{fmtCommentDate(c.createdTime)}</span>
+                      </div>
+                      <p className="dp-comment-text">{c.text}</p>
+                    </div>
+                  ))
+                )}
+              </div>
 
-          <form className="dp-comment-form" onSubmit={submitComment}>
-            <textarea
-              className="dp-comment-input"
-              placeholder="Add a note or comment…"
-              value={commentText}
-              onChange={e => setCommentText(e.target.value)}
-              rows={2}
-              disabled={posting}
-            />
-            {commentError && <p className="dp-comment-error">{commentError}</p>}
-            <button
-              className="dp-comment-submit"
-              type="submit"
-              disabled={posting || !commentText.trim()}
-            >
-              {posting ? 'Saving…' : 'Add Note'}
-            </button>
-          </form>
+              <form className="dp-comment-form" onSubmit={submitComment}>
+                <textarea
+                  className="dp-comment-input"
+                  placeholder="Add a note or comment…"
+                  value={commentText}
+                  onChange={e => setCommentText(e.target.value)}
+                  rows={2}
+                  disabled={posting}
+                />
+                {commentError && <p className="dp-comment-error">{commentError}</p>}
+                <button
+                  className="dp-comment-submit"
+                  type="submit"
+                  disabled={posting || !commentText.trim()}
+                >
+                  {posting ? 'Saving…' : 'Add Note'}
+                </button>
+              </form>
+            </>
+          )}
         </div>
 
         {/* ── Footer ── */}
