@@ -9,7 +9,7 @@
  *   BASE_STATUSES          — default status options
  *   sc(status)             — returns the CSS pill class for a given status string
  */
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 
 export const DONE_VALS = new Set([
   'Done', 'Complete', 'Completed', 'Approved', 'Resolved', 'Closed',
@@ -53,6 +53,9 @@ async function patchRecord(baseId, tableId, recordId, fields) {
  * Manages optimistic status updates for a list of Airtable records.
  * Each record must carry _baseId and _tableId (injected by lib/airtable.js).
  *
+ * Status changes are persisted to sessionStorage keyed by base+table ID so
+ * they survive tab switches and section changes within the same page session.
+ *
  * Returns:
  *   dataWithStatus   — data with localStatus overlaid
  *   handleStatusChange(recordId, newStatus, record) — call on <select onChange>
@@ -63,6 +66,37 @@ export function useStatusEditor(data) {
   const [localStatus, setLocalStatus] = useState({});
   const [saving, setSaving] = useState({});
   const [updateError, setUpdateError] = useState('');
+  const hydrated = useRef(false);
+
+  // Derive a stable storage key from the first record's table coordinates.
+  // All records in a given tab come from the same base+table so the first is enough.
+  const storageKey = useMemo(() => {
+    const r = data?.[0];
+    if (!r?._baseId || !r?._tableId) return null;
+    return `natro_status_${r._baseId}_${r._tableId}`;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.[0]?._baseId, data?.[0]?._tableId]);
+
+  // Hydrate from sessionStorage when the key is first known (component mounts or remounts)
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      const raw = sessionStorage.getItem(storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setLocalStatus(parsed);
+      }
+    } catch {}
+    hydrated.current = true;
+  }, [storageKey]);
+
+  // Persist to sessionStorage whenever localStatus changes (skip the empty initial state)
+  useEffect(() => {
+    if (!storageKey || !hydrated.current) return;
+    try {
+      sessionStorage.setItem(storageKey, JSON.stringify(localStatus));
+    } catch {}
+  }, [localStatus, storageKey]);
 
   const dataWithStatus = useMemo(() =>
     (data || []).map(r => ({
