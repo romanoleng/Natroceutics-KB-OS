@@ -4,6 +4,7 @@ import OsLayout from '../components/OsLayout';
 import ProductsSection from '../components/ProductsSection';
 import SortableTable from '../components/SortableTable';
 import TaskDetailPanel from '../components/TaskDetailPanel';
+import { useStatusEditor, StatusSelect, sc as scShared, DONE_VALS as DONE_VALS_SHARED, BASE_STATUSES as BASE_STATUSES_SHARED } from '../components/StatusSelect';
 import {
   getUKTasks, getUKPriorities, getUKRisks,
   getUKAmazon, getUKAmazonCat,
@@ -600,36 +601,51 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
 
   const AMZ_SUBS = ['Overview', 'Tasks', 'Priorities', 'FBA Stock', 'Inbound', 'Catalogue', 'Marketing', 'Reporting'];
 
-  // Filter to Amazon-related records
+  // Status editors — one per dataset so each table has independent optimistic state
+  const tasksEditor    = useStatusEditor(tasks);
+  const catEditor      = useStatusEditor(catalogue);
+  const fbaEditor      = useStatusEditor(fba);
+  const mktEditor      = useStatusEditor(marketing);
+  const inboundEditor  = useStatusEditor(inbound);
+  const reportingEditor = useStatusEditor(reporting);
+
+  // Derive status option lists
+  const catStatuses      = useMemo(() => [...new Set([...BASE_STATUSES_SHARED, ...(catalogue || []).map(r => r.Status).filter(Boolean)])], [catalogue]);
+  const fbaStatuses      = useMemo(() => [...new Set([...BASE_STATUSES_SHARED, ...(fba || []).map(r => r.Status).filter(Boolean)])], [fba]);
+  const mktStatuses      = useMemo(() => [...new Set([...BASE_STATUSES_SHARED, ...(marketing || []).map(r => r.Status).filter(Boolean)])], [marketing]);
+  const inboundStatuses  = useMemo(() => [...new Set(['Pending', 'In Transit', 'Received', 'Done', 'Delayed', ...BASE_STATUSES_SHARED, ...(inbound || []).map(r => r.Status).filter(Boolean)])], [inbound]);
+  const reportingStatuses = useMemo(() => [...new Set(['Draft', 'In Review', 'Approved', 'Done', ...BASE_STATUSES_SHARED, ...(reporting || []).map(r => r.Status).filter(Boolean)])], [reporting]);
+
+  // Filter to Amazon-related records (using editors' dataWithStatus so local changes propagate)
   const amazonTasks = useMemo(() =>
-    tasks.filter(t => (t['Business Area'] || '').toLowerCase().includes('amazon')),
-    [tasks]
+    tasksEditor.dataWithStatus.filter(t => (t['Business Area'] || '').toLowerCase().includes('amazon')),
+    [tasksEditor.dataWithStatus]
   );
   const amazonPriorities = useMemo(() =>
     priorities.filter(p => (p['Business Area'] || '').toLowerCase().includes('amazon')),
     [priorities]
   );
   const amazonMarketing = useMemo(() =>
-    marketing.filter(m =>
+    mktEditor.dataWithStatus.filter(m =>
       (m.Type || '').toLowerCase().includes('amazon') ||
       (m.Channel || '').toLowerCase().includes('amazon') ||
       (m['Campaign / Launch Name'] || '').toLowerCase().includes('amazon')
     ),
-    [marketing]
+    [mktEditor.dataWithStatus]
   );
   // Inbound destined for Amazon FBA
   const amazonInbound = useMemo(() =>
-    inbound.filter(s => {
+    inboundEditor.dataWithStatus.filter(s => {
       const ch = Array.isArray(s.Channel) ? s.Channel.join(' ') : (s.Channel || '');
       return ch.toLowerCase().includes('amazon') || (s.Location || '').toLowerCase().includes('amazon');
     }),
-    [inbound]
+    [inboundEditor.dataWithStatus]
   );
 
   const reorderCount = fba.filter(p => p.Reorder === 'Yes' || p.Reorder === true).length;
   const totalFBA = fba.reduce((s, p) => s + (Number(p['FBA Stock']) || 0), 0);
-  const openTasks = amazonTasks.filter(t => !['Done', 'Complete', 'Completed'].includes(t.Status));
-  const taskStatuses = [...new Set(amazonTasks.map(t => t.Status).filter(Boolean))];
+  const openTasks = amazonTasks.filter(t => !DONE_VALS_SHARED.has(t.Status));
+  const taskStatuses = [...new Set([...BASE_STATUSES_SHARED, ...amazonTasks.map(t => t.Status).filter(Boolean)])];
 
   const filteredTasks = useMemo(() => {
     const q = taskSearch.toLowerCase();
@@ -642,6 +658,10 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
 
   const totalInbound = amazonInbound.reduce((s, i) => s + (Number(i['Inbound QTY']) || 0), 0);
 
+  // Aggregate update errors
+  const anyError = tasksEditor.updateError || catEditor.updateError || fbaEditor.updateError ||
+    mktEditor.updateError || inboundEditor.updateError || reportingEditor.updateError;
+
   return (
     <>
       {/* Sub-tab nav */}
@@ -650,6 +670,8 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
           <button key={s} className={`os-sub-tab${sub === s ? ' active' : ''}`} onClick={() => setSub(s)}>{s}</button>
         ))}
       </div>
+
+      {anyError && <div className="os-alert-error" style={{ marginTop: 8 }}>{anyError}</div>}
 
       {/* ── Overview ── */}
       {sub === 'Overview' && (
@@ -693,22 +715,28 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
                 cols={[
                   { label: 'Task', key: 'Task' },
                   { label: 'Area', key: 'Business Area', w: 130 },
-                  { label: 'Status', key: 'Status', w: 110 },
+                  { label: 'Status', key: 'Status', w: 120 },
                   { label: 'Priority', key: 'Priority', w: 100 },
                   { label: 'Owner', key: 'Owner', w: 110 },
                   { label: 'Due', key: 'Due Date', type: 'date', w: 100 },
                 ]}
                 data={openTasks}
-                renderRow={t => (
-                  <tr key={t.id}>
+                sinkCompleted="Status"
+                renderRow={t => {
+                  const isDone = DONE_VALS_SHARED.has(t.Status);
+                  return (
+                  <tr key={t.id} className={isDone ? 'row-done' : ''}>
                     <td><strong>{fmt(t.Task)}</strong>{t.Notes && <p className="os-table-note">{t.Notes}</p>}</td>
                     <td className="os-muted">{fmt(t['Business Area'])}</td>
-                    <td>{t.Status ? <span className={`os-pill ${sc(t.Status)}`}>{t.Status}</span> : '—'}</td>
+                    <td onClick={e => e.stopPropagation()}>
+                      <StatusSelect record={t} allStatuses={taskStatuses} handleStatusChange={tasksEditor.handleStatusChange} saving={tasksEditor.saving} />
+                    </td>
                     <td>{t.Priority ? <span className="os-pill pill-default">{t.Priority}</span> : '—'}</td>
                     <td className="os-muted">{fmt(t.Owner)}</td>
                     <td className="os-mono">{fmt(t['Due Date'])}</td>
                   </tr>
-                )}
+                  );
+                }}
                 emptyMsg="No open tasks."
               />
             </>
@@ -759,22 +787,28 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
             cols={[
               { label: 'Task', key: 'Task' },
               { label: 'Area', key: 'Business Area', w: 140 },
-              { label: 'Status', key: 'Status', w: 110 },
+              { label: 'Status', key: 'Status', w: 120 },
               { label: 'Priority', key: 'Priority', w: 100 },
               { label: 'Owner', key: 'Owner', w: 110 },
               { label: 'Due', key: 'Due Date', type: 'date', w: 100 },
             ]}
             data={filteredTasks}
-            renderRow={t => (
-              <tr key={t.id}>
+            sinkCompleted="Status"
+            renderRow={t => {
+              const isDone = DONE_VALS_SHARED.has(t.Status);
+              return (
+              <tr key={t.id} className={isDone ? 'row-done' : ''}>
                 <td><strong>{fmt(t.Task)}</strong>{t.Notes && <p className="os-table-note">{t.Notes}</p>}</td>
                 <td className="os-muted">{fmt(t['Business Area'])}</td>
-                <td>{t.Status ? <span className={`os-pill ${sc(t.Status)}`}>{t.Status}</span> : '—'}</td>
+                <td onClick={e => e.stopPropagation()}>
+                  <StatusSelect record={t} allStatuses={taskStatuses} handleStatusChange={tasksEditor.handleStatusChange} saving={tasksEditor.saving} />
+                </td>
                 <td>{t.Priority ? <span className="os-pill pill-default">{t.Priority}</span> : '—'}</td>
                 <td className="os-muted">{fmt(t.Owner)}</td>
                 <td className="os-mono">{fmt(t['Due Date'])}</td>
               </tr>
-            )}
+              );
+            }}
             emptyMsg="No Amazon tasks found."
           />
         </>
@@ -861,9 +895,12 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
                   { label: 'Reorder', key: 'Reorder', w: 90 },
                   { label: 'Status', key: 'Status', w: 110 },
                 ]}
-                data={fba}
-                renderRow={p => (
-                  <tr key={p.id}>
+                data={fbaEditor.dataWithStatus}
+                sinkCompleted="Status"
+                renderRow={p => {
+                  const isDone = DONE_VALS_SHARED.has(p.Status);
+                  return (
+                  <tr key={p.id} className={isDone ? 'row-done' : ''}>
                     <td><strong>{fmt(p.Product)}</strong><p className="os-table-note os-mono" style={{ fontSize: 10 }}>{fmt(p['Amazon SKU'])}</p></td>
                     <td className="os-mono" style={{ fontSize: 11 }}>{fmt(p.ASIN)}</td>
                     <td className="os-mono">{fmt(p['FBA Stock'])}</td>
@@ -872,9 +909,12 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
                     <td className="os-mono">{p['Margin %'] ? `${p['Margin %']}%` : '—'}</td>
                     <td className="os-mono">{gbp(p['P30 Forecast £'])}</td>
                     <td>{(p.Reorder === 'Yes' || p.Reorder === true) ? <span className="os-pill pill-blocked">Yes</span> : <span className="os-pill pill-done">No</span>}</td>
-                    <td>{p.Status ? <span className={`os-pill ${sc(p.Status)}`}>{p.Status}</span> : '—'}</td>
+                    <td onClick={e => e.stopPropagation()}>
+                      <StatusSelect record={p} allStatuses={fbaStatuses} handleStatusChange={fbaEditor.handleStatusChange} saving={fbaEditor.saving} />
+                    </td>
                   </tr>
-                )}
+                  );
+                }}
               />
             </div>
           </>
@@ -909,18 +949,24 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
                 { label: 'Status', key: 'Status', w: 110 },
                 { label: 'Expected Arrival', key: 'Expected Arrival', type: 'date', w: 140 },
               ]}
-              data={amazonInbound.length > 0 ? amazonInbound : inbound}
-              renderRow={s => (
-                <tr key={s.id}>
+              data={amazonInbound.length > 0 ? amazonInbound : inboundEditor.dataWithStatus}
+              sinkCompleted="Status"
+              renderRow={s => {
+                const isDone = DONE_VALS_SHARED.has(s.Status);
+                return (
+                <tr key={s.id} className={isDone ? 'row-done' : ''}>
                   <td><strong>{fmt(s.Product)}</strong></td>
                   <td className="os-mono">{fmt(s.SKU)}</td>
                   <td className="os-mono"><strong>{fmt(s['Inbound QTY'])}</strong></td>
                   <td className="os-mono">{fmt(s['PO Reference'])}</td>
                   <td className="os-muted">{fmt(s.Location)}</td>
-                  <td>{s.Status ? <span className={`os-pill ${sc(s.Status)}`}>{s.Status}</span> : '—'}</td>
+                  <td onClick={e => e.stopPropagation()}>
+                    <StatusSelect record={s} allStatuses={inboundStatuses} handleStatusChange={inboundEditor.handleStatusChange} saving={inboundEditor.saving} />
+                  </td>
                   <td className="os-mono">{fmt(s['Expected Arrival'])}</td>
                 </tr>
-              )}
+                );
+              }}
               emptyMsg="No inbound stock."
             />
           </div>
@@ -939,17 +985,23 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
               { label: 'Owner', key: 'Owner', w: 110 },
               { label: 'ASIN / SKU', key: 'ASIN / SKU', w: 120 },
             ]}
-            data={catalogue}
-            renderRow={t => (
-              <tr key={t.id}>
+            data={catEditor.dataWithStatus}
+            sinkCompleted="Status"
+            renderRow={t => {
+              const isDone = DONE_VALS_SHARED.has(t.Status);
+              return (
+              <tr key={t.id} className={isDone ? 'row-done' : ''}>
                 <td><strong>{fmt(t['Task / Update'])}</strong>{t['Notes / Detail'] && <p className="os-table-note">{t['Notes / Detail']}</p>}</td>
                 <td className="os-muted">{fmt(t.Category)}</td>
-                <td>{t.Status ? <span className={`os-pill ${sc(t.Status)}`}>{t.Status}</span> : '—'}</td>
+                <td onClick={e => e.stopPropagation()}>
+                  <StatusSelect record={t} allStatuses={catStatuses} handleStatusChange={catEditor.handleStatusChange} saving={catEditor.saving} />
+                </td>
                 <td>{t.Priority ? <span className="os-pill pill-default">{t.Priority}</span> : '—'}</td>
                 <td className="os-muted">{fmt(t.Owner)}</td>
                 <td className="os-mono" style={{ fontSize: 11 }}>{fmt(t['ASIN / SKU'])}</td>
               </tr>
-            )}
+              );
+            }}
             emptyMsg="No catalogue tasks."
           />
         </div>
@@ -972,19 +1024,25 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
               { label: 'Budget', key: 'Budget (£)', type: 'number', w: 100 },
               { label: 'Revenue', key: 'Revenue Generated (£)', type: 'number', w: 110 },
             ]}
-            data={amazonMarketing.length > 0 ? amazonMarketing : marketing}
-            renderRow={m => (
-              <tr key={m.id}>
+            data={amazonMarketing.length > 0 ? amazonMarketing : mktEditor.dataWithStatus}
+            sinkCompleted="Status"
+            renderRow={m => {
+              const isDone = DONE_VALS_SHARED.has(m.Status);
+              return (
+              <tr key={m.id} className={isDone ? 'row-done' : ''}>
                 <td><strong>{fmt(m['Campaign / Launch Name'])}</strong></td>
                 <td className="os-muted">{fmt(m.Type)}</td>
-                <td>{m.Status ? <span className={`os-pill ${sc(m.Status)}`}>{m.Status}</span> : '—'}</td>
+                <td onClick={e => e.stopPropagation()}>
+                  <StatusSelect record={m} allStatuses={mktStatuses} handleStatusChange={mktEditor.handleStatusChange} saving={mktEditor.saving} />
+                </td>
                 <td className="os-muted">{fmt(m.Owner)}</td>
                 <td className="os-mono">{fmt(m['Start Date'])}</td>
                 <td className="os-mono">{fmt(m['End Date'])}</td>
                 <td className="os-mono">{gbp(m['Budget (£)'])}</td>
                 <td className="os-mono">{gbp(m['Revenue Generated (£)'])}</td>
               </tr>
-            )}
+              );
+            }}
             emptyMsg="No marketing campaigns."
           />
         </div>
@@ -1019,7 +1077,7 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
                 { label: 'Net Rev', key: 'Net Revenue (£)', type: 'number', w: 110 },
                 { label: 'Status', key: 'Status', w: 110 },
               ]}
-              data={reporting}
+              data={reportingEditor.dataWithStatus}
               renderRow={r => (
                 <tr key={r.id}>
                   <td><strong>{fmt(r.Period)}</strong></td>
@@ -1029,7 +1087,9 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
                   <td className="os-mono">{r['ACOS %'] ? `${r['ACOS %']}%` : '—'}</td>
                   <td className="os-mono">{gbp(r['FBA Fees (£)'])}</td>
                   <td className="os-mono">{gbp(r['Net Revenue (£)'])}</td>
-                  <td>{r.Status ? <span className={`os-pill ${sc(r.Status)}`}>{r.Status}</span> : '—'}</td>
+                  <td onClick={e => e.stopPropagation()}>
+                    <StatusSelect record={r} allStatuses={reportingStatuses} handleStatusChange={reportingEditor.handleStatusChange} saving={reportingEditor.saving} />
+                  </td>
                 </tr>
               )}
               emptyMsg="No reporting data."

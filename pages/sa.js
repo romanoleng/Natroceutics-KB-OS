@@ -4,6 +4,7 @@ import OsLayout from '../components/OsLayout';
 import ProductsSection from '../components/ProductsSection';
 import SortableTable from '../components/SortableTable';
 import TaskDetailPanel from '../components/TaskDetailPanel';
+import { useStatusEditor, StatusSelect, DONE_VALS as DONE_VALS_SHARED, BASE_STATUSES as BASE_STATUSES_SHARED } from '../components/StatusSelect';
 import {
   getSATasks, getSAPriorities, getSARisks,
   getSAInventory, getSAFinance, getSAB2B,
@@ -214,10 +215,13 @@ function RiskList({ items }) {
 
 /* ── Inventory ────────────────────────────────────────────── */
 function InventoryTab({ items }) {
+  const editor = useStatusEditor(items);
   if (!items.length) return <div className="os-empty">No inventory records.</div>;
-  const lowStock = items.filter(i => ['Low Stock', 'Out of Stock', 'Critical'].includes(i.Status));
+  const lowStock = editor.dataWithStatus.filter(i => ['Low Stock', 'Out of Stock', 'Critical'].includes(i.Status));
+  const invStatuses = [...new Set(['In Stock', 'Low Stock', 'Out of Stock', 'Critical', ...BASE_STATUSES_SHARED, ...items.map(r => r.Status).filter(Boolean)])];
   return (
     <>
+      {editor.updateError && <div className="os-alert-error" style={{ marginBottom: 8 }}>{editor.updateError}</div>}
       {lowStock.length > 0 && (
         <div className="os-stat-row">
           <div className="os-stat-card os-stat-red"><div className="os-stat-num">{lowStock.length}</div><div className="os-stat-label">Low / Out of Stock</div></div>
@@ -231,17 +235,19 @@ function InventoryTab({ items }) {
             { label: 'SKU', key: 'SKU', w: 100 },
             { label: 'Qty', key: 'Quantity', type: 'number', w: 80 },
             { label: 'Location', key: 'Warehouse / Location', w: 160 },
-            { label: 'Status', key: 'Status', w: 110 },
+            { label: 'Status', key: 'Status', w: 120 },
             { label: 'BBD', key: 'BBD', type: 'date', w: 90 },
           ]}
-          data={items}
+          data={editor.dataWithStatus}
           renderRow={i => (
             <tr key={i.id}>
               <td><strong>{fmt(i['Product Name'])}</strong></td>
               <td className="os-mono">{fmt(i.SKU)}</td>
               <td className="os-mono">{fmt(i.Quantity)}</td>
               <td className="os-muted">{fmt(i['Warehouse / Location'])}</td>
-              <td>{i.Status ? <span className={`os-pill ${statusClass(i.Status)}`}>{i.Status}</span> : '—'}</td>
+              <td onClick={e => e.stopPropagation()}>
+                <StatusSelect record={i} allStatuses={invStatuses} handleStatusChange={editor.handleStatusChange} saving={editor.saving} />
+              </td>
               <td className="os-mono">{fmt(i.BBD)}</td>
             </tr>
           )}
@@ -254,41 +260,55 @@ function InventoryTab({ items }) {
 
 /* ── Finance ──────────────────────────────────────────────── */
 function FinanceTab({ items }) {
+  const editor = useStatusEditor(items);
+  const finStatuses = [...new Set(['Draft', 'In Review', 'Approved', 'Done', ...BASE_STATUSES_SHARED, ...items.map(r => r.Status).filter(Boolean)])];
   if (!items.length) return <div className="os-empty">No finance records.</div>;
   return (
-    <SortableTable
-      cols={[
-        { label: 'Period', key: 'Period' },
-        { label: 'Channel', key: 'Channel', w: 120 },
-        { label: 'Revenue (ZAR)', key: 'Revenue (ZAR)', type: 'number', w: 130 },
-        { label: 'Revenue (GBP)', key: 'Revenue (GBP)', type: 'number', w: 120 },
-        { label: 'Platform Fees', key: 'Platform Fees', type: 'number', w: 120 },
-        { label: 'Net Revenue', key: 'Net Revenue', type: 'number', w: 120 },
-        { label: 'Status', key: 'Status', w: 110 },
-      ]}
-      data={items}
-      renderRow={r => (
-        <tr key={r.id}>
-          <td><strong>{fmt(r.Period)}</strong></td>
-          <td className="os-muted">{fmt(r.Channel)}</td>
-          <td className="os-mono">{r['Revenue (ZAR)'] ? `R${Number(r['Revenue (ZAR)']).toLocaleString()}` : '—'}</td>
-          <td className="os-mono">{r['Revenue (GBP)'] ? `£${Number(r['Revenue (GBP)']).toLocaleString()}` : '—'}</td>
-          <td className="os-mono">{r['Platform Fees'] ? `R${Number(r['Platform Fees']).toLocaleString()}` : '—'}</td>
-          <td className="os-mono">{r['Net Revenue'] ? `R${Number(r['Net Revenue']).toLocaleString()}` : '—'}</td>
-          <td>{r.Status ? <span className={`os-pill ${statusClass(r.Status)}`}>{r.Status}</span> : '—'}</td>
-        </tr>
-      )}
-      emptyMsg="No finance records."
-    />
+    <>
+      {editor.updateError && <div className="os-alert-error" style={{ marginBottom: 8 }}>{editor.updateError}</div>}
+      <SortableTable
+        cols={[
+          { label: 'Period', key: 'Period' },
+          { label: 'Channel', key: 'Channel', w: 120 },
+          { label: 'Revenue (ZAR)', key: 'Revenue (ZAR)', type: 'number', w: 130 },
+          { label: 'Revenue (GBP)', key: 'Revenue (GBP)', type: 'number', w: 120 },
+          { label: 'Platform Fees', key: 'Platform Fees', type: 'number', w: 120 },
+          { label: 'Net Revenue', key: 'Net Revenue', type: 'number', w: 120 },
+          { label: 'Status', key: 'Status', w: 120 },
+        ]}
+        data={editor.dataWithStatus}
+        sinkCompleted="Status"
+        renderRow={r => {
+          const isDone = DONE_VALS_SHARED.has(r.Status);
+          return (
+          <tr key={r.id} className={isDone ? 'row-done' : ''}>
+            <td><strong>{fmt(r.Period)}</strong></td>
+            <td className="os-muted">{fmt(r.Channel)}</td>
+            <td className="os-mono">{r['Revenue (ZAR)'] ? `R${Number(r['Revenue (ZAR)']).toLocaleString()}` : '—'}</td>
+            <td className="os-mono">{r['Revenue (GBP)'] ? `£${Number(r['Revenue (GBP)']).toLocaleString()}` : '—'}</td>
+            <td className="os-mono">{r['Platform Fees'] ? `R${Number(r['Platform Fees']).toLocaleString()}` : '—'}</td>
+            <td className="os-mono">{r['Net Revenue'] ? `R${Number(r['Net Revenue']).toLocaleString()}` : '—'}</td>
+            <td onClick={e => e.stopPropagation()}>
+              <StatusSelect record={r} allStatuses={finStatuses} handleStatusChange={editor.handleStatusChange} saving={editor.saving} />
+            </td>
+          </tr>
+          );
+        }}
+        emptyMsg="No finance records."
+      />
+    </>
   );
 }
 
 /* ── B2B ──────────────────────────────────────────────────── */
 function B2BTab({ items }) {
+  const editor = useStatusEditor(items);
+  const b2bStatuses = [...new Set(['Active', 'Inactive', 'Prospect', 'On Hold', ...BASE_STATUSES_SHARED, ...items.map(r => r.Status).filter(Boolean)])];
   if (!items.length) return <div className="os-empty">No B2B accounts.</div>;
-  const active = items.filter(i => i.Status === 'Active');
+  const active = editor.dataWithStatus.filter(i => i.Status === 'Active');
   return (
     <>
+      {editor.updateError && <div className="os-alert-error" style={{ marginBottom: 8 }}>{editor.updateError}</div>}
       <div className="os-stat-row">
         <div className="os-stat-card os-stat-green"><div className="os-stat-num">{active.length}</div><div className="os-stat-label">Active Accounts</div></div>
         <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Total Accounts</div></div>
@@ -300,10 +320,10 @@ function B2BTab({ items }) {
             { label: 'Type', key: 'Account Type', w: 110 },
             { label: 'Contact', key: 'Contact Name', w: 120 },
             { label: 'City', key: 'City', w: 110 },
-            { label: 'Status', key: 'Status', w: 110 },
+            { label: 'Status', key: 'Status', w: 120 },
             { label: 'Monthly Vol (ZAR)', key: 'Monthly Volume (ZAR)', type: 'number', w: 150 },
           ]}
-          data={items}
+          data={editor.dataWithStatus}
           renderRow={b => (
             <tr key={b.id}>
               <td><strong>{fmt(b['Account Name'])}</strong>
@@ -312,7 +332,9 @@ function B2BTab({ items }) {
               <td className="os-muted">{fmt(b['Account Type'])}</td>
               <td className="os-muted">{fmt(b['Contact Name'])}</td>
               <td className="os-muted">{fmt(b.City)}</td>
-              <td>{b.Status ? <span className={`os-pill ${statusClass(b.Status)}`}>{b.Status}</span> : '—'}</td>
+              <td onClick={e => e.stopPropagation()}>
+                <StatusSelect record={b} allStatuses={b2bStatuses} handleStatusChange={editor.handleStatusChange} saving={editor.saving} />
+              </td>
               <td className="os-mono">{b['Monthly Volume (ZAR)'] ? `R${Number(b['Monthly Volume (ZAR)']).toLocaleString()}` : '—'}</td>
             </tr>
           )}
@@ -325,72 +347,93 @@ function B2BTab({ items }) {
 
 /* ── Customers ────────────────────────────────────────────── */
 function CustomersTab({ items }) {
+  const editor = useStatusEditor(items);
+  const custStatuses = [...new Set(['Active', 'Inactive', 'VIP', 'At Risk', 'Churned', ...BASE_STATUSES_SHARED, ...items.map(r => r.Status).filter(Boolean)])];
   if (!items.length) return <div className="os-empty">No customer records.</div>;
   return (
-    <SortableTable
-      cols={[
-        { label: 'Customer', key: 'Customer Name' },
-        { label: 'Source', key: 'Source', w: 130 },
-        { label: 'Type', key: 'Customer Type', w: 130 },
-        { label: 'Status', key: 'Status', w: 110 },
-        { label: 'LTV (ZAR)', key: 'LTV (ZAR)', type: 'number', w: 110 },
-        { label: 'Orders', key: 'Total Orders', type: 'number', w: 90 },
-      ]}
-      data={items}
-      renderRow={c => (
-        <tr key={c.id}>
-          <td><strong>{fmt(c['Customer Name'])}</strong>
-            {c.Email && <p className="os-table-note">{c.Email}</p>}
-          </td>
-          <td className="os-muted">{fmt(c.Source)}</td>
-          <td className="os-muted">{fmt(c['Customer Type'])}</td>
-          <td>{c.Status ? <span className={`os-pill ${statusClass(c.Status)}`}>{c.Status}</span> : '—'}</td>
-          <td className="os-mono">{c['LTV (ZAR)'] ? `R${Number(c['LTV (ZAR)']).toLocaleString()}` : '—'}</td>
-          <td className="os-mono">{fmt(c['Total Orders'])}</td>
-        </tr>
-      )}
-      emptyMsg="No customer records."
-    />
+    <>
+      {editor.updateError && <div className="os-alert-error" style={{ marginBottom: 8 }}>{editor.updateError}</div>}
+      <SortableTable
+        cols={[
+          { label: 'Customer', key: 'Customer Name' },
+          { label: 'Source', key: 'Source', w: 130 },
+          { label: 'Type', key: 'Customer Type', w: 130 },
+          { label: 'Status', key: 'Status', w: 120 },
+          { label: 'LTV (ZAR)', key: 'LTV (ZAR)', type: 'number', w: 110 },
+          { label: 'Orders', key: 'Total Orders', type: 'number', w: 90 },
+        ]}
+        data={editor.dataWithStatus}
+        renderRow={c => (
+          <tr key={c.id}>
+            <td><strong>{fmt(c['Customer Name'])}</strong>
+              {c.Email && <p className="os-table-note">{c.Email}</p>}
+            </td>
+            <td className="os-muted">{fmt(c.Source)}</td>
+            <td className="os-muted">{fmt(c['Customer Type'])}</td>
+            <td onClick={e => e.stopPropagation()}>
+              <StatusSelect record={c} allStatuses={custStatuses} handleStatusChange={editor.handleStatusChange} saving={editor.saving} />
+            </td>
+            <td className="os-mono">{c['LTV (ZAR)'] ? `R${Number(c['LTV (ZAR)']).toLocaleString()}` : '—'}</td>
+            <td className="os-mono">{fmt(c['Total Orders'])}</td>
+          </tr>
+        )}
+        emptyMsg="No customer records."
+      />
+    </>
   );
 }
 
 /* ── Marketing ────────────────────────────────────────────── */
 function MarketingTab({ items }) {
+  const editor = useStatusEditor(items);
+  const mktStatuses = [...new Set([...BASE_STATUSES_SHARED, ...items.map(r => r.Status).filter(Boolean)])];
   if (!items.length) return <div className="os-empty">No marketing campaigns.</div>;
   return (
-    <SortableTable
-      cols={[
-        { label: 'Campaign', key: 'Campaign / Launch' },
-        { label: 'Type', key: 'Type', w: 110 },
-        { label: 'Status', key: 'Status', w: 110 },
-        { label: 'Owner', key: 'Owner', w: 110 },
-        { label: 'Start', key: 'Start Date', type: 'date', w: 100 },
-        { label: 'End', key: 'End Date', type: 'date', w: 100 },
-        { label: 'Budget (ZAR)', key: 'Budget (ZAR)', type: 'number', w: 120 },
-      ]}
-      data={items}
-      renderRow={m => (
-        <tr key={m.id}>
-          <td><strong>{fmt(m['Campaign / Launch'])}</strong></td>
-          <td className="os-muted">{fmt(m.Type)}</td>
-          <td>{m.Status ? <span className={`os-pill ${statusClass(m.Status)}`}>{m.Status}</span> : '—'}</td>
-          <td className="os-muted">{fmt(m.Owner)}</td>
-          <td className="os-mono">{fmt(m['Start Date'])}</td>
-          <td className="os-mono">{fmt(m['End Date'])}</td>
-          <td className="os-mono">{m['Budget (ZAR)'] ? `R${Number(m['Budget (ZAR)']).toLocaleString()}` : '—'}</td>
-        </tr>
-      )}
-      emptyMsg="No marketing campaigns."
-    />
+    <>
+      {editor.updateError && <div className="os-alert-error" style={{ marginBottom: 8 }}>{editor.updateError}</div>}
+      <SortableTable
+        cols={[
+          { label: 'Campaign', key: 'Campaign / Launch' },
+          { label: 'Type', key: 'Type', w: 110 },
+          { label: 'Status', key: 'Status', w: 120 },
+          { label: 'Owner', key: 'Owner', w: 110 },
+          { label: 'Start', key: 'Start Date', type: 'date', w: 100 },
+          { label: 'End', key: 'End Date', type: 'date', w: 100 },
+          { label: 'Budget (ZAR)', key: 'Budget (ZAR)', type: 'number', w: 120 },
+        ]}
+        data={editor.dataWithStatus}
+        sinkCompleted="Status"
+        renderRow={m => {
+          const isDone = DONE_VALS_SHARED.has(m.Status);
+          return (
+          <tr key={m.id} className={isDone ? 'row-done' : ''}>
+            <td><strong>{fmt(m['Campaign / Launch'])}</strong></td>
+            <td className="os-muted">{fmt(m.Type)}</td>
+            <td onClick={e => e.stopPropagation()}>
+              <StatusSelect record={m} allStatuses={mktStatuses} handleStatusChange={editor.handleStatusChange} saving={editor.saving} />
+            </td>
+            <td className="os-muted">{fmt(m.Owner)}</td>
+            <td className="os-mono">{fmt(m['Start Date'])}</td>
+            <td className="os-mono">{fmt(m['End Date'])}</td>
+            <td className="os-mono">{m['Budget (ZAR)'] ? `R${Number(m['Budget (ZAR)']).toLocaleString()}` : '—'}</td>
+          </tr>
+          );
+        }}
+        emptyMsg="No marketing campaigns."
+      />
+    </>
   );
 }
 
 /* ── Customer Service ─────────────────────────────────────── */
 function CSTab({ items }) {
-  const open = items.filter(i => !['Resolved', 'Closed', 'Done'].includes(i.Status));
+  const csEditor = useStatusEditor(items);
+  const csStatuses = [...new Set(['Open', 'In Progress', 'Resolved', 'Closed', 'Escalated', ...BASE_STATUSES_SHARED, ...items.map(r => r.Status).filter(Boolean)])];
+  const open = csEditor.dataWithStatus.filter(i => !['Resolved', 'Closed', 'Done'].includes(i.Status));
   if (!items.length) return <div className="os-empty">No customer service tickets.</div>;
   return (
     <>
+      {csEditor.updateError && <div className="os-alert-error" style={{ marginBottom: 8 }}>{csEditor.updateError}</div>}
       <div className="os-stat-row">
         <div className="os-stat-card os-stat-red"><div className="os-stat-num">{open.length}</div><div className="os-stat-label">Open Tickets</div></div>
         <div className="os-stat-card os-stat-green"><div className="os-stat-num">{items.length - open.length}</div><div className="os-stat-label">Resolved</div></div>
@@ -402,20 +445,26 @@ function CSTab({ items }) {
             { label: 'Customer', key: 'Customer Name', w: 130 },
             { label: 'Issue Type', key: 'Issue Type', w: 130 },
             { label: 'Channel', key: 'Channel', w: 110 },
-            { label: 'Status', key: 'Status', w: 110 },
+            { label: 'Status', key: 'Status', w: 120 },
             { label: 'Priority', key: 'Priority', w: 90 },
           ]}
-          data={items}
-          renderRow={t => (
-            <tr key={t.id}>
+          data={csEditor.dataWithStatus}
+          sinkCompleted="Status"
+          renderRow={t => {
+            const isDone = DONE_VALS_SHARED.has(t.Status);
+            return (
+            <tr key={t.id} className={isDone ? 'row-done' : ''}>
               <td><strong>{fmt(t['Ticket ID / Reference'])}</strong></td>
               <td className="os-muted">{fmt(t['Customer Name'])}</td>
               <td className="os-muted">{fmt(t['Issue Type'])}</td>
               <td className="os-muted">{fmt(t.Channel)}</td>
-              <td>{t.Status ? <span className={`os-pill ${statusClass(t.Status)}`}>{t.Status}</span> : '—'}</td>
+              <td onClick={e => e.stopPropagation()}>
+                <StatusSelect record={t} allStatuses={csStatuses} handleStatusChange={csEditor.handleStatusChange} saving={csEditor.saving} />
+              </td>
               <td>{t.Priority ? <span className={`os-pill ${statusClass(t.Priority)}`}>{t.Priority}</span> : '—'}</td>
             </tr>
-          )}
+            );
+          }}
           emptyMsg="No customer service tickets."
         />
       </div>
@@ -425,32 +474,43 @@ function CSTab({ items }) {
 
 /* ── Reporting ────────────────────────────────────────────── */
 function ReportingTab({ items }) {
+  const editor = useStatusEditor(items);
+  const repStatuses = [...new Set(['Draft', 'In Review', 'Approved', 'Done', ...BASE_STATUSES_SHARED, ...items.map(r => r.Status).filter(Boolean)])];
   if (!items.length) return <div className="os-empty">No reporting data yet.</div>;
   return (
-    <SortableTable
-      cols={[
-        { label: 'Period', key: 'Report Period' },
-        { label: 'Report Type', key: 'Report Type', w: 130 },
-        { label: 'Revenue (ZAR)', key: 'Revenue (ZAR)', type: 'number', w: 130 },
-        { label: 'Orders', key: 'Orders', type: 'number', w: 80 },
-        { label: 'New Customers', key: 'New Customers', type: 'number', w: 110 },
-        { label: 'AOV (ZAR)', key: 'AOV (ZAR)', type: 'number', w: 110 },
-        { label: 'Status', key: 'Status', w: 110 },
-      ]}
-      data={items}
-      renderRow={r => (
-        <tr key={r.id}>
-          <td><strong>{fmt(r['Report Period'])}</strong></td>
-          <td className="os-muted">{fmt(r['Report Type'])}</td>
-          <td className="os-mono">{r['Revenue (ZAR)'] ? `R${Number(r['Revenue (ZAR)']).toLocaleString()}` : '—'}</td>
-          <td className="os-mono">{fmt(r.Orders)}</td>
-          <td className="os-mono">{fmt(r['New Customers'])}</td>
-          <td className="os-mono">{r['AOV (ZAR)'] ? `R${Number(r['AOV (ZAR)']).toLocaleString()}` : '—'}</td>
-          <td>{r.Status ? <span className={`os-pill ${statusClass(r.Status)}`}>{r.Status}</span> : '—'}</td>
-        </tr>
-      )}
-      emptyMsg="No reporting data yet."
-    />
+    <>
+      {editor.updateError && <div className="os-alert-error" style={{ marginBottom: 8 }}>{editor.updateError}</div>}
+      <SortableTable
+        cols={[
+          { label: 'Period', key: 'Report Period' },
+          { label: 'Report Type', key: 'Report Type', w: 130 },
+          { label: 'Revenue (ZAR)', key: 'Revenue (ZAR)', type: 'number', w: 130 },
+          { label: 'Orders', key: 'Orders', type: 'number', w: 80 },
+          { label: 'New Customers', key: 'New Customers', type: 'number', w: 110 },
+          { label: 'AOV (ZAR)', key: 'AOV (ZAR)', type: 'number', w: 110 },
+          { label: 'Status', key: 'Status', w: 120 },
+        ]}
+        data={editor.dataWithStatus}
+        sinkCompleted="Status"
+        renderRow={r => {
+          const isDone = DONE_VALS_SHARED.has(r.Status);
+          return (
+          <tr key={r.id} className={isDone ? 'row-done' : ''}>
+            <td><strong>{fmt(r['Report Period'])}</strong></td>
+            <td className="os-muted">{fmt(r['Report Type'])}</td>
+            <td className="os-mono">{r['Revenue (ZAR)'] ? `R${Number(r['Revenue (ZAR)']).toLocaleString()}` : '—'}</td>
+            <td className="os-mono">{fmt(r.Orders)}</td>
+            <td className="os-mono">{fmt(r['New Customers'])}</td>
+            <td className="os-mono">{r['AOV (ZAR)'] ? `R${Number(r['AOV (ZAR)']).toLocaleString()}` : '—'}</td>
+            <td onClick={e => e.stopPropagation()}>
+              <StatusSelect record={r} allStatuses={repStatuses} handleStatusChange={editor.handleStatusChange} saving={editor.saving} />
+            </td>
+          </tr>
+          );
+        }}
+        emptyMsg="No reporting data yet."
+      />
+    </>
   );
 }
 
