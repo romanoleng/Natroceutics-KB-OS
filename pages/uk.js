@@ -16,7 +16,7 @@ import {
   getUKEmailList,
   getProducts,
 } from '../lib/airtable';
-import { getShopifyOrdersLive, getShopifySalesCSV } from '../lib/shopify';
+import { getShopifyOrdersLive, getShopifySalesCSV, getWarehouseSOHFromDrive } from '../lib/shopify';
 
 /* ── Section / Tab structure ──────────────────── */
 const SECTIONS = ['Overview', 'Shopify UK', 'Amazon UK', 'Warehouse'];
@@ -1298,21 +1298,24 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
 }
 
 /* ── Warehouse: Stock on Hand (Bio-nature) ────── */
-function SOHTab({ soh }) {
+function SOHTab({ soh, sohSource = 'airtable' }) {
+  const isDrive = sohSource === 'drive';
   const [chanFilter, setChan] = useState('');
   const [search, setSearch] = useState('');
-  const sohEditor = useStatusEditor(soh);
+  const sohEditor = useStatusEditor(isDrive ? [] : soh); // status editor only for Airtable data
   const sohStatuses = useMemo(() => [...new Set([...BASE_STATUSES, ...soh.map(s => s.Status).filter(Boolean)])], [soh]);
   const channels = [...new Set(soh.flatMap(s => Array.isArray(s.Channel) ? s.Channel : [s.Channel]).filter(Boolean))].sort();
 
+  const displayData = isDrive ? soh : sohEditor.dataWithStatus;
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return sohEditor.dataWithStatus.filter(s => {
+    return displayData.filter(s => {
       const mQ = !q || (s.Product || '').toLowerCase().includes(q) || (s.SKU || '').toLowerCase().includes(q);
       const mC = !chanFilter || (Array.isArray(s.Channel) ? s.Channel.includes(chanFilter) : s.Channel === chanFilter);
       return mQ && mC;
     });
-  }, [sohEditor.dataWithStatus, search, chanFilter]);
+  }, [displayData, search, chanFilter]);
 
   const totalUnits = filtered.reduce((sum, s) => sum + (Number(s['Total QTY']) || 0), 0);
   const byQty = useMemo(() => [...filtered].filter(s => Number(s['Total QTY']) > 0).sort((a, b) => (Number(b['Total QTY']) || 0) - (Number(a['Total QTY']) || 0)), [filtered]);
@@ -1324,11 +1327,14 @@ function SOHTab({ soh }) {
       <div className="wh-banner">
         <div className="wh-banner-inner">
           <span className="wh-banner-label">Bio-nature UK Warehouse</span>
-          <span className="wh-banner-sub">Stock on hand — allocated by channel</span>
+          <span className="wh-banner-sub">
+            {isDrive ? 'Live from warehouse file — batch & BBD detail' : 'Stock on hand — allocated by channel'}
+          </span>
         </div>
         <div className="wh-banner-stats">
           <div className="wh-banner-stat"><span className="wh-banner-num">{filtered.length}</span><span className="wh-banner-unit">SKUs</span></div>
           <div className="wh-banner-stat"><span className="wh-banner-num">{totalUnits.toLocaleString()}</span><span className="wh-banner-unit">Units</span></div>
+          {isDrive && <div className="wh-banner-stat"><span className="wh-banner-num" style={{ fontSize: 11, color: 'var(--accent)' }}>● Drive</span></div>}
         </div>
       </div>
       {(top5soh.length > 0 || bottom5soh.length > 0) && (
@@ -1360,7 +1366,7 @@ function SOHTab({ soh }) {
 
       <div className="os-toolbar" style={{ marginTop: 16 }}>
         <input className="os-search" placeholder="Search product, SKU…" value={search} onChange={e => setSearch(e.target.value)} />
-        {channels.length > 0 && (
+        {!isDrive && channels.length > 0 && (
           <select className="os-select" value={chanFilter} onChange={e => setChan(e.target.value)}>
             <option value="">All Channels</option>
             {channels.map(c => <option key={c} value={c}>{c}</option>)}
@@ -1369,36 +1375,68 @@ function SOHTab({ soh }) {
         <span className="os-count">{filtered.length} SKUs</span>
       </div>
 
-      <SortableTable
-        cols={[
-          { label: 'Product', key: 'Product' },
-          { label: 'SKU', key: 'SKU', w: 110 },
-          { label: 'Total QTY', key: 'Total QTY', type: 'number', w: 100 },
-          { label: 'Batch Info', key: 'Batch Info', w: 140 },
-          { label: 'Channel', w: 150 },
-          { label: 'Status', key: 'Status', w: 120 },
-          { label: 'Last Updated', key: 'Last Updated', type: 'date', w: 120 },
-        ]}
-        data={filtered}
-        renderRow={s => (
-          <tr key={s.id}>
-            <td><strong>{fmt(s.Product)}</strong></td>
-            <td className="os-mono">{fmt(s.SKU)}</td>
-            <td className="os-mono"><strong>{fmt(s['Total QTY'])}</strong></td>
-            <td className="os-muted">{fmt(s['Batch Info'])}</td>
-            <td>
-              {(Array.isArray(s.Channel) ? s.Channel : [s.Channel]).filter(Boolean).map(c => (
-                <span key={c} className="os-tag" style={{ marginRight: 4 }}>{c}</span>
-              ))}
-            </td>
-            <td onClick={e => e.stopPropagation()}>
-              <StatusSelect record={s} allStatuses={sohStatuses} handleStatusChange={sohEditor.handleStatusChange} saving={sohEditor.saving} />
-            </td>
-            <td className="os-mono">{fmt(s['Last Updated'])}</td>
-          </tr>
-        )}
-        emptyMsg="No stock on hand data."
-      />
+      {isDrive ? (
+        /* ── Drive mode: batch detail table ── */
+        <SortableTable
+          cols={[
+            { label: 'SKU', key: 'SKU', w: 120 },
+            { label: 'Product', key: 'Product' },
+            { label: 'Total QTY', key: 'Total QTY', type: 'number', w: 100 },
+            { label: 'Batch 1', w: 200 },
+            { label: 'Batch 2', w: 200 },
+            { label: 'Batch 3', w: 200 },
+          ]}
+          data={filtered}
+          renderRow={s => (
+            <tr key={s.id}>
+              <td className="os-mono">{fmt(s.SKU)}</td>
+              <td><strong>{fmt(s.Product)}</strong></td>
+              <td className="os-mono"><strong>{fmt(s['Total QTY'])}</strong></td>
+              {[0, 1, 2].map(i => {
+                const b = (s.batches || [])[i];
+                return (
+                  <td key={i} className="os-muted" style={{ fontSize: 12 }}>
+                    {b ? <><span className="os-mono" style={{ fontWeight: 600 }}>{b.qty}</span> {b.info}</> : '—'}
+                  </td>
+                );
+              })}
+            </tr>
+          )}
+          emptyMsg="No stock on hand data."
+        />
+      ) : (
+        /* ── Airtable mode: channel / status table ── */
+        <SortableTable
+          cols={[
+            { label: 'Product', key: 'Product' },
+            { label: 'SKU', key: 'SKU', w: 110 },
+            { label: 'Total QTY', key: 'Total QTY', type: 'number', w: 100 },
+            { label: 'Batch Info', key: 'Batch Info', w: 140 },
+            { label: 'Channel', w: 150 },
+            { label: 'Status', key: 'Status', w: 120 },
+            { label: 'Last Updated', key: 'Last Updated', type: 'date', w: 120 },
+          ]}
+          data={filtered}
+          renderRow={s => (
+            <tr key={s.id}>
+              <td><strong>{fmt(s.Product)}</strong></td>
+              <td className="os-mono">{fmt(s.SKU)}</td>
+              <td className="os-mono"><strong>{fmt(s['Total QTY'])}</strong></td>
+              <td className="os-muted">{fmt(s['Batch Info'])}</td>
+              <td>
+                {(Array.isArray(s.Channel) ? s.Channel : [s.Channel]).filter(Boolean).map(c => (
+                  <span key={c} className="os-tag" style={{ marginRight: 4 }}>{c}</span>
+                ))}
+              </td>
+              <td onClick={e => e.stopPropagation()}>
+                <StatusSelect record={s} allStatuses={sohStatuses} handleStatusChange={sohEditor.handleStatusChange} saving={sohEditor.saving} />
+              </td>
+              <td className="os-mono">{fmt(s['Last Updated'])}</td>
+            </tr>
+          )}
+          emptyMsg="No stock on hand data."
+        />
+      )}
     </>
   );
 }
@@ -1913,7 +1951,7 @@ function ReportingTab({ items }) {
 }
 
 /* ── Page ─────────────────────────────────────── */
-export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, error, serverTime }) {
+export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, discounts, refunds, payouts, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, error, serverTime }) {
   const router = useRouter();
   const [section, setSection] = useState('Overview');
   const [tab, setTab] = useState('Tasks');
@@ -2006,7 +2044,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
           {tab === 'Customer Service' && <CSTab items={cs} />}
           {tab === 'Finance'          && <FinanceTab reconcile={reconcile} software={software} payouts={payouts} />}
           {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} tasks={tasks} priorities={priorities} marketing={marketing} inbound={inbound} reporting={reporting} />}
-          {tab === 'Stock on Hand'    && <SOHTab soh={soh} />}
+          {tab === 'Stock on Hand'    && <SOHTab soh={soh} sohSource={sohSource} />}
           {tab === 'Inbound Stock'    && <InboundTab inbound={inbound} />}
         </div>
       </div>
@@ -2050,5 +2088,18 @@ export async function getServerSideProps() {
     console.warn('getShopifySalesCSV failed:', sbpErr.message);
   }
 
-  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, error: null, serverTime: new Date().toISOString() } };
+  // Warehouse SOH — Google Drive XLSX (falls back to Airtable)
+  let sohData = soh;
+  let sohSource = 'airtable';
+  try {
+    const driveSoh = await getWarehouseSOHFromDrive(process.env.WAREHOUSE_SOH_FILE_ID);
+    if (driveSoh && driveSoh.length > 0) {
+      sohData = driveSoh;
+      sohSource = 'drive';
+    }
+  } catch (sohErr) {
+    console.warn('Warehouse SOH Drive fetch failed, using Airtable fallback:', sohErr.message);
+  }
+
+  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, discounts, refunds, payouts, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, error: null, serverTime: new Date().toISOString() } };
 }
