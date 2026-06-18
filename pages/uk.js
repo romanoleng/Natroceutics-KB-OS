@@ -1688,6 +1688,19 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
   const reorderCount = amazon.filter(p => p.Reorder === 'Yes' || p.Reorder === true).length;
   const totalSOH = soh.reduce((s, i) => s + (Number(i['Total QTY']) || 0), 0);
 
+  // Segment tasks by Business Area — each section shows only its own tasks, no duplicates
+  const shopifyTasks = useMemo(() =>
+    tasks.filter(t => (t['Business Area'] || '').toLowerCase().includes('shopify')),
+    [tasks]
+  );
+  const overviewTasks = useMemo(() =>
+    tasks.filter(t => {
+      const ba = (t['Business Area'] || '').toLowerCase();
+      return !ba.includes('amazon') && !ba.includes('shopify');
+    }),
+    [tasks]
+  );
+
   return (
     <OsLayout title="UK Dashboard" region="United Kingdom" airtableUrl="https://airtable.com/appb0pnXsdtALWq80" serverTime={serverTime}>
       <section className="region-hero region-hero-uk">
@@ -1728,7 +1741,8 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
 
         {/* ── Tab content ── */}
         <div className="os-tab-content">
-          {tab === 'Tasks'            && <TaskTable tasks={tasks} />}
+          {tab === 'Tasks'            && section === 'Overview'   && <TaskTable tasks={overviewTasks} />}
+          {tab === 'Tasks'            && section === 'Shopify UK' && <TaskTable tasks={shopifyTasks} />}
           {tab === 'Priorities'       && <PriorityList items={priorities} />}
           {tab === 'Risks'            && <RiskList items={risks} />}
           {tab === 'Reporting'        && <ReportingTab items={reporting} />}

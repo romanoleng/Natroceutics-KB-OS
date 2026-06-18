@@ -43,7 +43,7 @@ export default async function handler(req, res) {
   try {
     const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(baseId);
     await new Promise((resolve, reject) => {
-      base(tableId).update(recordId, fields, (err, record) => {
+      base(tableId).update(recordId, fields, { typecast: true }, (err, record) => {
         if (err) return reject(err);
         resolve(record);
       });

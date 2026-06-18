@@ -111,7 +111,15 @@ export function useStatusEditor(data) {
  */
 export function StatusSelect({ record, allStatuses, handleStatusChange, saving }) {
   const status = record.Status || '';
-  const options = allStatuses?.length ? allStatuses : BASE_STATUSES;
+  const rawOptions = allStatuses?.length ? allStatuses : BASE_STATUSES;
+  // Case-insensitive dedup — prevents duplicates when Airtable casing differs from defaults
+  const seen = new Set();
+  const options = rawOptions.filter(s => {
+    const key = s.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   return (
     <select
       className={`os-pill status-select ${sc(status)}`}
@@ -120,7 +128,7 @@ export function StatusSelect({ record, allStatuses, handleStatusChange, saving }
       disabled={!!saving[record.id]}
       onClick={e => e.stopPropagation()}
     >
-      {!options.includes(status) && status && (
+      {!options.some(s => s.toLowerCase() === status.toLowerCase()) && status && (
         <option value={status}>{status}</option>
       )}
       {options.map(s => <option key={s} value={s}>{s}</option>)}
