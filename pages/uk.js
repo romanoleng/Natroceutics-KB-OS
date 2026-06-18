@@ -16,7 +16,7 @@ import {
   getUKEmailList,
   getProducts,
 } from '../lib/airtable';
-import { getShopifyOrdersLive, getShopifySalesCSV, getWarehouseSOHFromDrive } from '../lib/shopify';
+import { getShopifyOrdersLive, getShopifySalesCSV, getWarehouseSOHFromDrive, getOrdersFromDriveCSV } from '../lib/shopify';
 
 /* ── Section / Tab structure ──────────────────── */
 const SECTIONS = ['Overview', 'Shopify UK', 'Amazon UK', 'Warehouse'];
@@ -2066,17 +2066,30 @@ export async function getServerSideProps() {
     safe(getProducts()),
   ]);
 
-  // Live Shopify orders — falls back to Airtable if env vars are not set
+  // Orders — Drive CSV first, then live Shopify API, then Airtable
   let orders = airtableOrders;
   let ordersSource = 'airtable';
+
   try {
-    const liveOrders = await getShopifyOrdersLive({ maxOrders: 500 });
-    if (liveOrders !== null) {
-      orders = liveOrders;
-      ordersSource = 'live';
+    const driveOrders = await getOrdersFromDriveCSV(process.env.SHOPIFY_ORDERS_CSV_ID);
+    if (driveOrders && driveOrders.length > 0) {
+      orders = driveOrders;
+      ordersSource = 'drive';
     }
-  } catch (shopifyErr) {
-    console.warn('Shopify live orders failed, using Airtable fallback:', shopifyErr.message);
+  } catch (driveErr) {
+    console.warn('Drive orders CSV failed:', driveErr.message);
+  }
+
+  if (ordersSource === 'airtable') {
+    try {
+      const liveOrders = await getShopifyOrdersLive({ maxOrders: 500 });
+      if (liveOrders !== null) {
+        orders = liveOrders;
+        ordersSource = 'live';
+      }
+    } catch (shopifyErr) {
+      console.warn('Shopify live orders failed, using Airtable fallback:', shopifyErr.message);
+    }
   }
 
   // Shopify sales by product — Google Drive CSV
