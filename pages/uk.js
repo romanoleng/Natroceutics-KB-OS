@@ -16,7 +16,7 @@ import {
   getUKEmailList,
   getProducts,
 } from '../lib/airtable';
-import { getShopifyOrdersLive, getSalesByProduct } from '../lib/shopify';
+import { getShopifyOrdersLive, getShopifySalesCSV } from '../lib/shopify';
 
 /* ── Section / Tab structure ──────────────────── */
 const SECTIONS = ['Overview', 'Shopify UK', 'Amazon UK', 'Warehouse'];
@@ -508,28 +508,26 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
               <SortableTable
                 cols={[
                   { label: 'Product', key: 'product' },
-                  { label: 'Product ID', key: 'productId', w: 150 },
                   { label: 'Qty', key: 'qty', type: 'number', w: 70 },
-                  { label: 'Orders', key: 'orders', type: 'number', w: 80 },
                   { label: 'Avg Price', key: 'price', type: 'number', w: 95 },
-                  { label: 'Gross Sales', key: 'grossSales', type: 'number', w: 105 },
-                  { label: 'Discounts', key: 'discounts', type: 'number', w: 95 },
-                  { label: 'Val excl VAT', key: 'netSales', type: 'number', w: 110 },
+                  { label: 'Gross Sales', key: 'grossSales', type: 'number', w: 110 },
+                  { label: 'Discounts', key: 'discounts', type: 'number', w: 100 },
+                  { label: 'Returns', key: 'returns', type: 'number', w: 90 },
+                  { label: 'Val excl VAT', key: 'netSales', type: 'number', w: 115 },
                 ]}
                 data={salesByProduct}
                 renderRow={r => (
-                  <tr key={r.productId}>
+                  <tr key={r.product}>
                     <td><strong>{r.product}</strong></td>
-                    <td className="os-mono os-muted" style={{ fontSize: 11 }}>{r.productId}</td>
                     <td className="os-mono">{r.qty}</td>
-                    <td className="os-mono">{r.orders}</td>
                     <td className="os-mono">{gbp(r.price)}</td>
                     <td className="os-mono">{gbp(r.grossSales)}</td>
                     <td className="os-mono">{r.discounts > 0 ? <span style={{ color: 'var(--amber)' }}>-{gbp(r.discounts)}</span> : '—'}</td>
+                    <td className="os-mono">{r.returns > 0 ? <span style={{ color: 'var(--red)' }}>-{gbp(r.returns)}</span> : '—'}</td>
                     <td className="os-mono"><strong>{gbp(r.netSales)}</strong></td>
                   </tr>
                 )}
-                emptyMsg="No product sales in this period."
+                emptyMsg="No product sales data. Add SHOPIFY_SALES_CSV_ID env var and share the Drive file."
               />
             </>
           )
@@ -2043,13 +2041,13 @@ export async function getServerSideProps() {
     console.warn('Shopify live orders failed, using Airtable fallback:', shopifyErr.message);
   }
 
-  // Live Shopify sales by product (ShopifyQL) — falls back to [] on error
+  // Shopify sales by product — Google Drive CSV
   let salesByProduct = [];
   try {
-    const sbp = await getSalesByProduct({ days: 30 });
+    const sbp = await getShopifySalesCSV(process.env.SHOPIFY_SALES_CSV_ID);
     if (sbp) salesByProduct = sbp;
   } catch (sbpErr) {
-    console.warn('getSalesByProduct failed:', sbpErr.message);
+    console.warn('getShopifySalesCSV failed:', sbpErr.message);
   }
 
   return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, error: null, serverTime: new Date().toISOString() } };
