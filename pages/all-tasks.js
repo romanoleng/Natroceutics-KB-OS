@@ -113,7 +113,6 @@ export default function AllTasksPage({ tasks, error }) {
             { label: 'Status', key: 'Status', w: 120 },
             { label: 'Priority', key: 'Priority', w: 110 },
             { label: 'Owner', key: 'Owner', w: 120 },
-            { label: 'Due', key: 'Due Date', type: 'date', w: 100 },
           ]}
           data={filtered}
           renderRow={t => (
@@ -126,7 +125,6 @@ export default function AllTasksPage({ tasks, error }) {
               <td>{t.Status ? <span className={`os-pill ${statusClass(t.Status)}`}>{t.Status}</span> : '—'}</td>
               <td>{t.Priority ? <span className="os-pill pill-default">{t.Priority}</span> : '—'}</td>
               <td className="os-muted">{fmt(t.Owner)}</td>
-              <td className="os-mono">{fmt(t['Due Date'])}</td>
             </tr>
           )}
           emptyMsg="No tasks found."

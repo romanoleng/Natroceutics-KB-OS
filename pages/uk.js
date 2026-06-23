@@ -150,7 +150,6 @@ function TaskTable({ tasks }) {
           { label: 'Status', key: 'Status', w: 120 },
           { label: 'Owner', key: 'Owner', w: 100 },
           { label: 'Created', key: 'Date of Entry', type: 'date', w: 90 },
-          { label: 'Due Date', key: 'Due Date', type: 'date', w: 120 },
         ]}
         data={filtered}
         sinkCompleted="Status"
@@ -176,9 +175,6 @@ function TaskTable({ tasks }) {
               </td>
               <td className="os-muted">{fmt(t.Owner)}</td>
               <td className="os-mono" style={{ fontSize: 11, color: 'var(--charcoal-45)', whiteSpace: 'nowrap' }}>{fmtEntryDate(t['Date of Entry'], t.createdTime)}</td>
-              <td onClick={e => e.stopPropagation()}>
-                <DateCell record={t} fieldName="Due Date" />
-              </td>
             </tr>
           );
         }}
@@ -1150,7 +1146,6 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
                   { label: 'Status', key: 'Status', w: 120 },
                   { label: 'Priority', key: 'Priority', w: 100 },
                   { label: 'Owner', key: 'Owner', w: 110 },
-                  { label: 'Due', key: 'Due Date', type: 'date', w: 100 },
                 ]}
                 data={openTasks}
                 sinkCompleted="Status"
@@ -1165,7 +1160,6 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
                     </td>
                     <td>{t.Priority ? <span className="os-pill pill-default">{t.Priority}</span> : '—'}</td>
                     <td className="os-muted">{fmt(t.Owner)}</td>
-                    <td className="os-mono">{fmt(t['Due Date'])}</td>
                   </tr>
                   );
                 }}
@@ -1222,7 +1216,6 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
               { label: 'Status', key: 'Status', w: 120 },
               { label: 'Priority', key: 'Priority', w: 100 },
               { label: 'Owner', key: 'Owner', w: 110 },
-              { label: 'Due', key: 'Due Date', type: 'date', w: 100 },
             ]}
             data={filteredTasks}
             sinkCompleted="Status"
@@ -1237,7 +1230,6 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
                 </td>
                 <td>{t.Priority ? <span className="os-pill pill-default">{t.Priority}</span> : '—'}</td>
                 <td className="os-muted">{fmt(t.Owner)}</td>
-                <td className="os-mono">{fmt(t['Due Date'])}</td>
               </tr>
               );
             }}
@@ -2085,8 +2077,8 @@ function AmazonFinanceTab({ reconcile, disbursements = [] }) {
   const disbKpis = useMemo(() => {
     const complete  = disbursements.filter(d => (d.Status || '').includes('Complete'));
     const pending   = disbursements.filter(d => (d.Status || '').includes('Pending'));
-    const totPaid   = complete.reduce((s, d) => s + (Number(d['Net Disbursed (£)']) || 0), 0);
-    const totPend   = pending.reduce((s, d) => s + (Number(d['Net Disbursed (£)']) || 0), 0);
+    const totPaid   = complete.reduce((s, d) => s + (Number(d['Amount (£)']) || 0), 0);
+    const totPend   = pending.reduce((s, d) => s + (Number(d['Amount (£)']) || 0), 0);
     return { totPaid, totPend, completeCount: complete.length, pendingCount: pending.length };
   }, [disbursements]);
 
@@ -2121,11 +2113,11 @@ function AmazonFinanceTab({ reconcile, disbursements = [] }) {
           : (
             <SortableTable
               cols={[
-                { label: 'Date', key: 'Date', type: 'date', w: 110 },
-                { label: 'Net Disbursed', key: 'Net Disbursed (£)', type: 'number', w: 130 },
-                { label: 'Gross Settlement', key: 'Gross Settlement (£)', type: 'number', w: 140 },
-                { label: 'Bank Account', key: 'Bank Account (ending)', w: 120 },
-                { label: 'Expected Arrival', key: 'Expected Arrival', type: 'date', w: 130 },
+                { label: 'Date', key: 'Disbursement Date', type: 'date', w: 110 },
+                { label: 'Amount (£)', key: 'Amount (£)', type: 'number', w: 130 },
+                { label: 'MTD Total (£)', key: 'Running MTD Total (£)', type: 'number', w: 140 },
+                { label: 'Bank Account', key: 'Bank Account', w: 120 },
+                { label: 'Expected Arrival', key: 'Expected Arrival', w: 130 },
                 { label: 'Month', key: 'Month', w: 100 },
                 { label: 'Status', key: 'Status', w: 130 },
                 { label: 'Notes', key: 'Notes' },
@@ -2133,10 +2125,10 @@ function AmazonFinanceTab({ reconcile, disbursements = [] }) {
               data={disbursements}
               renderRow={d => (
                 <tr key={d.id}>
-                  <td className="os-mono">{fmt(d.Date)}</td>
-                  <td className="os-mono"><strong>{gbp(d['Net Disbursed (£)'])}</strong></td>
-                  <td className="os-mono">{gbp(d['Gross Settlement (£)'])}</td>
-                  <td className="os-muted">···{fmt(d['Bank Account (ending)'])}</td>
+                  <td className="os-mono">{fmt(d['Disbursement Date'])}</td>
+                  <td className="os-mono"><strong>{gbp(d['Amount (£)'])}</strong></td>
+                  <td className="os-mono">{gbp(d['Running MTD Total (£)'])}</td>
+                  <td className="os-muted">···{fmt(d['Bank Account'])}</td>
                   <td className="os-mono">{fmt(d['Expected Arrival'])}</td>
                   <td className="os-muted">{fmt(d.Month)}</td>
                   <td>

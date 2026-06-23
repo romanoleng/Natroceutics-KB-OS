@@ -110,7 +110,6 @@ function TaskTable({ tasks }) {
           { label: 'Status', key: 'Status', w: 120 },
           { label: 'Owner', key: 'Owner', w: 100 },
           { label: 'Created', key: 'Date of Entry', type: 'date', w: 80 },
-          { label: 'Due', key: 'Due Date', type: 'date', w: 80 },
         ]}
         data={dataWithStatus}
         sinkCompleted="Status"
@@ -136,7 +135,6 @@ function TaskTable({ tasks }) {
               </td>
               <td className="os-muted">{fmt(t.Owner)}</td>
               <td className="os-mono" style={{ fontSize: 11, color: 'var(--charcoal-45)', whiteSpace: 'nowrap' }}>{fmtEntryDate(t['Date of Entry'], t.createdTime)}</td>
-              <td className="os-mono" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{fmt(t['Due Date'])}</td>
             </tr>
           );
         }}

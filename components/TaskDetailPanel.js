@@ -43,6 +43,15 @@ function fmtCommentDate(iso) {
   } catch { return iso; }
 }
 
+function fmtShortDate(iso) {
+  if (!iso) return null;
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' });
+  } catch { return null; }
+}
+
 /* Parse any date string to YYYY-MM-DD for <input type="date"> */
 function toDateInputVal(v) {
   if (!v) return '';
@@ -156,17 +165,31 @@ export default function TaskDetailPanel({
 
   function renderValue(key, value) {
     if (key === 'Date of Entry') {
-      return (
-        <input
-          type="date"
-          className="dp-date-input"
-          value={dateEntry}
-          onChange={e => setDateEntry(e.target.value)}
-          onBlur={handleDateBlur}
-          disabled={dateSaving}
-          title={dateSaving ? 'Saving…' : 'Click to set date'}
-        />
-      );
+      if (dateEntry) {
+        // Manually set date → show editable input
+        return (
+          <input
+            type="date"
+            className="dp-date-input"
+            value={dateEntry}
+            onChange={e => setDateEntry(e.target.value)}
+            onBlur={handleDateBlur}
+            disabled={dateSaving}
+            title={dateSaving ? 'Saving…' : 'Click to change date'}
+          />
+        );
+      }
+      // No manual date — fall back to record createdTime
+      const loggedDate = fmtShortDate(task?.createdTime);
+      if (loggedDate) {
+        return (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span className="os-mono" style={{ fontSize: 12 }}>{loggedDate}</span>
+            <span style={{ fontSize: 10, color: 'var(--charcoal-45)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>logged</span>
+          </span>
+        );
+      }
+      return <span className="dp-empty">—</span>;
     }
     if (value === null || value === undefined || value === '') {
       return <span className="dp-empty">—</span>;
