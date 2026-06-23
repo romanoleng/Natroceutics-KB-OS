@@ -15,6 +15,7 @@ import {
   getUKB2B, getUKCS, getUKCustomers,
   getUKAffiliates, getUKMarketing, getUKSubscriptions,
   getUKEmailList, getUKPPC,
+  getAffiliates, getAffiliateSales, getAffiliatePayouts, getAffiliateTraffic, getAffiliateTasks, getAffiliateProducts,
   getUKAmazonReviews, getUKBionature, getUKBilling, getUKSalesByProduct,
   getProducts,
 } from '../lib/airtable';
@@ -1954,10 +1955,13 @@ function CustomersTab({ items }) {
 }
 
 /* ── Affiliates ───────────────────────────────── */
-function AffiliatesTab({ items }) {
+const AFF_SUBS = ['Programme', 'Performance', 'Sales', 'Payouts', 'Traffic', 'Products', 'Tasks'];
+
+/* Programme — UK base CRM/onboarding records */
+function AffProgrammeTab({ items }) {
   const editor = useStatusEditor(items, 'Onboarding Status');
   const affStatuses = useMemo(() => [...new Set(['Invited', 'Applied', 'Approved', 'Active', 'Inactive', 'Rejected', ...items.map(a => a['Onboarding Status']).filter(Boolean)])], [items]);
-  if (!items.length) return <div className="os-empty">No affiliates.</div>;
+  if (!items.length) return <div className="os-empty">No programme records.</div>;
   const signed = items.filter(i => i['Agreement Signed'] === true || i['Agreement Signed'] === 'true').length;
   return (
     <>
@@ -1989,9 +1993,342 @@ function AffiliatesTab({ items }) {
               </td>
             </tr>
           )}
-          emptyMsg="No affiliates."
+          emptyMsg="No programme records."
         />
       </div>
+    </>
+  );
+}
+
+/* Performance — GoAffPro individual affiliate stats */
+const AFF_SC = { 'Active': 'pill-done', 'Approved': 'pill-done', 'Paid': 'pill-done', 'Pending': 'pill-todo', 'Inactive': 'pill-todo', 'In Review': 'pill-progress', 'Suspended': 'pill-blocked', 'Rejected': 'pill-blocked' };
+function affSc(s) { return AFF_SC[s] || 'pill-default'; }
+
+function AffPerformanceTab({ items }) {
+  const [srch, setSrch] = useState('');
+  const [stFilter, setStFilter] = useState('');
+  const statuses = [...new Set(items.map(i => i.Status).filter(Boolean))];
+  const filtered = useMemo(() => {
+    const q = srch.toLowerCase();
+    return items.filter(i => {
+      const mQ = !q || (i.Name || '').toLowerCase().includes(q) || (i.Email || '').toLowerCase().includes(q);
+      const mS = !stFilter || i.Status === stFilter;
+      return mQ && mS;
+    });
+  }, [items, srch, stFilter]);
+  const active  = items.filter(i => i.Status === 'Active').length;
+  const totRev  = items.reduce((s, i) => s + (Number(i['Total Revenue']) || 0), 0);
+  const totComm = items.reduce((s, i) => s + (Number(i['Total Commission']) || 0), 0);
+  const totOut  = items.reduce((s, i) => s + (Number(i['Outstanding Balance']) || 0), 0);
+  if (!items.length) return <div className="os-empty">No GoAffPro performance data yet. Add records to the Affiliates table in the Affiliate Ops base.</div>;
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{active}</div><div className="os-stat-label">Active Affiliates</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Total</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{gbp(totRev)}</div><div className="os-stat-label">Total Revenue</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{gbp(totComm)}</div><div className="os-stat-label">Commission Earned</div></div>
+        {totOut > 0 && <div className="os-stat-card os-stat-amber"><div className="os-stat-num">{gbp(totOut)}</div><div className="os-stat-label">Outstanding</div></div>}
+      </div>
+      <div className="os-toolbar" style={{ marginTop: 16 }}>
+        <input className="os-search" placeholder="Search affiliates…" value={srch} onChange={e => setSrch(e.target.value)} />
+        {statuses.length > 0 && (
+          <select className="os-select" value={stFilter} onChange={e => setStFilter(e.target.value)}>
+            <option value="">All Statuses</option>
+            {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        )}
+        <span className="os-count">{filtered.length} affiliates</span>
+      </div>
+      <SortableTable
+        cols={[
+          { label: 'Name', key: 'Name' },
+          { label: 'Country', key: 'Country', w: 90 },
+          { label: 'Tier', key: 'Tier', w: 90 },
+          { label: 'Status', key: 'Status', w: 110 },
+          { label: 'Revenue', key: 'Total Revenue', type: 'number', w: 110 },
+          { label: 'Commission', key: 'Total Commission', type: 'number', w: 120 },
+          { label: 'Paid', key: 'Total Paid', type: 'number', w: 100 },
+          { label: 'Outstanding', key: 'Outstanding Balance', type: 'number', w: 120 },
+          { label: 'Orders', key: 'Orders Count', type: 'number', w: 80 },
+          { label: 'Conv Rate', key: 'Conversion Rate', type: 'number', w: 100 },
+          { label: 'Risk Score', key: 'Risk Score', w: 100 },
+        ]}
+        data={filtered}
+        renderRow={a => (
+          <tr key={a.id}>
+            <td>
+              <strong>{fmt(a.Name)}</strong>
+              {a.Email && <p className="os-table-note">{a.Email}</p>}
+              {a['Referral Code'] && <p className="os-table-note os-mono" style={{ fontSize: 10 }}>Code: {a['Referral Code']}</p>}
+            </td>
+            <td className="os-muted">{fmt(a.Country)}</td>
+            <td className="os-muted">{fmt(a.Tier)}</td>
+            <td>{a.Status ? <span className={`os-pill ${affSc(a.Status)}`}>{a.Status}</span> : '—'}</td>
+            <td className="os-mono">{gbp(a['Total Revenue'])}</td>
+            <td className="os-mono">{gbp(a['Total Commission'])}</td>
+            <td className="os-mono">{gbp(a['Total Paid'])}</td>
+            <td className="os-mono">{a['Outstanding Balance'] > 0 ? <strong style={{ color: 'var(--amber)' }}>{gbp(a['Outstanding Balance'])}</strong> : gbp(a['Outstanding Balance'])}</td>
+            <td className="os-mono">{fmt(a['Orders Count'])}</td>
+            <td className="os-mono">{a['Conversion Rate'] ? `${a['Conversion Rate']}%` : '—'}</td>
+            <td>{a['Risk Score'] ? <span className={`os-pill ${a['Risk Score'] === 'High' ? 'pill-blocked' : a['Risk Score'] === 'Medium' ? 'pill-progress' : 'pill-done'}`}>{a['Risk Score']}</span> : '—'}</td>
+          </tr>
+        )}
+        emptyMsg="No affiliates found."
+      />
+    </>
+  );
+}
+
+/* Sales */
+function AffSalesTab({ items }) {
+  const [srch, setSrch] = useState('');
+  const filtered = useMemo(() => { const q = srch.toLowerCase(); return !q ? items : items.filter(i => (i['Order Number'] || '').toLowerCase().includes(q) || (i.Customer || '').toLowerCase().includes(q) || (i.Affiliate || '').toLowerCase().includes(q)); }, [items, srch]);
+  const totRev  = items.reduce((s, i) => s + (Number(i.Revenue) || 0), 0);
+  const totComm = items.reduce((s, i) => s + (Number(i.Commission) || 0), 0);
+  const newCust = items.filter(i => i['New Customer'] === true || i['New Customer'] === 'checked').length;
+  if (!items.length) return <div className="os-empty">No sales records yet.</div>;
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{gbp(totRev)}</div><div className="os-stat-label">Total Revenue</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{gbp(totComm)}</div><div className="os-stat-label">Total Commission</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Orders</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{newCust}</div><div className="os-stat-label">New Customers</div></div>
+      </div>
+      <div className="os-toolbar" style={{ marginTop: 16 }}>
+        <input className="os-search" placeholder="Search orders…" value={srch} onChange={e => setSrch(e.target.value)} />
+        <span className="os-count">{filtered.length} orders</span>
+      </div>
+      <SortableTable
+        cols={[
+          { label: 'Order #', key: 'Order Number', w: 120 },
+          { label: 'Date', key: 'Date', type: 'date', w: 110 },
+          { label: 'Affiliate', key: 'Affiliate', w: 140 },
+          { label: 'Customer', key: 'Customer', w: 140 },
+          { label: 'Revenue', key: 'Revenue', type: 'number', w: 110 },
+          { label: 'Commission', key: 'Commission', type: 'number', w: 120 },
+          { label: 'Status', key: 'Status', w: 110 },
+          { label: 'New Cust?', key: 'New Customer', w: 90 },
+          { label: 'Subscription?', key: 'Subscription', w: 110 },
+        ]}
+        data={filtered.slice(0, 300)}
+        renderRow={r => (
+          <tr key={r.id}>
+            <td className="os-mono" style={{ fontSize: 11 }}>{fmt(r['Order Number'])}</td>
+            <td className="os-mono">{fmt(r.Date)}</td>
+            <td className="os-muted">{fmt(r.Affiliate)}</td>
+            <td className="os-muted">{fmt(r.Customer)}</td>
+            <td className="os-mono">{gbp(r.Revenue)}</td>
+            <td className="os-mono">{gbp(r.Commission)}</td>
+            <td>{r.Status ? <span className={`os-pill ${affSc(r.Status)}`}>{r.Status}</span> : '—'}</td>
+            <td>{(r['New Customer'] === true || r['New Customer'] === 'checked') ? <span className="os-pill pill-done">Yes</span> : '—'}</td>
+            <td>{(r.Subscription === true || r.Subscription === 'checked') ? <span className="os-pill pill-progress">Sub</span> : '—'}</td>
+          </tr>
+        )}
+        emptyMsg="No sales records."
+      />
+      {filtered.length > 300 && <p className="os-muted" style={{ marginTop: 8, fontSize: 12 }}>Showing 300 of {filtered.length} — use search to narrow.</p>}
+    </>
+  );
+}
+
+/* Payouts */
+function AffPayoutsTab({ items }) {
+  const editor = useStatusEditor(items, 'Payment Status');
+  const payStatuses = useMemo(() => [...new Set(['Pending', 'Processing', 'Paid', 'On Hold', ...items.map(i => i['Payment Status']).filter(Boolean)])], [items]);
+  const totDue  = items.reduce((s, i) => s + (Number(i['Amount Due']) || 0), 0);
+  const totPaid = items.reduce((s, i) => s + (Number(i['Amount Paid']) || 0), 0);
+  const pending = items.filter(i => (i['Payment Status'] || '').toLowerCase() === 'pending').length;
+  if (!items.length) return <div className="os-empty">No payout records yet.</div>;
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card"><div className="os-stat-num">{gbp(totDue)}</div><div className="os-stat-label">Total Due</div></div>
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{gbp(totPaid)}</div><div className="os-stat-label">Total Paid</div></div>
+        {pending > 0 && <div className="os-stat-card os-stat-amber"><div className="os-stat-num">{pending}</div><div className="os-stat-label">Pending</div></div>}
+      </div>
+      {editor.updateError && <div className="os-alert-error" style={{ marginTop: 8 }}>{editor.updateError}</div>}
+      <div style={{ marginTop: 24 }}>
+        <SortableTable
+          cols={[
+            { label: 'Payout Ref', key: 'Payout Ref', w: 130 },
+            { label: 'Affiliate', key: 'Affiliate', w: 140 },
+            { label: 'Amount Due', key: 'Amount Due', type: 'number', w: 120 },
+            { label: 'Amount Paid', key: 'Amount Paid', type: 'number', w: 120 },
+            { label: 'Payment Date', key: 'Payment Date', type: 'date', w: 120 },
+            { label: 'Method', key: 'Method', w: 110 },
+            { label: 'Status', key: 'Payment Status', w: 120 },
+            { label: 'Notes', key: 'Notes' },
+          ]}
+          data={editor.dataWithStatus}
+          renderRow={p => (
+            <tr key={p.id}>
+              <td className="os-mono" style={{ fontSize: 11 }}>{fmt(p['Payout Ref'])}</td>
+              <td className="os-muted">{fmt(p.Affiliate)}</td>
+              <td className="os-mono">{gbp(p['Amount Due'])}</td>
+              <td className="os-mono"><strong>{gbp(p['Amount Paid'])}</strong></td>
+              <td className="os-mono">{fmt(p['Payment Date'])}</td>
+              <td className="os-muted">{fmt(p.Method)}</td>
+              <td onClick={e => e.stopPropagation()}>
+                <StatusSelect record={p} allStatuses={payStatuses} handleStatusChange={editor.handleStatusChange} saving={editor.saving} fieldName="Payment Status" />
+              </td>
+              <td className="os-muted" style={{ fontSize: 12 }}>{fmt(p.Notes)}</td>
+            </tr>
+          )}
+          emptyMsg="No payouts."
+        />
+      </div>
+    </>
+  );
+}
+
+/* Traffic */
+function AffTrafficTab({ items }) {
+  if (!items.length) return <div className="os-empty">No traffic data yet.</div>;
+  const totSessions = items.reduce((s, i) => s + (Number(i.Sessions) || 0), 0);
+  const totOrders   = items.reduce((s, i) => s + (Number(i.Orders) || 0), 0);
+  const totRev      = items.reduce((s, i) => s + (Number(i.Revenue) || 0), 0);
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card"><div className="os-stat-num">{totSessions.toLocaleString()}</div><div className="os-stat-label">Total Sessions</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{totOrders.toLocaleString()}</div><div className="os-stat-label">Total Orders</div></div>
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{gbp(totRev)}</div><div className="os-stat-label">Revenue Driven</div></div>
+      </div>
+      <div style={{ marginTop: 24 }}>
+        <SortableTable
+          cols={[
+            { label: 'Affiliate', key: 'Affiliate Name' },
+            { label: 'Sessions', key: 'Sessions', type: 'number', w: 100 },
+            { label: 'Page Views', key: 'Page Views', type: 'number', w: 100 },
+            { label: 'Orders', key: 'Orders', type: 'number', w: 80 },
+            { label: 'Conv Rate', key: 'Conversion Rate', type: 'number', w: 100 },
+            { label: 'Revenue', key: 'Revenue', type: 'number', w: 110 },
+            { label: 'Last Session', key: 'Last Session', type: 'date', w: 120 },
+          ]}
+          data={items}
+          renderRow={r => (
+            <tr key={r.id}>
+              <td><strong>{fmt(r['Affiliate Name'])}</strong></td>
+              <td className="os-mono">{(r.Sessions || 0).toLocaleString()}</td>
+              <td className="os-mono">{(r['Page Views'] || 0).toLocaleString()}</td>
+              <td className="os-mono">{fmt(r.Orders)}</td>
+              <td className="os-mono">{r['Conversion Rate'] ? `${r['Conversion Rate']}%` : '—'}</td>
+              <td className="os-mono">{gbp(r.Revenue)}</td>
+              <td className="os-mono">{fmt(r['Last Session'])}</td>
+            </tr>
+          )}
+          emptyMsg="No traffic data."
+        />
+      </div>
+    </>
+  );
+}
+
+/* Products */
+function AffProductsInnerTab({ items }) {
+  if (!items.length) return <div className="os-empty">No affiliate product data yet.</div>;
+  const totRev    = items.reduce((s, i) => s + (Number(i['Affiliate Revenue']) || 0), 0);
+  const totOrders = items.reduce((s, i) => s + (Number(i['Affiliate Orders']) || 0), 0);
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{gbp(totRev)}</div><div className="os-stat-label">Affiliate Revenue</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{totOrders.toLocaleString()}</div><div className="os-stat-label">Affiliate Orders</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Products</div></div>
+      </div>
+      <div style={{ marginTop: 24 }}>
+        <SortableTable
+          cols={[
+            { label: 'Product', key: 'Product' },
+            { label: 'SKU', key: 'SKU', w: 110 },
+            { label: 'Revenue', key: 'Affiliate Revenue', type: 'number', w: 120 },
+            { label: 'Orders', key: 'Affiliate Orders', type: 'number', w: 90 },
+            { label: 'Units', key: 'Units', type: 'number', w: 80 },
+            { label: '# Affiliates', key: 'Affiliates Selling', type: 'number', w: 110 },
+            { label: 'Concentration %', key: 'Concentration %', type: 'number', w: 130 },
+            { label: 'Flag', key: 'Flag', w: 100 },
+          ]}
+          data={items}
+          renderRow={r => (
+            <tr key={r.id}>
+              <td><strong>{fmt(r.Product)}</strong></td>
+              <td className="os-mono" style={{ fontSize: 11 }}>{fmt(r.SKU)}</td>
+              <td className="os-mono">{gbp(r['Affiliate Revenue'])}</td>
+              <td className="os-mono">{fmt(r['Affiliate Orders'])}</td>
+              <td className="os-mono">{fmt(r.Units)}</td>
+              <td className="os-mono">{fmt(r['Affiliates Selling'])}</td>
+              <td className="os-mono">{r['Concentration %'] ? `${r['Concentration %']}%` : '—'}</td>
+              <td>{r.Flag ? <span className="os-pill pill-blocked">{r.Flag}</span> : '—'}</td>
+            </tr>
+          )}
+          emptyMsg="No product data."
+        />
+      </div>
+    </>
+  );
+}
+
+/* Tasks */
+function AffTasksInnerTab({ items }) {
+  const editor = useStatusEditor(items);
+  const taskStatuses = useMemo(() => [...new Set(['To Do', 'In Progress', 'Done', 'Blocked', ...items.map(i => i.Status).filter(Boolean)])], [items]);
+  const open = editor.dataWithStatus.filter(i => !['Done', 'Complete', 'Completed', 'Closed'].includes(i.Status));
+  if (!items.length) return <div className="os-empty">No affiliate tasks yet.</div>;
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className={`os-stat-card${open.length > 0 ? ' os-stat-amber' : ' os-stat-green'}`}><div className="os-stat-num">{open.length}</div><div className="os-stat-label">Open Tasks</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Total</div></div>
+      </div>
+      {editor.updateError && <div className="os-alert-error" style={{ marginTop: 8 }}>{editor.updateError}</div>}
+      <div style={{ marginTop: 24 }}>
+        <SortableTable
+          cols={[
+            { label: 'Task', key: 'Task' },
+            { label: 'Priority', key: 'Priority', w: 100 },
+            { label: 'Category', key: 'Category', w: 130 },
+            { label: 'Affiliate', key: 'Affiliate', w: 140 },
+            { label: 'Status', key: 'Status', w: 120 },
+          ]}
+          data={editor.dataWithStatus}
+          sinkCompleted="Status"
+          renderRow={t => (
+            <tr key={t.id}>
+              <td><strong>{fmt(t.Task)}</strong>{t.Details && <p className="os-table-note">{t.Details}</p>}</td>
+              <td>{t.Priority ? <span className={`os-pill ${t.Priority === 'High' ? 'pill-blocked' : t.Priority === 'Medium' ? 'pill-progress' : 'pill-todo'}`}>{t.Priority}</span> : '—'}</td>
+              <td className="os-muted">{fmt(t.Category)}</td>
+              <td className="os-muted">{fmt(t.Affiliate)}</td>
+              <td onClick={e => e.stopPropagation()}>
+                <StatusSelect record={t} allStatuses={taskStatuses} handleStatusChange={editor.handleStatusChange} saving={editor.saving} />
+              </td>
+            </tr>
+          )}
+          emptyMsg="No tasks."
+        />
+      </div>
+    </>
+  );
+}
+
+/* Outer wrapper — manages inner sub-tabs */
+function AffiliatesTab({ items, affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [] }) {
+  const [sub, setSub] = useState('Programme');
+  return (
+    <>
+      <div className="os-subnav-inner" style={{ marginBottom: 20, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+        {AFF_SUBS.map(s => (
+          <button key={s} className={`os-subnav-btn${sub === s ? ' active' : ''}`} onClick={() => setSub(s)} style={{ fontSize: 12, padding: '4px 12px' }}>{s}</button>
+        ))}
+      </div>
+      {sub === 'Programme'   && <AffProgrammeTab items={items} />}
+      {sub === 'Performance' && <AffPerformanceTab items={affPerformance} />}
+      {sub === 'Sales'       && <AffSalesTab items={affSales} />}
+      {sub === 'Payouts'     && <AffPayoutsTab items={affPayouts} />}
+      {sub === 'Traffic'     && <AffTrafficTab items={affTraffic} />}
+      {sub === 'Products'    && <AffProductsInnerTab items={affProducts} />}
+      {sub === 'Tasks'       && <AffTasksInnerTab items={affTasks} />}
     </>
   );
 }
@@ -2607,7 +2944,7 @@ function ReportingTab({ items }) {
 }
 
 /* ── Page ─────────────────────────────────────── */
-export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc = [], disbursements = [], reviews = [], bionature = [], billing = [], atSalesByProduct = [], error, serverTime }) {
+export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc = [], disbursements = [], reviews = [], bionature = [], billing = [], atSalesByProduct = [], affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [], error, serverTime }) {
   const router = useRouter();
   const [section, setSection] = useState('Overview');
   const [tab, setTab] = useState('Tasks');
@@ -2693,7 +3030,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
           {tab === 'Shopify'          && <ShopifyTab products={shopifyProducts} />}
           {tab === 'Customers'        && <CustomersTab items={customers} />}
           {tab === 'B2B'              && <B2BTab items={b2b} />}
-          {tab === 'Affiliates'       && <AffiliatesTab items={affiliates} />}
+          {tab === 'Affiliates'       && <AffiliatesTab items={affiliates} affPerformance={affPerformance} affSales={affSales} affPayouts={affPayouts} affTraffic={affTraffic} affTasks={affTasks} affProducts={affProducts} />}
           {tab === 'Email / Klaviyo'  && <EmailTab items={emailList} />}
           {tab === 'Marketing'        && <MarketingTab items={marketing} />}
           {tab === 'Subscriptions'    && <SubscriptionsTab items={subscriptions} />}
@@ -2714,7 +3051,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
 export async function getServerSideProps() {
   const safe = p => p.catch(e => { console.warn('[uk] fetch partial fail:', e.message); return []; });
 
-  const [tasks, priorities, risks, amazon, catalogue, shopifyProducts, airtableOrders, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct] = await Promise.all([
+  const [tasks, priorities, risks, amazon, catalogue, shopifyProducts, airtableOrders, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts] = await Promise.all([
     safe(getUKTasks()), safe(getUKPriorities()), safe(getUKRisks()),
     safe(getUKAmazon()), safe(getUKAmazonCat()),
     safe(getUKShopify()), safe(getUKOrders()), safe(getUKDiscounts()), safe(getUKRefunds()), safe(getUKPayouts()),
@@ -2725,6 +3062,8 @@ export async function getServerSideProps() {
     safe(getProducts()), safe(getUKPPC()),
     safe(getUKAmazonDisbursements()),
     safe(getUKAmazonReviews()), safe(getUKBionature()), safe(getUKBilling()), safe(getUKSalesByProduct()),
+    safe(getAffiliates()), safe(getAffiliateSales()), safe(getAffiliatePayouts()),
+    safe(getAffiliateTraffic()), safe(getAffiliateTasks()), safe(getAffiliateProducts()),
   ]);
 
   // Orders — local CSV first, Airtable fallback
@@ -2760,5 +3099,5 @@ export async function getServerSideProps() {
   const sohData = soh;
   const sohSource = 'airtable';
 
-  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, error: null, serverTime: new Date().toISOString() } };
+  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, error: null, serverTime: new Date().toISOString() } };
 }
