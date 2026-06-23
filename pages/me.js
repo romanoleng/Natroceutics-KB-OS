@@ -13,7 +13,7 @@ import {
   getProducts,
 } from '../lib/airtable';
 
-const TABS = ['Tasks', 'Priorities', 'Risks', 'Registrations', 'Inventory', 'Affiliates', 'B2B', 'Partners', 'Finance', 'Marketing', 'Customer Service', 'Customers', 'Reporting', 'Products'];
+const TABS = ['Tasks', 'Priorities', 'Risks', 'Registrations', 'Inventory', 'Affiliates', 'B2B', 'Partners', 'Finance', 'Marketing', 'Customer Service', 'Customers', 'Reporting', 'Products', 'Google'];
 
 const ME_BASE  = 'appdN9dWxVcB2KFZ6';
 const ME_TASKS_TABLE = 'tbleGswAUGSDhcrE9';
@@ -656,6 +656,52 @@ function ReportingTab({ items }) {
   );
 }
 
+/* ── Google ──────────────────────────────────────────────── */
+function GoogleTab() {
+  const [sub, setSub] = useState('Merchant Center');
+  return (
+    <>
+      <div className="os-sub-tabs" style={{ marginTop: 8 }}>
+        {['Merchant Center', 'GA4 Traffic', 'AI Referrer', 'SEO'].map(s => (
+          <button key={s} className={`os-subnav-btn${sub === s ? ' active' : ''}`} onClick={() => setSub(s)}>{s}</button>
+        ))}
+      </div>
+      {sub === 'Merchant Center' && (
+        <div className="os-empty" style={{ marginTop: 16 }}>
+          <strong>Google Merchant Center not yet configured for Middle East.</strong>
+          <p className="os-muted" style={{ marginTop: 8, fontSize: 13 }}>
+            Connect the ME Shopify store to Google Merchant Center once the store goes live. Product feed approval status will appear here.
+          </p>
+        </div>
+      )}
+      {sub === 'GA4 Traffic' && (
+        <div className="os-empty" style={{ marginTop: 16 }}>
+          <strong>GA4 not yet connected.</strong>
+          <p className="os-muted" style={{ marginTop: 8, fontSize: 13 }}>
+            Connect Google Analytics 4 via the Reporting API to surface sessions, users, channel breakdown, and conversion data here.
+          </p>
+        </div>
+      )}
+      {sub === 'AI Referrer' && (
+        <div className="os-empty" style={{ marginTop: 16 }}>
+          <strong>AI referrer tracking not yet configured.</strong>
+          <p className="os-muted" style={{ marginTop: 8, fontSize: 13 }}>
+            Traffic from ChatGPT, Perplexity, and Claude will appear here once GA4 is connected and referral source dimensions are tracked.
+          </p>
+        </div>
+      )}
+      {sub === 'SEO' && (
+        <div className="os-empty" style={{ marginTop: 16 }}>
+          <strong>SEO data not yet connected.</strong>
+          <p className="os-muted" style={{ marginTop: 8, fontSize: 13 }}>
+            Connect Google Search Console for the ME domain to surface organic impressions, clicks, average position, and query data here.
+          </p>
+        </div>
+      )}
+    </>
+  );
+}
+
 /* ── Page ─────────────────────────────────────────────────── */
 export default function MEPage({ tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, marketing, cs, customers, reporting, products, error, serverTime }) {
   const router = useRouter();
@@ -708,6 +754,7 @@ export default function MEPage({ tasks, priorities, risks, registrations, invent
           {tab === 'Customers' && <CustomersTab items={customers} />}
           {tab === 'Reporting' && <ReportingTab items={reporting} />}
           {tab === 'Products' && <ProductsSection products={products} />}
+          {tab === 'Google' && <GoogleTab />}
         </div>
       </div>
     </OsLayout>

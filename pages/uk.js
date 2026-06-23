@@ -4,16 +4,17 @@ import OsLayout from '../components/OsLayout';
 import ProductsSection from '../components/ProductsSection';
 import SortableTable from '../components/SortableTable';
 import TaskDetailPanel from '../components/TaskDetailPanel';
+import RecordDetailPanel from '../components/RecordDetailPanel';
 import { useStatusEditor, StatusSelect, DateCell, sc as scShared, DONE_VALS as DONE_VALS_SHARED, BASE_STATUSES as BASE_STATUSES_SHARED } from '../components/StatusSelect';
 import {
   getUKTasks, getUKPriorities, getUKRisks,
   getUKAmazon, getUKAmazonCat,
   getUKShopify, getUKOrders, getUKDiscounts, getUKRefunds, getUKPayouts,
   getUKStock, getUKInbound,
-  getUKReporting, getUKReconcile, getUKSoftware,
+  getUKReporting, getUKReconcile, getUKSoftware, getUKAmazonDisbursements,
   getUKB2B, getUKCS, getUKCustomers,
   getUKAffiliates, getUKMarketing, getUKSubscriptions,
-  getUKEmailList,
+  getUKEmailList, getUKPPC,
   getProducts,
 } from '../lib/airtable';
 import { getLocalOrders, getLocalDailySales, getLocalSalesByProduct, getLocalPayouts } from '../lib/shopify';
@@ -22,8 +23,8 @@ import { getLocalOrders, getLocalDailySales, getLocalSalesByProduct, getLocalPay
 const SECTIONS = ['Overview', 'Shopify UK', 'Amazon UK', 'Warehouse'];
 const SECTION_TABS = {
   'Overview':   ['Tasks', 'Priorities', 'Risks', 'Reporting', 'Products'],
-  'Shopify UK': ['Tasks', 'Priorities', 'Risks', 'Orders', 'Shopify', 'Customers', 'B2B', 'Affiliates', 'Email / Klaviyo', 'Marketing', 'Subscriptions', 'Customer Service', 'Finance'],
-  'Amazon UK':  ['Amazon UK'],
+  'Shopify UK': ['Tasks', 'Priorities', 'Risks', 'Orders', 'Shopify', 'Customers', 'B2B', 'Affiliates', 'Email / Klaviyo', 'Marketing', 'Subscriptions', 'Customer Service', 'Finance', 'Google'],
+  'Amazon UK':  ['Amazon UK', 'Finance', 'Google'],
   'Warehouse':  ['Stock on Hand', 'Inbound Stock'],
 };
 const TABS = Object.values(SECTION_TABS).flat();
@@ -937,13 +938,86 @@ function AmazonReportingTab({ reporting }) {
   );
 }
 
+/* ── Google ───────────────────────────────────── */
+function GoogleTab({ section = 'Shopify UK' }) {
+  const [sub, setSub] = useState('Merchant Center');
+  const MC_TOTAL = 42, MC_APPROVED = 36, MC_NOT = 6;
+  return (
+    <>
+      <div className="os-stat-row" style={{ marginTop: 8 }}>
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{MC_APPROVED}</div><div className="os-stat-label">GMC Approved</div></div>
+        <div className="os-stat-card os-stat-amber"><div className="os-stat-num">{MC_NOT}</div><div className="os-stat-label">Not Approved</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{MC_TOTAL}</div><div className="os-stat-label">Total Products</div></div>
+      </div>
+      <div className="os-sub-tabs" style={{ marginTop: 16 }}>
+        {['Merchant Center', 'GA4 Traffic', 'AI Referrer', 'SEO'].map(s => (
+          <button key={s} className={`os-sub-tab${sub === s ? ' active' : ''}`} onClick={() => setSub(s)}>{s}</button>
+        ))}
+      </div>
+
+      {sub === 'Merchant Center' && (
+        <div style={{ marginTop: 16 }}>
+          <div className="wh-banner">
+            <div className="wh-banner-inner">
+              <span className="wh-banner-label">Google Merchant Center — UK</span>
+              <span className="wh-banner-sub">uk.natroceutics.com · Last known snapshot</span>
+            </div>
+            <div className="wh-banner-stats">
+              <div className="wh-banner-stat"><span className="wh-banner-num" style={{ color: '#16a34a' }}>{MC_APPROVED}</span><span className="wh-banner-unit">Approved</span></div>
+              <div className="wh-banner-stat"><span className="wh-banner-num" style={{ color: '#d97706' }}>{MC_NOT}</span><span className="wh-banner-unit">Not Approved</span></div>
+              <div className="wh-banner-stat"><span className="wh-banner-num">{MC_TOTAL}</span><span className="wh-banner-unit">Total</span></div>
+            </div>
+          </div>
+          <table className="os-table" style={{ marginTop: 16, maxWidth: 440 }}>
+            <tbody>
+              <tr><td><strong>Total Products in Feed</strong></td><td className="os-mono">{MC_TOTAL}</td></tr>
+              <tr><td>Approved</td><td className="os-mono"><span className="os-pill pill-done">{MC_APPROVED}</span></td></tr>
+              <tr><td>Not Approved</td><td className="os-mono"><span className="os-pill pill-blocked">{MC_NOT}</span></td></tr>
+              <tr><td>Approval Rate</td><td className="os-mono">{((MC_APPROVED / MC_TOTAL) * 100).toFixed(1)}%</td></tr>
+            </tbody>
+          </table>
+          <p className="os-muted" style={{ marginTop: 12, fontSize: 12 }}>
+            Source: Global Tasks scope record. Not-approved products require image or description review in GMC.
+            Connect the GMC Content API for live sync.
+          </p>
+        </div>
+      )}
+      {sub === 'GA4 Traffic' && (
+        <div className="os-empty" style={{ marginTop: 16 }}>
+          <strong>GA4 not yet connected.</strong>
+          <p className="os-muted" style={{ marginTop: 8, fontSize: 13 }}>
+            Connect Google Analytics 4 via the Reporting API to surface sessions, users, channel breakdown, and conversion data here.
+          </p>
+        </div>
+      )}
+      {sub === 'AI Referrer' && (
+        <div className="os-empty" style={{ marginTop: 16 }}>
+          <strong>AI referrer tracking not yet configured.</strong>
+          <p className="os-muted" style={{ marginTop: 8, fontSize: 13 }}>
+            Traffic from ChatGPT, Perplexity, and Claude will appear here once GA4 is connected and referral source dimensions are tracked.
+          </p>
+        </div>
+      )}
+      {sub === 'SEO' && (
+        <div className="os-empty" style={{ marginTop: 16 }}>
+          <strong>SEO data not yet connected.</strong>
+          <p className="os-muted" style={{ marginTop: 8, fontSize: 13 }}>
+            Connect Google Search Console to surface organic impressions, clicks, average position, and query data here.
+          </p>
+        </div>
+      )}
+    </>
+  );
+}
+
 /* ── Amazon UK — full hub ─────────────────────── */
-function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, reporting }) {
+function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, reporting, ppc = [] }) {
   const [sub, setSub] = useState('Overview');
   const [taskSearch, setTaskSearch] = useState('');
   const [taskStatus, setTaskStatus] = useState('');
+  const [selectedPPC, setSelectedPPC] = useState(null);
 
-  const AMZ_SUBS = ['Overview', 'Tasks', 'Priorities', 'FBA Stock', 'Inbound', 'Catalogue', 'Marketing', 'Reporting'];
+  const AMZ_SUBS = ['Overview', 'Tasks', 'Priorities', 'FBA Stock', 'Inbound', 'Catalogue', 'Marketing', 'PPC', 'Reporting'];
 
   // Status editors — one per dataset so each table has independent optimistic state
   const tasksEditor    = useStatusEditor(tasks);
@@ -959,6 +1033,20 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
   const mktStatuses      = useMemo(() => [...new Set([...BASE_STATUSES_SHARED, ...(marketing || []).map(r => r.Status).filter(Boolean)])], [marketing]);
   const inboundStatuses  = useMemo(() => [...new Set(['Pending', 'In Transit', 'Received', 'Done', 'Delayed', ...BASE_STATUSES_SHARED, ...(inbound || []).map(r => r.Status).filter(Boolean)])], [inbound]);
   const reportingStatuses = useMemo(() => [...new Set(['Draft', 'In Review', 'Approved', 'Done', ...BASE_STATUSES_SHARED, ...(reporting || []).map(r => r.Status).filter(Boolean)])], [reporting]);
+  const ppcEditor    = useStatusEditor(ppc);
+  const ppcStatuses  = useMemo(() => [...new Set(['Enabled', 'Paused', 'Archived', ...BASE_STATUSES_SHARED, ...(ppc || []).map(r => r.Status).filter(Boolean)])], [ppc]);
+
+  // PPC aggregates
+  const fbaByAsin = useMemo(() => Object.fromEntries((fba || []).map(p => [p.ASIN, p])), [fba]);
+  const ppcTotals = useMemo(() => {
+    const totSpend = ppc.reduce((s, r) => s + (Number(r['Spend (£)']) || 0), 0);
+    const totSales = ppc.reduce((s, r) => s + (Number(r['Sales (£)']) || 0), 0);
+    const totOrders = ppc.reduce((s, r) => s + (Number(r.Orders) || 0), 0);
+    const totImpressions = ppc.reduce((s, r) => s + (Number(r.Impressions) || 0), 0);
+    const blendedAcos = totSales > 0 ? (totSpend / totSales * 100) : 0;
+    const enabledCount = ppc.filter(r => r.Status === 'Enabled').length;
+    return { totSpend, totSales, totOrders, totImpressions, blendedAcos, enabledCount };
+  }, [ppc]);
 
   // Filter to Amazon-related records (using editors' dataWithStatus so local changes propagate)
   const amazonTasks = useMemo(() =>
@@ -1004,7 +1092,7 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
 
   // Aggregate update errors
   const anyError = tasksEditor.updateError || catEditor.updateError || fbaEditor.updateError ||
-    mktEditor.updateError || inboundEditor.updateError || reportingEditor.updateError;
+    mktEditor.updateError || inboundEditor.updateError || reportingEditor.updateError || ppcEditor.updateError;
 
   return (
     <>
@@ -1388,6 +1476,85 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
               );
             }}
             emptyMsg="No marketing campaigns."
+          />
+        </div>
+      )}
+
+      {/* ── PPC Campaigns ── */}
+      {sub === 'PPC' && (
+        <div style={{ marginTop: 8 }}>
+          {ppc.length === 0 ? (
+            <div className="os-empty">
+              No PPC data. Paste campaign rows from your Amazon Ads export into the{' '}
+              <strong>📣 Amazon UK — PPC Campaigns</strong> table in Airtable.
+            </div>
+          ) : (
+            <>
+              <div className="os-stat-row" style={{ marginTop: 8 }}>
+                <div className="os-stat-card"><div className="os-stat-num">{gbp(ppcTotals.totSpend)}</div><div className="os-stat-label">Total Spend</div></div>
+                <div className="os-stat-card"><div className="os-stat-num">{gbp(ppcTotals.totSales)}</div><div className="os-stat-label">Ad Sales</div></div>
+                <div className="os-stat-card"><div className="os-stat-num">{ppcTotals.totOrders}</div><div className="os-stat-label">Ad Orders</div></div>
+                <div className={`os-stat-card${ppcTotals.blendedAcos > 50 ? ' os-stat-red' : ppcTotals.blendedAcos > 30 ? ' os-stat-amber' : ppcTotals.totSales > 0 ? ' os-stat-green' : ''}`}>
+                  <div className="os-stat-num">{ppcTotals.totSales > 0 ? ppcTotals.blendedAcos.toFixed(1) + '%' : '—'}</div>
+                  <div className="os-stat-label">Blended ACOS</div>
+                </div>
+                <div className="os-stat-card"><div className="os-stat-num">{ppcTotals.totImpressions.toLocaleString()}</div><div className="os-stat-label">Impressions</div></div>
+                <div className="os-stat-card"><div className="os-stat-num">{ppcTotals.enabledCount} / {ppc.length}</div><div className="os-stat-label">Enabled / Total</div></div>
+              </div>
+              <div style={{ marginTop: 16 }}>
+                <SortableTable
+                  cols={[
+                    { label: 'Report Date', key: 'Report Date', type: 'date', w: 100 },
+                    { label: 'Campaign', key: 'Campaign Name' },
+                    { label: 'ASIN', key: 'ASIN', w: 115 },
+                    { label: 'Type', key: 'Match Type', w: 90 },
+                    { label: 'Status', key: 'Status', w: 80 },
+                    { label: 'Spend', key: 'Spend (£)', type: 'number', w: 80 },
+                    { label: 'Sales', key: 'Sales (£)', type: 'number', w: 80 },
+                    { label: 'Orders', key: 'Orders', type: 'number', w: 70 },
+                    { label: 'ACOS', key: 'ACOS %', type: 'number', w: 80 },
+                    { label: 'ROAS', key: 'ROAS', type: 'number', w: 70 },
+                  ]}
+                  data={ppcEditor.dataWithStatus}
+                  renderRow={r => {
+                    const product = fbaByAsin[r.ASIN];
+                    const acos = r['ACOS %'] ? (r['ACOS %'] * 100).toFixed(1) + '%' : '—';
+                    const acosVal = r['ACOS %'] || 0;
+                    const acosColor = acosVal > 0.5 ? '#ef4444' : acosVal > 0.3 ? '#d97706' : acosVal > 0 ? '#16a34a' : undefined;
+                    return (
+                      <tr key={r.id} onClick={() => setSelectedPPC(r)} style={{ cursor: 'pointer' }}>
+                        <td className="os-mono" style={{ fontSize: 11, color: 'var(--charcoal-45)' }}>{fmt(r['Report Date'])}</td>
+                        <td style={{ maxWidth: 260 }}>
+                          <strong style={{ fontSize: 12 }}>{fmt(r['Campaign Name'])}</strong>
+                          {product && <p className="os-table-note">{product.Product}</p>}
+                        </td>
+                        <td className="os-mono" style={{ fontSize: 11 }}>{fmt(r.ASIN)}</td>
+                        <td><span className="os-pill pill-default" style={{ fontSize: 11 }}>{fmt(r['Match Type'])}</span></td>
+                        <td>
+                          <StatusSelect record={r} allStatuses={ppcStatuses} handleStatusChange={ppcEditor.handleStatusChange} saving={ppcEditor.saving} />
+                        </td>
+                        <td className="os-mono">{gbp(r['Spend (£)'])}</td>
+                        <td className="os-mono">{r['Sales (£)'] ? gbp(r['Sales (£)']) : '—'}</td>
+                        <td className="os-mono">{r.Orders || '—'}</td>
+                        <td className="os-mono">
+                          <span style={acosColor ? { color: acosColor, fontWeight: 600 } : {}}>{acos}</span>
+                        </td>
+                        <td className="os-mono">{r.ROAS ? Number(r.ROAS).toFixed(2) : '—'}</td>
+                      </tr>
+                    );
+                  }}
+                  emptyMsg="No campaigns."
+                />
+              </div>
+            </>
+          )}
+          <RecordDetailPanel
+            record={selectedPPC}
+            titleField="Campaign Name"
+            onClose={() => setSelectedPPC(null)}
+            allStatuses={ppcStatuses}
+            onStatusChange={ppcEditor.handleStatusChange}
+            saving={ppcEditor.saving}
           />
         </div>
       )}
@@ -1903,6 +2070,127 @@ function CSTab({ items }) {
   );
 }
 
+/* ── Amazon Finance ───────────────────────────── */
+function AmazonFinanceTab({ reconcile, disbursements = [] }) {
+  const [sub, setSub] = useState('Disbursements');
+  const reconcileEditor = useStatusEditor(reconcile);
+  const finStatuses = useMemo(() => [...new Set(['Pending', 'Reconciled', 'Paid', 'Under Review', ...BASE_STATUSES])], []);
+
+  const amazonRecon = useMemo(
+    () => reconcileEditor.dataWithStatus.filter(r => r.Channel === 'Amazon UK'),
+    [reconcileEditor.dataWithStatus]
+  );
+
+  // KPIs from disbursements
+  const disbKpis = useMemo(() => {
+    const complete  = disbursements.filter(d => (d.Status || '').includes('Complete'));
+    const pending   = disbursements.filter(d => (d.Status || '').includes('Pending'));
+    const totPaid   = complete.reduce((s, d) => s + (Number(d['Net Disbursed (£)']) || 0), 0);
+    const totPend   = pending.reduce((s, d) => s + (Number(d['Net Disbursed (£)']) || 0), 0);
+    return { totPaid, totPend, completeCount: complete.length, pendingCount: pending.length };
+  }, [disbursements]);
+
+  return (
+    <>
+      {/* KPI tiles */}
+      <div className="orders-kpi-row" style={{ marginTop: 12 }}>
+        <div className="orders-kpi-card">
+          <div className="orders-kpi-num">{gbp(disbKpis.totPaid)}</div>
+          <div className="orders-kpi-label">DISBURSED</div>
+          <div className="orders-kpi-sub">{disbKpis.completeCount} payment{disbKpis.completeCount !== 1 ? 's' : ''}</div>
+        </div>
+        {disbKpis.totPend > 0 && (
+          <div className="orders-kpi-card" style={{ borderColor: 'var(--amber)' }}>
+            <div className="orders-kpi-num" style={{ color: 'var(--amber)' }}>{gbp(disbKpis.totPend)}</div>
+            <div className="orders-kpi-label">PENDING</div>
+            <div className="orders-kpi-sub">{disbKpis.pendingCount} payment{disbKpis.pendingCount !== 1 ? 's' : ''}</div>
+          </div>
+        )}
+      </div>
+
+      <div className="os-sub-tabs" style={{ marginTop: 16 }}>
+        {['Disbursements', 'Reconciliation'].map(s => (
+          <button key={s} className={`os-sub-tab${sub === s ? ' active' : ''}`} onClick={() => setSub(s)}>{s}</button>
+        ))}
+      </div>
+
+      {/* ── Disbursements ── */}
+      {sub === 'Disbursements' && (
+        disbursements.length === 0
+          ? <div className="os-empty" style={{ marginTop: 16 }}>No disbursement records yet. Add Amazon payout events to the Amazon UK — Finance / Disbursements table in Airtable.</div>
+          : (
+            <SortableTable
+              cols={[
+                { label: 'Date', key: 'Date', type: 'date', w: 110 },
+                { label: 'Net Disbursed', key: 'Net Disbursed (£)', type: 'number', w: 130 },
+                { label: 'Gross Settlement', key: 'Gross Settlement (£)', type: 'number', w: 140 },
+                { label: 'Bank Account', key: 'Bank Account (ending)', w: 120 },
+                { label: 'Expected Arrival', key: 'Expected Arrival', type: 'date', w: 130 },
+                { label: 'Month', key: 'Month', w: 100 },
+                { label: 'Status', key: 'Status', w: 130 },
+                { label: 'Notes', key: 'Notes' },
+              ]}
+              data={disbursements}
+              renderRow={d => (
+                <tr key={d.id}>
+                  <td className="os-mono">{fmt(d.Date)}</td>
+                  <td className="os-mono"><strong>{gbp(d['Net Disbursed (£)'])}</strong></td>
+                  <td className="os-mono">{gbp(d['Gross Settlement (£)'])}</td>
+                  <td className="os-muted">···{fmt(d['Bank Account (ending)'])}</td>
+                  <td className="os-mono">{fmt(d['Expected Arrival'])}</td>
+                  <td className="os-muted">{fmt(d.Month)}</td>
+                  <td>
+                    {d.Status
+                      ? <span className={`os-pill ${d.Status.includes('Complete') ? 'pill-done' : 'pill-todo'}`}>{d.Status}</span>
+                      : '—'}
+                  </td>
+                  <td className="os-muted" style={{ fontSize: 12 }}>{fmt(d.Notes)}</td>
+                </tr>
+              )}
+              emptyMsg="No disbursements."
+            />
+          )
+      )}
+
+      {/* ── Reconciliation (Amazon UK channel only) ── */}
+      {sub === 'Reconciliation' && (
+        amazonRecon.length === 0
+          ? <div className="os-empty" style={{ marginTop: 16 }}>No Amazon UK reconciliation records. Add records with Channel = "Amazon UK" to the Reconciliation table in Airtable.</div>
+          : (
+            <SortableTable
+              cols={[
+                { label: 'Period', key: 'Period' },
+                { label: 'Gross', key: 'Gross Revenue (£)', type: 'number', w: 100 },
+                { label: 'Discounts', key: 'Discounts (£)', type: 'number', w: 90 },
+                { label: 'Refunds', key: 'Refunds (£)', type: 'number', w: 90 },
+                { label: 'Fees', key: 'Platform Fees (£)', type: 'number', w: 90 },
+                { label: 'Net', key: 'Net Revenue (£)', type: 'number', w: 100 },
+                { label: 'Variance', key: 'Variance (£)', type: 'number', w: 90 },
+                { label: 'Status', key: 'Status', w: 120 },
+              ]}
+              data={amazonRecon}
+              renderRow={r => (
+                <tr key={r.id}>
+                  <td><strong>{fmt(r.Period)}</strong></td>
+                  <td className="os-mono">{gbp(r['Gross Revenue (£)'])}</td>
+                  <td className="os-mono">{gbp(r['Discounts (£)'])}</td>
+                  <td className="os-mono">{gbp(r['Refunds (£)'])}</td>
+                  <td className="os-mono">{gbp(r['Platform Fees (£)'])}</td>
+                  <td className="os-mono"><strong>{gbp(r['Net Revenue (£)'])}</strong></td>
+                  <td className="os-mono">{gbp(r['Variance (£)'])}</td>
+                  <td onClick={e => e.stopPropagation()}>
+                    <StatusSelect record={r} allStatuses={finStatuses} handleStatusChange={reconcileEditor.handleStatusChange} saving={reconcileEditor.saving} />
+                  </td>
+                </tr>
+              )}
+              emptyMsg="No reconciliation records."
+            />
+          )
+      )}
+    </>
+  );
+}
+
 /* ── Finance ──────────────────────────────────── */
 function FinanceTab({ reconcile, software, payouts, payoutsCsv = [], serverTime }) {
   const [sub, setSub] = useState('Shopify Payments');
@@ -2022,7 +2310,7 @@ function FinanceTab({ reconcile, software, payouts, payoutsCsv = [], serverTime 
             { label: 'Variance', key: 'Variance (£)', type: 'number', w: 90 },
             { label: 'Status', key: 'Status', w: 120 },
           ]}
-          data={reconcileEditor.dataWithStatus}
+          data={reconcileEditor.dataWithStatus.filter(r => r.Channel === 'Shopify UK' || !r.Channel)}
           renderRow={r => (
             <tr key={r.id}>
               <td><strong>{fmt(r.Period)}</strong></td>
@@ -2140,7 +2428,7 @@ function ReportingTab({ items }) {
 }
 
 /* ── Page ─────────────────────────────────────── */
-export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, error, serverTime }) {
+export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc = [], disbursements = [], error, serverTime }) {
   const router = useRouter();
   const [section, setSection] = useState('Overview');
   const [tab, setTab] = useState('Tasks');
@@ -2231,8 +2519,10 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
           {tab === 'Marketing'        && <MarketingTab items={marketing} />}
           {tab === 'Subscriptions'    && <SubscriptionsTab items={subscriptions} />}
           {tab === 'Customer Service' && <CSTab items={cs} />}
-          {tab === 'Finance'          && <FinanceTab reconcile={reconcile} software={software} payouts={payouts} payoutsCsv={payoutsCsv || []} serverTime={serverTime} />}
-          {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} tasks={tasks} priorities={priorities} marketing={marketing} inbound={inbound} reporting={reporting} />}
+          {tab === 'Finance' && section === 'Shopify UK' && <FinanceTab reconcile={reconcile} software={software} payouts={payouts} payoutsCsv={payoutsCsv || []} serverTime={serverTime} />}
+          {tab === 'Finance' && section === 'Amazon UK'  && <AmazonFinanceTab reconcile={reconcile} disbursements={disbursements} />}
+          {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} tasks={tasks} priorities={priorities} marketing={marketing} inbound={inbound} reporting={reporting} ppc={ppc} />}
+          {tab === 'Google'           && <GoogleTab section={section} />}
           {tab === 'Stock on Hand'    && <SOHTab soh={soh} sohSource={sohSource} />}
           {tab === 'Inbound Stock'    && <InboundTab inbound={inbound} />}
         </div>
@@ -2244,7 +2534,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
 export async function getServerSideProps() {
   const safe = p => p.catch(e => { console.warn('[uk] fetch partial fail:', e.message); return []; });
 
-  const [tasks, priorities, risks, amazon, catalogue, shopifyProducts, airtableOrders, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products] = await Promise.all([
+  const [tasks, priorities, risks, amazon, catalogue, shopifyProducts, airtableOrders, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc, disbursements] = await Promise.all([
     safe(getUKTasks()), safe(getUKPriorities()), safe(getUKRisks()),
     safe(getUKAmazon()), safe(getUKAmazonCat()),
     safe(getUKShopify()), safe(getUKOrders()), safe(getUKDiscounts()), safe(getUKRefunds()), safe(getUKPayouts()),
@@ -2252,7 +2542,8 @@ export async function getServerSideProps() {
     safe(getUKB2B()), safe(getUKCustomers()), safe(getUKAffiliates()), safe(getUKEmailList()),
     safe(getUKMarketing()), safe(getUKSubscriptions()), safe(getUKCS()),
     safe(getUKReconcile()), safe(getUKSoftware()), safe(getUKReporting()),
-    safe(getProducts()),
+    safe(getProducts()), safe(getUKPPC()),
+    safe(getUKAmazonDisbursements()),
   ]);
 
   // Orders — local CSV first, Airtable fallback
@@ -2288,5 +2579,5 @@ export async function getServerSideProps() {
   const sohData = soh;
   const sohSource = 'airtable';
 
-  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, error: null, serverTime: new Date().toISOString() } };
+  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc, disbursements, error: null, serverTime: new Date().toISOString() } };
 }
