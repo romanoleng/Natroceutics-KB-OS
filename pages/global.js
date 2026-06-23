@@ -80,7 +80,7 @@ export default function GlobalPage({ uk, me, error }) {
 
             <div className="ghub-quick-links">
               <span className="ghub-ql-label">Quick access</span>
-              {['Tasks','Registrations','Inventory','Affiliates','B2B','Partners','Finance'].map(t=>(
+              {['Tasks','Registrations','Inventory','Affiliates','B2B','Partners','Finance','Subscriptions','Email / Klaviyo'].map(t=>(
                 <Link key={t} href={`/me?tab=${encodeURIComponent(t)}`} className="ghub-ql-pill">{t}</Link>
               ))}
             </div>
@@ -147,6 +147,28 @@ export default function GlobalPage({ uk, me, error }) {
           </div>
 
         </div>
+
+        {/* ── Company-Wide Programmes ── */}
+        <div className="ghub-section-label">Company-Wide Programmes</div>
+        <div className="global-hub-grid global-hub-grid--3col">
+          <div className="ghub-card">
+            <div className="ghub-card-head">
+              <div>
+                <p className="ghub-card-eyebrow">Affiliate Programme</p>
+                <h2 className="ghub-card-title">📊 Affiliate Ops</h2>
+              </div>
+              <Link href="/affiliates" className="ghub-card-btn">Open module →</Link>
+            </div>
+            <p className="ghub-stub-note">Affiliate performance, sales attribution, payouts, traffic, and programme tasks across all markets.</p>
+            <div className="ghub-quick-links">
+              <span className="ghub-ql-label">Quick access</span>
+              {['Affiliates','Sales','Payouts','Traffic','Products','Tasks'].map(t=>(
+                <Link key={t} href={`/affiliates`} className="ghub-ql-pill">{t}</Link>
+              ))}
+            </div>
+          </div>
+        </div>
+
       </div>
     </OsLayout>
   );

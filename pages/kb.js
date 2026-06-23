@@ -6,7 +6,7 @@ import { useState, useMemo } from 'react';
 import OsLayout from '../components/OsLayout';
 import ProductsSection from '../components/ProductsSection';
 import SortableTable from '../components/SortableTable';
-import { getProducts, getSOPs, getContacts, getPlatforms, getRegulatory } from '../lib/airtable';
+import { getProducts, getSOPs, getContacts, getPlatforms, getRegulatory, getBrandAssets, getCompanyInfo, getTemplates, getTraining } from '../lib/airtable';
 
 function fmt(v){ return (v===null||v===undefined||v==='')?'—':v; }
 
@@ -165,10 +165,191 @@ function RegulatoryTab({ items }) {
   );
 }
 
-/* ── Page ──────────────────────────────────────── */
-const TABS = ['Products','SOPs','Contacts','Platforms','Regulatory'];
+/* ── Brand Assets ──────────────────────────────── */
+function BrandAssetsTab({ items }) {
+  const [srch, setSrch] = useState('');
+  const cats = [...new Set(items.map(i => i.Category).filter(Boolean))];
+  const [cat, setCat] = useState('');
+  const filtered = useMemo(() => {
+    const q = srch.toLowerCase();
+    return items.filter(i => {
+      const mQ = !q || (i['Asset Name']||'').toLowerCase().includes(q) || (i['Value/Detail']||'').toLowerCase().includes(q);
+      const mC = !cat || i.Category === cat;
+      return mQ && mC;
+    });
+  }, [items, srch, cat]);
+  if (!items.length) return <div className="os-empty">No brand assets logged.</div>;
+  return (
+    <>
+      <div className="os-toolbar">
+        <input className="os-search" placeholder="Search assets…" value={srch} onChange={e=>setSrch(e.target.value)}/>
+        {cats.length>0&&<select className="os-select" value={cat} onChange={e=>setCat(e.target.value)}><option value="">All Categories</option>{cats.map(c=><option key={c} value={c}>{c}</option>)}</select>}
+        <span className="os-count">{filtered.length} assets</span>
+      </div>
+      <SortableTable
+        cols={[
+          { label: 'Asset', key: 'Asset Name' },
+          { label: 'Category', key: 'Category', w: 130 },
+          { label: 'Value / Detail', key: 'Value/Detail' },
+          { label: 'Usage Rules', key: 'Usage Rules' },
+          { label: 'Status', key: 'Status', w: 110 },
+          { label: 'File / Link', key: 'File/Link', w: 120 },
+        ]}
+        data={filtered}
+        renderRow={r => (
+          <tr key={r.id}>
+            <td><strong>{fmt(r['Asset Name'])}</strong></td>
+            <td className="os-muted">{fmt(r.Category)}</td>
+            <td style={{fontSize:12}}>{fmt(r['Value/Detail'])}</td>
+            <td className="os-muted" style={{fontSize:12}}>{fmt(r['Usage Rules'])}</td>
+            <td>{r.Status?<span className={`os-pill ${sc(r.Status)}`}>{r.Status}</span>:'—'}</td>
+            <td>{r['File/Link']?<a href={r['File/Link']} target="_blank" rel="noopener" style={{color:'var(--forest-600)',fontSize:12}}>Open</a>:'—'}</td>
+          </tr>
+        )}
+        emptyMsg="No brand assets."
+      />
+    </>
+  );
+}
 
-export default function KBPage({ products, sops, contacts, platforms, regulatory, error }) {
+/* ── Company Info ──────────────────────────────── */
+function CompanyInfoTab({ items }) {
+  const cats = [...new Set(items.map(i => i.Category).filter(Boolean))];
+  const [cat, setCat] = useState('');
+  const filtered = useMemo(() => !cat ? items : items.filter(i => i.Category === cat), [items, cat]);
+  if (!items.length) return <div className="os-empty">No company info records.</div>;
+  return (
+    <>
+      <div className="os-toolbar">
+        {cats.length>0&&<select className="os-select" value={cat} onChange={e=>setCat(e.target.value)}><option value="">All Categories</option>{cats.map(c=><option key={c} value={c}>{c}</option>)}</select>}
+        <span className="os-count">{filtered.length} records</span>
+      </div>
+      <SortableTable
+        cols={[
+          { label: 'Item', key: 'Item' },
+          { label: 'Entity', key: 'Entity', w: 130 },
+          { label: 'Category', key: 'Category', w: 130 },
+          { label: 'Value', key: 'Value' },
+          { label: 'Last Verified', key: 'Last Verified', type: 'date', w: 120 },
+          { label: 'Notes', key: 'Notes' },
+        ]}
+        data={filtered}
+        renderRow={r => (
+          <tr key={r.id}>
+            <td><strong>{fmt(r.Item)}</strong></td>
+            <td className="os-muted">{fmt(r.Entity)}</td>
+            <td className="os-muted">{fmt(r.Category)}</td>
+            <td style={{fontSize:12}}>{fmt(r.Value)}</td>
+            <td className="os-mono">{fmt(r['Last Verified'])}</td>
+            <td className="os-muted" style={{fontSize:12}}>{fmt(r.Notes)}</td>
+          </tr>
+        )}
+        emptyMsg="No company info records."
+      />
+    </>
+  );
+}
+
+/* ── Templates ─────────────────────────────────── */
+function TemplatesTab({ items }) {
+  const [srch, setSrch] = useState('');
+  const cats = [...new Set(items.map(i => i.Category).filter(Boolean))];
+  const [cat, setCat] = useState('');
+  const filtered = useMemo(() => {
+    const q = srch.toLowerCase();
+    return items.filter(i => {
+      const mQ = !q || (i['Template Name']||'').toLowerCase().includes(q) || (i.Category||'').toLowerCase().includes(q);
+      const mC = !cat || i.Category === cat;
+      return mQ && mC;
+    });
+  }, [items, srch, cat]);
+  if (!items.length) return <div className="os-empty">No templates logged.</div>;
+  return (
+    <>
+      <div className="os-toolbar">
+        <input className="os-search" placeholder="Search templates…" value={srch} onChange={e=>setSrch(e.target.value)}/>
+        {cats.length>0&&<select className="os-select" value={cat} onChange={e=>setCat(e.target.value)}><option value="">All Categories</option>{cats.map(c=><option key={c} value={c}>{c}</option>)}</select>}
+        <span className="os-count">{filtered.length} templates</span>
+      </div>
+      <SortableTable
+        cols={[
+          { label: 'Template', key: 'Template Name' },
+          { label: 'Category', key: 'Category', w: 130 },
+          { label: 'Status', key: 'Status', w: 110 },
+          { label: 'Owner', key: 'Owner', w: 120 },
+          { label: 'Last Updated', key: 'Last Updated', type: 'date', w: 120 },
+          { label: 'Usage Notes', key: 'Usage Notes' },
+        ]}
+        data={filtered}
+        renderRow={t => (
+          <tr key={t.id}>
+            <td><strong>{fmt(t['Template Name'])}</strong></td>
+            <td className="os-muted">{fmt(t.Category)}</td>
+            <td>{t.Status?<span className={`os-pill ${sc(t.Status)}`}>{t.Status}</span>:'—'}</td>
+            <td className="os-muted">{fmt(t.Owner)}</td>
+            <td className="os-mono">{fmt(t['Last Updated'])}</td>
+            <td className="os-muted" style={{fontSize:12}}>{fmt(t['Usage Notes'])}</td>
+          </tr>
+        )}
+        emptyMsg="No templates."
+      />
+    </>
+  );
+}
+
+/* ── Training Resources ────────────────────────── */
+function TrainingTab({ items }) {
+  const [srch, setSrch] = useState('');
+  const cats = [...new Set(items.map(i => i.Category).filter(Boolean))];
+  const [cat, setCat] = useState('');
+  const filtered = useMemo(() => {
+    const q = srch.toLowerCase();
+    return items.filter(i => {
+      const mQ = !q || (i['Resource Title']||'').toLowerCase().includes(q) || (i.Category||'').toLowerCase().includes(q);
+      const mC = !cat || i.Category === cat;
+      return mQ && mC;
+    });
+  }, [items, srch, cat]);
+  if (!items.length) return <div className="os-empty">No training resources logged.</div>;
+  return (
+    <>
+      <div className="os-toolbar">
+        <input className="os-search" placeholder="Search resources…" value={srch} onChange={e=>setSrch(e.target.value)}/>
+        {cats.length>0&&<select className="os-select" value={cat} onChange={e=>setCat(e.target.value)}><option value="">All Categories</option>{cats.map(c=><option key={c} value={c}>{c}</option>)}</select>}
+        <span className="os-count">{filtered.length} resources</span>
+      </div>
+      <SortableTable
+        cols={[
+          { label: 'Resource', key: 'Resource Title' },
+          { label: 'Audience', key: 'Audience', w: 130 },
+          { label: 'Category', key: 'Category', w: 130 },
+          { label: 'Status', key: 'Status', w: 110 },
+          { label: 'Last Updated', key: 'Last Updated', type: 'date', w: 120 },
+          { label: 'Description', key: 'Description' },
+          { label: 'File Location', key: 'File Location', w: 130 },
+        ]}
+        data={filtered}
+        renderRow={r => (
+          <tr key={r.id}>
+            <td><strong>{fmt(r['Resource Title'])}</strong></td>
+            <td className="os-muted" style={{fontSize:12}}>{Array.isArray(r.Audience) ? r.Audience.join(', ') : fmt(r.Audience)}</td>
+            <td className="os-muted">{fmt(r.Category)}</td>
+            <td>{r.Status?<span className={`os-pill ${sc(r.Status)}`}>{r.Status}</span>:'—'}</td>
+            <td className="os-mono">{fmt(r['Last Updated'])}</td>
+            <td className="os-muted" style={{fontSize:12}}>{fmt(r.Description)}</td>
+            <td className="os-muted" style={{fontSize:11}}>{fmt(r['File Location'])}</td>
+          </tr>
+        )}
+        emptyMsg="No training resources."
+      />
+    </>
+  );
+}
+
+/* ── Page ──────────────────────────────────────── */
+const TABS = ['Products','SOPs','Contacts','Platforms','Regulatory','Brand Assets','Company Info','Templates','Training Resources'];
+
+export default function KBPage({ products, sops, contacts, platforms, regulatory, brandAssets = [], companyInfo = [], templates = [], training = [], error }) {
   const [tab, setTab] = useState('Products');
 
   return (
@@ -195,11 +376,15 @@ export default function KBPage({ products, sops, contacts, platforms, regulatory
         </div>
 
         <div className="os-tab-content">
-          {tab==='Products'  && <ProductsSection products={products}/>}
-          {tab==='SOPs'       && <SOPsTab items={sops}/>}
-          {tab==='Contacts'   && <ContactsTab items={contacts}/>}
-          {tab==='Platforms'  && <PlatformsTab items={platforms}/>}
-          {tab==='Regulatory' && <RegulatoryTab items={regulatory}/>}
+          {tab==='Products'          && <ProductsSection products={products}/>}
+          {tab==='SOPs'              && <SOPsTab items={sops}/>}
+          {tab==='Contacts'          && <ContactsTab items={contacts}/>}
+          {tab==='Platforms'         && <PlatformsTab items={platforms}/>}
+          {tab==='Regulatory'        && <RegulatoryTab items={regulatory}/>}
+          {tab==='Brand Assets'      && <BrandAssetsTab items={brandAssets}/>}
+          {tab==='Company Info'      && <CompanyInfoTab items={companyInfo}/>}
+          {tab==='Templates'         && <TemplatesTab items={templates}/>}
+          {tab==='Training Resources'&& <TrainingTab items={training}/>}
         </div>
       </div>
     </OsLayout>
@@ -208,11 +393,12 @@ export default function KBPage({ products, sops, contacts, platforms, regulatory
 
 export async function getServerSideProps() {
   try {
-    const [products, sops, contacts, platforms, regulatory] = await Promise.all([
+    const [products, sops, contacts, platforms, regulatory, brandAssets, companyInfo, templates, training] = await Promise.all([
       getProducts(), getSOPs(), getContacts(), getPlatforms(), getRegulatory(),
+      getBrandAssets(), getCompanyInfo(), getTemplates(), getTraining(),
     ]);
-    return { props: { products, sops, contacts, platforms, regulatory, error: null } };
+    return { props: { products, sops, contacts, platforms, regulatory, brandAssets, companyInfo, templates, training, error: null } };
   } catch(e) {
-    return { props: { products:[], sops:[], contacts:[], platforms:[], regulatory:[], error: e.message } };
+    return { props: { products:[], sops:[], contacts:[], platforms:[], regulatory:[], brandAssets:[], companyInfo:[], templates:[], training:[], error: e.message } };
   }
 }

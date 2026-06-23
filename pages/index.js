@@ -30,6 +30,13 @@ const MODULES = [
     name: 'Partner Brands',
     desc: 'Third-party brands, therapeutic categories, distributor data, and pricing reference.',
   },
+  {
+    href: '/affiliates',
+    eyebrow: 'Company-Wide',
+    icon: '📊',
+    name: 'Affiliate Ops',
+    desc: 'Affiliate performance, sales, payouts, traffic, product concentration, and programme tasks.',
+  },
 ];
 
 export default function Home() {
