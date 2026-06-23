@@ -10,10 +10,11 @@ import {
   getMETasks, getMEPriorities, getMERisks, getMERegistrations,
   getMEInventory, getMEAffiliates, getMEB2B, getMEPartners,
   getMEFinance, getMEMarketing, getMECS, getMECustomers, getMEReporting,
+  getMESubscriptions, getMEKlaviyo,
   getProducts,
 } from '../lib/airtable';
 
-const TABS = ['Tasks', 'Priorities', 'Risks', 'Registrations', 'Inventory', 'Affiliates', 'B2B', 'Partners', 'Finance', 'Marketing', 'Customer Service', 'Customers', 'Reporting', 'Products', 'Google'];
+const TABS = ['Tasks', 'Priorities', 'Risks', 'Registrations', 'Inventory', 'Affiliates', 'B2B', 'Partners', 'Finance', 'Marketing', 'Customer Service', 'Customers', 'Reporting', 'Products', 'Subscriptions', 'Email / Klaviyo', 'Google'];
 
 const ME_BASE  = 'appdN9dWxVcB2KFZ6';
 const ME_TASKS_TABLE = 'tbleGswAUGSDhcrE9';
@@ -700,8 +701,99 @@ function GoogleTab() {
   );
 }
 
+/* ── Subscriptions ME ─────────────────────────────────────── */
+function SubscriptionsMETab({ items }) {
+  const totalSubs = items.reduce((s, i) => s + (Number(i['Active Subscribers']) || 0), 0);
+  const totalRev  = items.reduce((s, i) => s + (Number(i['Monthly Revenue (AED)']) || 0), 0);
+  if (!items.length) return <div className="os-empty">No subscription plans yet. Add data to the Subscriptions ME table in Airtable.</div>;
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{totalSubs}</div><div className="os-stat-label">Active Subscribers</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Plans</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">AED {totalRev.toLocaleString()}</div><div className="os-stat-label">Monthly Revenue</div></div>
+      </div>
+      <div style={{ marginTop: 24 }}>
+        <SortableTable
+          cols={[
+            { label: 'Plan', key: 'Plan Name' },
+            { label: 'Product', key: 'Product' },
+            { label: 'SKU', key: 'SKU', w: 110 },
+            { label: 'Discount %', key: 'Discount %', type: 'number', w: 100 },
+            { label: 'Frequency', key: 'Billing Frequency', w: 120 },
+            { label: 'Market', key: 'Market', w: 90 },
+            { label: 'Subscribers', key: 'Active Subscribers', type: 'number', w: 110 },
+            { label: 'Monthly Rev (AED)', key: 'Monthly Revenue (AED)', type: 'number', w: 150 },
+            { label: 'Status', key: 'Status', w: 110 },
+          ]}
+          data={items}
+          renderRow={s => (
+            <tr key={s.id}>
+              <td><strong>{fmt(s['Plan Name'])}</strong></td>
+              <td className="os-muted">{fmt(s.Product)}</td>
+              <td className="os-mono" style={{ fontSize: 11 }}>{fmt(s.SKU)}</td>
+              <td className="os-mono">{s['Discount %'] ? `${s['Discount %']}%` : '—'}</td>
+              <td className="os-muted">{fmt(s['Billing Frequency'])}</td>
+              <td className="os-muted">{fmt(s.Market)}</td>
+              <td className="os-mono">{fmt(s['Active Subscribers'])}</td>
+              <td className="os-mono">{s['Monthly Revenue (AED)'] ? `AED ${Number(s['Monthly Revenue (AED)']).toLocaleString()}` : '—'}</td>
+              <td>{s.Status ? <span className={`os-pill ${statusClass(s.Status)}`}>{s.Status}</span> : '—'}</td>
+            </tr>
+          )}
+          emptyMsg="No subscription plans."
+        />
+      </div>
+    </>
+  );
+}
+
+/* ── Email / Klaviyo ME ───────────────────────────────────── */
+function KlaviyoMETab({ items }) {
+  if (!items.length) return <div className="os-empty">No Klaviyo flows logged. Add data to the Klaviyo ME table in Airtable.</div>;
+  const active = items.filter(i => (i.Status || '').toLowerCase() === 'active').length;
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{active}</div><div className="os-stat-label">Active Flows</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Total Flows</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">AED {items.reduce((s,i) => s + (Number(i['Revenue Attributed (AED)']) || 0), 0).toLocaleString()}</div><div className="os-stat-label">Revenue Attributed</div></div>
+      </div>
+      <div style={{ marginTop: 24 }}>
+        <SortableTable
+          cols={[
+            { label: 'Flow Name', key: 'Flow Name' },
+            { label: 'Type', key: 'Flow Type', w: 130 },
+            { label: 'Market', key: 'Market', w: 90 },
+            { label: 'Status', key: 'Status', w: 110 },
+            { label: 'Open Rate %', key: 'Open Rate %', type: 'number', w: 110 },
+            { label: 'Click Rate %', key: 'Click Rate %', type: 'number', w: 110 },
+            { label: 'Revenue (AED)', key: 'Revenue Attributed (AED)', type: 'number', w: 140 },
+            { label: 'Recipients', key: 'Recipients', type: 'number', w: 100 },
+            { label: 'Last Reviewed', key: 'Last Reviewed', type: 'date', w: 120 },
+          ]}
+          data={items}
+          renderRow={r => (
+            <tr key={r.id}>
+              <td><strong>{fmt(r['Flow Name'])}</strong></td>
+              <td className="os-muted">{fmt(r['Flow Type'])}</td>
+              <td className="os-muted">{fmt(r.Market)}</td>
+              <td>{r.Status ? <span className={`os-pill ${statusClass(r.Status)}`}>{r.Status}</span> : '—'}</td>
+              <td className="os-mono">{r['Open Rate %'] ? `${r['Open Rate %']}%` : '—'}</td>
+              <td className="os-mono">{r['Click Rate %'] ? `${r['Click Rate %']}%` : '—'}</td>
+              <td className="os-mono">{r['Revenue Attributed (AED)'] ? `AED ${Number(r['Revenue Attributed (AED)']).toLocaleString()}` : '—'}</td>
+              <td className="os-mono">{fmt(r.Recipients)}</td>
+              <td className="os-mono">{fmt(r['Last Reviewed'])}</td>
+            </tr>
+          )}
+          emptyMsg="No Klaviyo flow data."
+        />
+      </div>
+    </>
+  );
+}
+
 /* ── Page ─────────────────────────────────────────────────── */
-export default function MEPage({ tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, marketing, cs, customers, reporting, products, error, serverTime }) {
+export default function MEPage({ tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, marketing, cs, customers, reporting, products, subscriptions = [], klaviyo = [], error, serverTime }) {
   const router = useRouter();
   const [tab, setTab] = useState('Tasks');
   useEffect(() => {
@@ -750,9 +842,11 @@ export default function MEPage({ tasks, priorities, risks, registrations, invent
           {tab === 'Marketing' && <MarketingTab items={marketing} />}
           {tab === 'Customer Service' && <CSTab items={cs} />}
           {tab === 'Customers' && <CustomersTab items={customers} />}
-          {tab === 'Reporting' && <ReportingTab items={reporting} />}
-          {tab === 'Products' && <ProductsSection products={products} />}
-          {tab === 'Google' && <GoogleTab />}
+          {tab === 'Reporting'       && <ReportingTab items={reporting} />}
+          {tab === 'Products'        && <ProductsSection products={products} />}
+          {tab === 'Subscriptions'   && <SubscriptionsMETab items={subscriptions} />}
+          {tab === 'Email / Klaviyo' && <KlaviyoMETab items={klaviyo} />}
+          {tab === 'Google'          && <GoogleTab />}
         </div>
       </div>
     </OsLayout>
@@ -762,11 +856,12 @@ export default function MEPage({ tasks, priorities, risks, registrations, invent
 export async function getServerSideProps() {
   const safe = p => p.catch(e => { console.warn('[me] fetch partial fail:', e.message); return []; });
 
-  const [tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, marketing, cs, customers, reporting, products] = await Promise.all([
+  const [tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, marketing, cs, customers, reporting, products, subscriptions, klaviyo] = await Promise.all([
     safe(getMETasks()), safe(getMEPriorities()), safe(getMERisks()), safe(getMERegistrations()),
     safe(getMEInventory()), safe(getMEAffiliates()), safe(getMEB2B()), safe(getMEPartners()),
     safe(getMEFinance()), safe(getMEMarketing()), safe(getMECS()), safe(getMECustomers()), safe(getMEReporting()),
     safe(getProducts()),
+    safe(getMESubscriptions()), safe(getMEKlaviyo()),
   ]);
-  return { props: { tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, marketing, cs, customers, reporting, products, error: null, serverTime: new Date().toISOString() } };
+  return { props: { tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, marketing, cs, customers, reporting, products, subscriptions, klaviyo, error: null, serverTime: new Date().toISOString() } };
 }

@@ -9,10 +9,11 @@ import {
   getSATasks, getSAPriorities, getSARisks,
   getSAInventory, getSAFinance, getSAB2B,
   getSACustomers, getSAMarketing, getSACS, getSAReporting,
+  getSAWebinar,
   getProducts,
 } from '../lib/airtable';
 
-const TABS = ['Tasks', 'Priorities', 'Risks', 'Inventory', 'Finance', 'B2B', 'Customers', 'Marketing', 'Customer Service', 'Reporting', 'Products'];
+const TABS = ['Tasks', 'Priorities', 'Risks', 'Inventory', 'Finance', 'B2B', 'Customers', 'Marketing', 'Customer Service', 'Reporting', 'Products', 'Webinar'];
 
 const SA_BASE  = 'appz7wLo78sxzLhjV';
 const SA_TASKS_TABLE = 'tblAv5lowKpohE27i';
@@ -512,8 +513,56 @@ function ReportingTab({ items }) {
   );
 }
 
+/* ── Webinar ──────────────────────────────────────────────── */
+function WebinarTab({ items }) {
+  if (!items.length) return <div className="os-empty">No webinar records yet. Add data to the Webinar Information table in Airtable.</div>;
+  const totalRegistrants = items.reduce((s, i) => s + (Number(i['Total Registrants']) || 0), 0);
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Webinars</div></div>
+        <div className="os-stat-card os-stat-green"><div className="os-stat-num">{totalRegistrants.toLocaleString()}</div><div className="os-stat-label">Total Registrants</div></div>
+      </div>
+      <div style={{ marginTop: 24 }}>
+        <SortableTable
+          cols={[
+            { label: 'Webinar', key: 'Webinar Name' },
+            { label: 'Date', key: 'Webinar Date', type: 'date', w: 110 },
+            { label: 'Presenter', key: 'Presenter', w: 140 },
+            { label: 'Total', key: 'Total Registrants', type: 'number', w: 80 },
+            { label: 'SA', key: 'SA Registrants', type: 'number', w: 70 },
+            { label: 'UK', key: 'UK Registrants', type: 'number', w: 70 },
+            { label: 'Ireland', key: 'Ireland Registrants', type: 'number', w: 80 },
+            { label: 'Other', key: 'Other Registrants', type: 'number', w: 70 },
+            { label: 'Coupon', key: 'Coupon Code', w: 110 },
+            { label: 'Owner', key: 'Registration Page Owner', w: 120 },
+            { label: 'Status', key: 'Status', w: 110 },
+          ]}
+          data={items}
+          renderRow={r => (
+            <tr key={r.id}>
+              <td><strong>{fmt(r['Webinar Name'])}</strong>{r['Last Data Pull'] && <p className="os-table-note">Data pulled: {r['Last Data Pull']}</p>}</td>
+              <td className="os-mono">{fmt(r['Webinar Date'])}</td>
+              <td className="os-muted">{fmt(r.Presenter)}</td>
+              <td className="os-mono"><strong>{fmt(r['Total Registrants'])}</strong></td>
+              <td className="os-mono">{fmt(r['SA Registrants'])}</td>
+              <td className="os-mono">{fmt(r['UK Registrants'])}</td>
+              <td className="os-mono">{fmt(r['Ireland Registrants'])}</td>
+              <td className="os-mono">{fmt(r['Other Registrants'])}</td>
+              <td className="os-mono" style={{ fontSize: 11 }}>{fmt(r['Coupon Code'])}</td>
+              <td className="os-muted">{fmt(r['Registration Page Owner'])}</td>
+              <td>{r.Status ? <span className={`os-pill ${statusClass(r.Status)}`}>{r.Status}</span> : '—'}</td>
+            </tr>
+          )}
+          emptyMsg="No webinar records."
+        />
+      </div>
+    </>
+  );
+}
+
 /* ── Page ─────────────────────────────────────────────────── */
-export default function SAPage({ tasks, priorities, risks, inventory, finance, b2b, customers, marketing, cs, reporting, products, error, serverTime }) {
+export default function SAPage({ tasks, priorities, risks, inventory, finance, b2b, customers, marketing, cs, reporting, products, webinar = [], error, serverTime }) {
   const [tab, setTab] = useState('Tasks');
   const openRisks = risks.filter(r => !['Resolved','Closed','Done'].includes(r.Status)).length;
 
@@ -555,7 +604,8 @@ export default function SAPage({ tasks, priorities, risks, inventory, finance, b
           {tab === 'Marketing' && <MarketingTab items={marketing} />}
           {tab === 'Customer Service' && <CSTab items={cs} />}
           {tab === 'Reporting' && <ReportingTab items={reporting} />}
-          {tab === 'Products' && <ProductsSection products={products} />}
+          {tab === 'Products'  && <ProductsSection products={products} />}
+          {tab === 'Webinar'   && <WebinarTab items={webinar} />}
         </div>
       </div>
     </OsLayout>
@@ -565,11 +615,12 @@ export default function SAPage({ tasks, priorities, risks, inventory, finance, b
 export async function getServerSideProps() {
   const safe = p => p.catch(e => { console.warn('[sa] fetch partial fail:', e.message); return []; });
 
-  const [tasks, priorities, risks, inventory, finance, b2b, customers, marketing, cs, reporting, products] = await Promise.all([
+  const [tasks, priorities, risks, inventory, finance, b2b, customers, marketing, cs, reporting, products, webinar] = await Promise.all([
     safe(getSATasks()), safe(getSAPriorities()), safe(getSARisks()),
     safe(getSAInventory()), safe(getSAFinance()), safe(getSAB2B()),
     safe(getSACustomers()), safe(getSAMarketing()), safe(getSACS()), safe(getSAReporting()),
     safe(getProducts()),
+    safe(getSAWebinar()),
   ]);
-  return { props: { tasks, priorities, risks, inventory, finance, b2b, customers, marketing, cs, reporting, products, error: null, serverTime: new Date().toISOString() } };
+  return { props: { tasks, priorities, risks, inventory, finance, b2b, customers, marketing, cs, reporting, products, webinar, error: null, serverTime: new Date().toISOString() } };
 }

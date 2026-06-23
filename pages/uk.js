@@ -15,6 +15,7 @@ import {
   getUKB2B, getUKCS, getUKCustomers,
   getUKAffiliates, getUKMarketing, getUKSubscriptions,
   getUKEmailList, getUKPPC,
+  getUKAmazonReviews, getUKBionature, getUKBilling, getUKSalesByProduct,
   getProducts,
 } from '../lib/airtable';
 import { getLocalOrders, getLocalDailySales, getLocalSalesByProduct, getLocalPayouts } from '../lib/shopify';
@@ -25,7 +26,7 @@ const SECTION_TABS = {
   'Overview':   ['Tasks', 'Priorities', 'Risks', 'Reporting', 'Products'],
   'Shopify UK': ['Tasks', 'Priorities', 'Risks', 'Orders', 'Shopify', 'Customers', 'B2B', 'Affiliates', 'Email / Klaviyo', 'Marketing', 'Subscriptions', 'Customer Service', 'Finance', 'Google'],
   'Amazon UK':  ['Amazon UK', 'Finance', 'Google'],
-  'Warehouse':  ['Stock on Hand', 'Inbound Stock'],
+  'Warehouse':  ['Stock on Hand', 'Inbound Stock', 'Bionature Batch'],
 };
 const TABS = Object.values(SECTION_TABS).flat();
 
@@ -1007,13 +1008,13 @@ function GoogleTab({ section = 'Shopify UK' }) {
 }
 
 /* ── Amazon UK — full hub ─────────────────────── */
-function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, reporting, ppc = [] }) {
+function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, reporting, ppc = [], reviews = [] }) {
   const [sub, setSub] = useState('Overview');
   const [taskSearch, setTaskSearch] = useState('');
   const [taskStatus, setTaskStatus] = useState('');
   const [selectedPPC, setSelectedPPC] = useState(null);
 
-  const AMZ_SUBS = ['Overview', 'Tasks', 'Priorities', 'FBA Stock', 'Inbound', 'Catalogue', 'Marketing', 'PPC', 'Reporting'];
+  const AMZ_SUBS = ['Overview', 'Tasks', 'Priorities', 'FBA Stock', 'Inbound', 'Catalogue', 'Marketing', 'PPC', 'Reviews', 'Reporting'];
 
   // Status editors — one per dataset so each table has independent optimistic state
   const tasksEditor    = useStatusEditor(tasks);
@@ -1551,6 +1552,9 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
         </div>
       )}
 
+      {/* ── Reviews ── */}
+      {sub === 'Reviews' && <AmazonReviewsTab reviews={reviews} />}
+
       {/* ── Reporting / Finance (with date filter + P&L waterfall) ── */}
       {sub === 'Reporting' && <AmazonReportingTab reporting={reporting} />}
     </>
@@ -1776,6 +1780,102 @@ function InboundTab({ inbound }) {
         )}
         emptyMsg="No inbound stock."
       />
+    </>
+  );
+}
+
+/* ── Bionature Batch & BBD ────────────────────── */
+function BionatureTab({ items }) {
+  const today = new Date();
+  const soon = items.filter(i => {
+    if (!i.BBD) return false;
+    const d = new Date(i.BBD);
+    const days = (d - today) / (1000 * 60 * 60 * 24);
+    return days >= 0 && days <= 90;
+  });
+  if (!items.length) return <div className="os-empty">No Bionature batch records yet.</div>;
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Batch Records</div></div>
+        {soon.length > 0 && <div className="os-stat-card os-stat-amber"><div className="os-stat-num">{soon.length}</div><div className="os-stat-label">Expiring ≤90 days</div></div>}
+      </div>
+      <div style={{ marginTop: 24 }}>
+        <SortableTable
+          cols={[
+            { label: 'SKU', key: 'SKU Code', w: 110 },
+            { label: 'Product', key: 'Product Description' },
+            { label: 'Batch #', key: 'Batch Number', w: 120 },
+            { label: 'BBD', key: 'BBD', type: 'date', w: 110 },
+            { label: 'Batch Qty', key: 'Batch Qty', type: 'number', w: 100 },
+            { label: 'Total SKU Qty', key: 'Total SKU Qty', type: 'number', w: 120 },
+            { label: 'Report Date', key: 'Report Date', type: 'date', w: 110 },
+            { label: 'Source', key: 'Source', w: 100 },
+          ]}
+          data={items}
+          renderRow={r => {
+            const bbd = r.BBD ? new Date(r.BBD) : null;
+            const daysLeft = bbd ? Math.round((bbd - today) / (1000 * 60 * 60 * 24)) : null;
+            const isExpiring = daysLeft !== null && daysLeft >= 0 && daysLeft <= 90;
+            return (
+              <tr key={r.id} style={isExpiring ? { background: 'rgba(214,92,44,0.06)' } : undefined}>
+                <td className="os-mono" style={{ fontSize: 11 }}>{fmt(r['SKU Code'])}</td>
+                <td><strong>{fmt(r['Product Description'])}</strong></td>
+                <td className="os-mono">{fmt(r['Batch Number'])}</td>
+                <td className="os-mono" style={isExpiring ? { color: 'var(--amber)', fontWeight: 600 } : undefined}>
+                  {fmt(r.BBD)}{isExpiring && <span className="os-pill pill-blocked" style={{ marginLeft: 6, fontSize: 10 }}>{daysLeft}d</span>}
+                </td>
+                <td className="os-mono">{fmt(r['Batch Qty'])}</td>
+                <td className="os-mono">{fmt(r['Total SKU Qty'])}</td>
+                <td className="os-mono">{fmt(r['Report Date'])}</td>
+                <td className="os-muted">{fmt(r.Source)}</td>
+              </tr>
+            );
+          }}
+          emptyMsg="No batch records."
+        />
+      </div>
+    </>
+  );
+}
+
+/* ── Amazon Reviews ───────────────────────────── */
+function AmazonReviewsTab({ reviews = [] }) {
+  const flagged = reviews.filter(r => r['Flagged—QC/Complaint'] === true || r['Flagged—QC/Complaint'] === 'checked');
+  if (!reviews.length) return <div className="os-empty">No Amazon review records. Add entries to the Amazon UK Reviews table in Airtable.</div>;
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card"><div className="os-stat-num">{reviews.length}</div><div className="os-stat-label">Reviews Logged</div></div>
+        {flagged.length > 0 && <div className="os-stat-card os-stat-red"><div className="os-stat-num">{flagged.length}</div><div className="os-stat-label">QC / Complaint Flagged</div></div>}
+      </div>
+      <div style={{ marginTop: 24 }}>
+        <SortableTable
+          cols={[
+            { label: 'Date', key: 'Review Date', type: 'date', w: 110 },
+            { label: 'Reviewer', key: 'Reviewer', w: 130 },
+            { label: 'Title', key: 'Review Title' },
+            { label: 'Product', key: 'Product', w: 180 },
+            { label: 'QC Flag', key: 'Flagged—QC/Complaint', w: 100 },
+            { label: 'Notes', key: 'Notes' },
+          ]}
+          data={reviews}
+          renderRow={r => {
+            const isFlagged = r['Flagged—QC/Complaint'] === true || r['Flagged—QC/Complaint'] === 'checked';
+            return (
+              <tr key={r.id} style={isFlagged ? { background: 'rgba(214,92,44,0.06)' } : undefined}>
+                <td className="os-mono">{fmt(r['Review Date'])}</td>
+                <td className="os-muted">{fmt(r.Reviewer)}</td>
+                <td><strong>{fmt(r['Review Title'])}</strong>{r.Notes && <p className="os-table-note">{r.Notes}</p>}</td>
+                <td className="os-muted" style={{ fontSize: 12 }}>{fmt(r.Product)}</td>
+                <td>{isFlagged ? <span className="os-pill pill-blocked">Flagged</span> : '—'}</td>
+                <td className="os-muted" style={{ fontSize: 12 }}>{fmt(r.Notes)}</td>
+              </tr>
+            );
+          }}
+          emptyMsg="No reviews."
+        />
+      </div>
     </>
   );
 }
@@ -2184,7 +2284,7 @@ function AmazonFinanceTab({ reconcile, disbursements = [] }) {
 }
 
 /* ── Finance ──────────────────────────────────── */
-function FinanceTab({ reconcile, software, payouts, payoutsCsv = [], serverTime }) {
+function FinanceTab({ reconcile, software, payouts, payoutsCsv = [], serverTime, billing = [], atSalesByProduct = [] }) {
   const [sub, setSub] = useState('Shopify Payments');
   const reconcileEditor = useStatusEditor(reconcile);
   const payoutsEditor   = useStatusEditor(payouts);
@@ -2210,7 +2310,7 @@ function FinanceTab({ reconcile, software, payouts, payoutsCsv = [], serverTime 
   return (
     <>
       <div className="os-sub-tabs">
-        {['Shopify Payments', 'Reconciliation', 'Payouts', 'Software'].map(s => (
+        {['Shopify Payments', 'Reconciliation', 'Payouts', 'Software', 'Billing & Fees', 'Sales by Product'].map(s => (
           <button key={s} className={`os-sub-tab${sub === s ? ' active' : ''}`} onClick={() => setSub(s)}>{s}</button>
         ))}
       </div>
@@ -2377,6 +2477,93 @@ function FinanceTab({ reconcile, software, payouts, payoutsCsv = [], serverTime 
           emptyMsg="No software costs logged."
         />
       )}
+
+      {/* ── Billing & Fees ── */}
+      {sub === 'Billing & Fees' && (
+        billing.length === 0
+          ? <div className="os-empty" style={{ marginTop: 16 }}>No billing records yet. Add invoices to the Shopify Billing &amp; Fees table in Airtable.</div>
+          : (
+            <>
+              <div className="os-stat-row" style={{ marginTop: 16 }}>
+                <div className="os-stat-card"><div className="os-stat-num">{gbp(billing.reduce((s,r) => s + (Number(r['Total Cost']) || 0), 0))}</div><div className="os-stat-label">Total Billed</div></div>
+                <div className="os-stat-card"><div className="os-stat-num">{gbp(billing.reduce((s,r) => s + (Number(r['Plan Charges']) || 0), 0))}</div><div className="os-stat-label">Plan Charges</div></div>
+                <div className="os-stat-card"><div className="os-stat-num">{gbp(billing.reduce((s,r) => s + (Number(r['App Charges']) || 0), 0))}</div><div className="os-stat-label">App Charges</div></div>
+              </div>
+              <SortableTable
+                cols={[
+                  { label: 'Invoice #', key: 'Invoice Number', w: 130 },
+                  { label: 'Date', key: 'Invoice Date', type: 'date', w: 110 },
+                  { label: 'Plan (£)', key: 'Plan Charges', type: 'number', w: 100 },
+                  { label: 'Apps (£)', key: 'App Charges', type: 'number', w: 100 },
+                  { label: 'Usage (£)', key: 'Usage Charges', type: 'number', w: 100 },
+                  { label: 'VAT (£)', key: 'VAT', type: 'number', w: 80 },
+                  { label: 'Total (£)', key: 'Total Cost', type: 'number', w: 100 },
+                  { label: 'Status', key: 'Status', w: 110 },
+                  { label: 'Link', key: 'Invoice Link', w: 80 },
+                ]}
+                data={billing}
+                renderRow={r => (
+                  <tr key={r.id}>
+                    <td className="os-mono" style={{ fontSize: 11 }}>{fmt(r['Invoice Number'])}</td>
+                    <td className="os-mono">{fmt(r['Invoice Date'])}</td>
+                    <td className="os-mono">{gbp(r['Plan Charges'])}</td>
+                    <td className="os-mono">{gbp(r['App Charges'])}</td>
+                    <td className="os-mono">{gbp(r['Usage Charges'])}</td>
+                    <td className="os-mono">{gbp(r.VAT)}</td>
+                    <td className="os-mono"><strong>{gbp(r['Total Cost'])}</strong></td>
+                    <td>{r.Status ? <span className={`os-pill ${scShared(r.Status)}`}>{r.Status}</span> : '—'}</td>
+                    <td>{r['Invoice Link'] ? <a href={r['Invoice Link']} target="_blank" rel="noopener" style={{ color: 'var(--forest-600)', fontSize: 12 }}>View</a> : '—'}</td>
+                  </tr>
+                )}
+                emptyMsg="No billing records."
+              />
+            </>
+          )
+      )}
+
+      {/* ── Sales by Product ── */}
+      {sub === 'Sales by Product' && (
+        atSalesByProduct.length === 0
+          ? <div className="os-empty" style={{ marginTop: 16 }}>No sales by product records yet. Add entries to the Shopify Sales by Product table in Airtable.</div>
+          : (
+            <>
+              <div className="os-stat-row" style={{ marginTop: 16 }}>
+                <div className="os-stat-card"><div className="os-stat-num">{gbp(atSalesByProduct.reduce((s,r) => s + (Number(r['Net Sales (£)']) || 0), 0))}</div><div className="os-stat-label">Net Sales</div></div>
+                <div className="os-stat-card"><div className="os-stat-num">{atSalesByProduct.reduce((s,r) => s + (Number(r['Units Sold']) || 0), 0).toLocaleString()}</div><div className="os-stat-label">Units Sold</div></div>
+              </div>
+              <SortableTable
+                cols={[
+                  { label: 'SKU', key: 'SKU', w: 110 },
+                  { label: 'Product', key: 'Product' },
+                  { label: 'Period', key: 'Period', w: 110 },
+                  { label: 'Units', key: 'Units Sold', type: 'number', w: 80 },
+                  { label: 'Gross (£)', key: 'Gross Sales (£)', type: 'number', w: 110 },
+                  { label: 'Discounts', key: 'Discounts (£)', type: 'number', w: 110 },
+                  { label: 'Refunds', key: 'Refunds (£)', type: 'number', w: 100 },
+                  { label: 'Net (£)', key: 'Net Sales (£)', type: 'number', w: 110 },
+                  { label: '% Total', key: '% of Total Revenue', type: 'number', w: 80 },
+                  { label: 'Status', key: 'Status', w: 110 },
+                ]}
+                data={atSalesByProduct}
+                renderRow={r => (
+                  <tr key={r.id}>
+                    <td className="os-mono" style={{ fontSize: 11 }}>{fmt(r.SKU)}</td>
+                    <td><strong>{fmt(r.Product)}</strong></td>
+                    <td className="os-mono">{fmt(r.Period)}</td>
+                    <td className="os-mono">{fmt(r['Units Sold'])}</td>
+                    <td className="os-mono">{gbp(r['Gross Sales (£)'])}</td>
+                    <td className="os-mono">{gbp(r['Discounts (£)'])}</td>
+                    <td className="os-mono">{gbp(r['Refunds (£)'])}</td>
+                    <td className="os-mono"><strong>{gbp(r['Net Sales (£)'])}</strong></td>
+                    <td className="os-mono">{r['% of Total Revenue'] ? `${r['% of Total Revenue']}%` : '—'}</td>
+                    <td>{r.Status ? <span className={`os-pill ${scShared(r.Status)}`}>{r.Status}</span> : '—'}</td>
+                  </tr>
+                )}
+                emptyMsg="No sales by product data."
+              />
+            </>
+          )
+      )}
     </>
   );
 }
@@ -2420,7 +2607,7 @@ function ReportingTab({ items }) {
 }
 
 /* ── Page ─────────────────────────────────────── */
-export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc = [], disbursements = [], error, serverTime }) {
+export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc = [], disbursements = [], reviews = [], bionature = [], billing = [], atSalesByProduct = [], error, serverTime }) {
   const router = useRouter();
   const [section, setSection] = useState('Overview');
   const [tab, setTab] = useState('Tasks');
@@ -2511,12 +2698,13 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
           {tab === 'Marketing'        && <MarketingTab items={marketing} />}
           {tab === 'Subscriptions'    && <SubscriptionsTab items={subscriptions} />}
           {tab === 'Customer Service' && <CSTab items={cs} />}
-          {tab === 'Finance' && section === 'Shopify UK' && <FinanceTab reconcile={reconcile} software={software} payouts={payouts} payoutsCsv={payoutsCsv || []} serverTime={serverTime} />}
+          {tab === 'Finance' && section === 'Shopify UK' && <FinanceTab reconcile={reconcile} software={software} payouts={payouts} payoutsCsv={payoutsCsv || []} serverTime={serverTime} billing={billing} atSalesByProduct={atSalesByProduct} />}
           {tab === 'Finance' && section === 'Amazon UK'  && <AmazonFinanceTab reconcile={reconcile} disbursements={disbursements} />}
-          {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} tasks={tasks} priorities={priorities} marketing={marketing} inbound={inbound} reporting={reporting} ppc={ppc} />}
+          {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} tasks={tasks} priorities={priorities} marketing={marketing} inbound={inbound} reporting={reporting} ppc={ppc} reviews={reviews} />}
           {tab === 'Google'           && <GoogleTab section={section} />}
           {tab === 'Stock on Hand'    && <SOHTab soh={soh} sohSource={sohSource} />}
           {tab === 'Inbound Stock'    && <InboundTab inbound={inbound} />}
+          {tab === 'Bionature Batch'  && <BionatureTab items={bionature} />}
         </div>
       </div>
     </OsLayout>
@@ -2526,7 +2714,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
 export async function getServerSideProps() {
   const safe = p => p.catch(e => { console.warn('[uk] fetch partial fail:', e.message); return []; });
 
-  const [tasks, priorities, risks, amazon, catalogue, shopifyProducts, airtableOrders, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc, disbursements] = await Promise.all([
+  const [tasks, priorities, risks, amazon, catalogue, shopifyProducts, airtableOrders, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct] = await Promise.all([
     safe(getUKTasks()), safe(getUKPriorities()), safe(getUKRisks()),
     safe(getUKAmazon()), safe(getUKAmazonCat()),
     safe(getUKShopify()), safe(getUKOrders()), safe(getUKDiscounts()), safe(getUKRefunds()), safe(getUKPayouts()),
@@ -2536,6 +2724,7 @@ export async function getServerSideProps() {
     safe(getUKReconcile()), safe(getUKSoftware()), safe(getUKReporting()),
     safe(getProducts()), safe(getUKPPC()),
     safe(getUKAmazonDisbursements()),
+    safe(getUKAmazonReviews()), safe(getUKBionature()), safe(getUKBilling()), safe(getUKSalesByProduct()),
   ]);
 
   // Orders — local CSV first, Airtable fallback
@@ -2571,5 +2760,5 @@ export async function getServerSideProps() {
   const sohData = soh;
   const sohSource = 'airtable';
 
-  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc, disbursements, error: null, serverTime: new Date().toISOString() } };
+  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, error: null, serverTime: new Date().toISOString() } };
 }
