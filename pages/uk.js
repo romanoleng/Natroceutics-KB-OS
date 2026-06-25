@@ -19,7 +19,7 @@ import {
   getUKAmazonReviews, getUKBionature, getUKBilling, getUKSalesByProduct,
   getProducts,
 } from '../lib/airtable';
-import { getLocalOrders, getLocalDailySales, getLocalSalesByProduct, getLocalPayouts } from '../lib/shopify';
+import { getLocalDailySales, getLocalSalesByProduct, getLocalPayouts } from '../lib/shopify';
 
 /* ── Section / Tab structure ──────────────────── */
 const SECTIONS = ['Overview', 'Shopify UK', 'Amazon UK', 'Warehouse'];
