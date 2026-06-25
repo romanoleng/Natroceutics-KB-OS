@@ -177,8 +177,6 @@ export default function GlobalPage({ uk, me, pt, error }) {
 
         </div>
 
-
-      </div>
     </OsLayout>
   );
 }
