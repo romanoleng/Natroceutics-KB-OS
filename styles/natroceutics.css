@@ -1,0 +1,106 @@
+/* ============================================================
+   Natroceutics® Design System — single-file stylesheet
+   Drop-in for Next.js / Vercel. Import ONCE at your app root:
+     import "@/styles/natroceutics.css";   // app/layout.tsx
+
+   Source of truth: Brand Standards Manual 2023/01.
+   - Primary font Helvetica Neue loads as a SYSTEM STACK (no webfont).
+   - Trirong (serif accent) + DM Mono (utility) load from Google Fonts.
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Trirong:ital,wght@0,300;0,400;0,500;0,600;1,400;1,500&family=DM+Mono:wght@300;400;500&display=swap');
+
+:root {
+  /* ---- Fonts ---- */
+  --font-sans:  'Helvetica Neue', Helvetica, Arial, sans-serif;  /* PRIMARY */
+  --font-serif: 'Trirong', Georgia, 'Times New Roman', serif;    /* headlines/quotes only */
+  --font-mono:  'DM Mono', ui-monospace, 'Courier New', monospace; /* data/SKUs (utility) */
+
+  /* ---- Brand greens ---- */
+  --forest-900: #14301f;
+  --forest-800: #1d4130;   /* PRIMARY — Deep Forest Green */
+  --forest-700: #2a5c45;
+  --forest-600: #406550;   /* SECONDARY — Mid Green */
+  --forest-500: #4a7c61;
+  --forest-100: #e8f0eb;
+  --forest-050: #f1f6f3;
+
+  /* ---- Neutrals ---- */
+  --charcoal:   #2d2a26;   /* primary text — never #000 */
+  --charcoal-70: #5b554d;
+  --charcoal-45: #6b7c72;
+  --cream:      #eeebe1;   /* BACKGROUND */
+  --cream-dark: #dedad0;
+  --cream-deep: #d8d2c4;
+  --white:      #ffffff;
+
+  /* ---- Status (functional / internal only) ---- */
+  --red:    #c0392b;   --red-bg:   #fdecea;   --red-fg:   #9e2b1f;
+  --amber:  #d4860a;   --amber-bg: #fff8e6;   --amber-fg: #8a5c00;
+  --green-ok: #2e9e5a; --green-ok-bg: #eaf4ee; --green-ok-fg: #1a5c35;
+  --blue:   #2563a8;   --blue-bg:  #e9f0f8;   --blue-fg:  #1c4e85;
+
+  /* ---- Semantic aliases — reference THESE ---- */
+  --color-primary:        var(--forest-800);
+  --color-primary-hover:  var(--forest-700);
+  --color-primary-active: var(--forest-900);
+  --color-secondary:      var(--forest-600);
+  --color-accent:         var(--forest-500);
+  --surface-page:    var(--cream);
+  --surface-card:    var(--white);
+  --surface-sunken:  var(--forest-050);
+  --surface-tint:    var(--forest-100);
+  --surface-inverse: var(--forest-800);
+  --text-strong:     var(--charcoal);
+  --text-body:       var(--charcoal-70);
+  --text-muted:      var(--charcoal-45);
+  --text-on-dark:    var(--cream);
+  --text-on-primary: var(--white);
+  --border-subtle:   var(--cream-dark);
+  --border-default:  var(--cream-deep);
+  --border-strong:   var(--charcoal);
+  --border-focus:    var(--forest-600);
+  --link:            var(--forest-600);
+  --link-hover:      var(--forest-800);
+
+  /* ---- Type scale ---- */
+  --fs-display: 4.5rem; --fs-h1: 3rem; --fs-h2: 2.25rem; --fs-h3: 1.5rem;
+  --fs-h4: 1.25rem; --fs-lg: 1.125rem; --fs-body: 1rem; --fs-sm: 0.875rem;
+  --fs-xs: 0.75rem; --fs-2xs: 0.6875rem;
+  --fw-light: 300; --fw-regular: 400; --fw-medium: 500; --fw-bold: 700;
+  --lh-tight: 1.08; --lh-snug: 1.2; --lh-normal: 1.5; --lh-relaxed: 1.65;
+  --ls-tight: -0.01em; --ls-wide: 0.06em; --ls-wider: 0.12em; --ls-widest: 0.18em;
+
+  /* ---- Spacing (4px base) ---- */
+  --space-1: 0.25rem; --space-2: 0.5rem; --space-3: 0.75rem; --space-4: 1rem;
+  --space-5: 1.5rem; --space-6: 2rem; --space-7: 3rem; --space-8: 4rem;
+  --space-9: 6rem; --space-10: 8rem;
+
+  /* ---- Radii ---- */
+  --radius-xs: 3px; --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px;
+  --radius-xl: 18px; --radius-pill: 999px;
+
+  /* ---- Shadows (soft, warm) ---- */
+  --shadow-xs: 0 1px 2px rgba(45,42,38,0.06);
+  --shadow-sm: 0 1px 3px rgba(45,42,38,0.08), 0 1px 2px rgba(45,42,38,0.04);
+  --shadow-md: 0 4px 14px rgba(29,65,48,0.08), 0 2px 4px rgba(45,42,38,0.05);
+  --shadow-lg: 0 12px 32px rgba(29,65,48,0.12), 0 4px 8px rgba(45,42,38,0.05);
+  --shadow-focus: 0 0 0 3px rgba(64,101,80,0.28);
+
+  /* ---- Motion (quiet, no bounce) ---- */
+  --ease-standard: cubic-bezier(0.4,0,0.2,1);
+  --ease-out: cubic-bezier(0.16,1,0.3,1);
+  --dur-fast: 0.12s; --dur-normal: 0.2s; --dur-slow: 0.35s;
+
+  /* ---- Layout ---- */
+  --container: 1200px; --container-sm: 720px; --header-h: 72px;
+}
+
+/* Optional sensible defaults — delete if your app sets its own base. */
+body {
+  background: var(--surface-page);
+  color: var(--text-strong);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+}
