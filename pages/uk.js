@@ -3109,22 +3109,18 @@ export async function getServerSideProps() {
     safe(getUKStock()), safe(getUKInbound()),
     safe(getUKB2B()), safe(getUKCustomers()), safe(getUKAffiliates()), safe(getUKEmailList()),
     safe(getUKMarketing()), safe(getUKSubscriptions()), safe(getUKCS()),
-    safe(getUKSubscribers()),
     safe(getUKReconcile()), safe(getUKSoftware()), safe(getUKReporting()),
     safe(getProducts()), safe(getUKPPC()),
     safe(getUKAmazonDisbursements()),
     safe(getUKAmazonReviews()), safe(getUKBionature()), safe(getUKBilling()), safe(getUKSalesByProduct()),
     safe(getAffiliates()), safe(getAffiliateSales()), safe(getAffiliatePayouts()),
     safe(getAffiliateTraffic()), safe(getAffiliateTasks()), safe(getAffiliateProducts()),
+    safe(getUKSubscribers()),
   ]);
 
-  // Orders — local CSV first, Airtable fallback
+  // Orders — Airtable is source of truth (populated by email capture scheduler)
   let orders = airtableOrders;
   let ordersSource = 'airtable';
-  try {
-    const csvOrders = getLocalOrders();
-    if (csvOrders && csvOrders.length > 0) { orders = csvOrders; ordersSource = 'csv'; }
-  } catch (e) { console.warn('getLocalOrders failed:', e.message); }
 
   // Sales by product — local CSV
   let salesByProduct = [];
