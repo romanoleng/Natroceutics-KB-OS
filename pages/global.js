@@ -115,8 +115,6 @@ export default function GlobalPage({ uk, me, pt, error }) {
             </div>
           </div>
 
-        </div>
-
         {/* ── Distribution Markets ── */}
         <div className="ghub-section-label">Distribution Markets</div>
         <div className="global-hub-grid global-hub-grid--3col">
@@ -177,6 +175,7 @@ export default function GlobalPage({ uk, me, pt, error }) {
 
         </div>
 
+      </div>
     </OsLayout>
   );
 }
