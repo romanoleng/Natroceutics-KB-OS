@@ -815,7 +815,7 @@ function AmazonReportingTab({ reporting }) {
   return (
     <>
       <div className="orders-filter-bar">
-        <div className="orders-range-group">
+        <div className="orders-range-group" style={{ overflowX: 'auto', display: 'flex', flexWrap: 'nowrap', gap: 4 }}>
           {RANGES.map(r => (
             <button key={r} className={`orders-range-btn${range === r ? ' active' : ''}`} onClick={() => setRange(r)}>{r}</button>
           ))}
@@ -2777,8 +2777,13 @@ function FinanceTab({ reconcile, software, payouts, payoutsCsv = [], serverTime,
           )
       )}
 
-      {sub === 'Reconciliation' && (
-        <SortableTable
+      {sub === 'Reconciliation' && (() => {
+        const recData = reconcileEditor.dataWithStatus.filter(r => r.Channel === 'Shopify UK' || !r.Channel);
+        return (<>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+            <button className="os-sub-tab" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => downloadCSV(recData, 'shopify-reconciliation')}>↓ CSV</button>
+          </div>
+          <SortableTable
           cols={[
             { label: 'Period', key: 'Period' },
             { label: 'Channel', key: 'Channel', w: 120 },
@@ -2790,7 +2795,7 @@ function FinanceTab({ reconcile, software, payouts, payoutsCsv = [], serverTime,
             { label: 'Variance', key: 'Variance (£)', type: 'number', w: 90 },
             { label: 'Status', key: 'Status', w: 120 },
           ]}
-          data={reconcileEditor.dataWithStatus.filter(r => r.Channel === 'Shopify UK' || !r.Channel)}
+          data={recData}
           renderRow={r => (
             <tr key={r.id}>
               <td><strong>{fmt(r.Period)}</strong></td>
@@ -2800,7 +2805,7 @@ function FinanceTab({ reconcile, software, payouts, payoutsCsv = [], serverTime,
               <td className="os-mono">{gbp(r['Refunds (£)'])}</td>
               <td className="os-mono">{gbp(r['Platform Fees (£)'])}</td>
               <td className="os-mono"><strong>{gbp(r['Net Revenue (£)'])}</strong></td>
-              <td className="os-mono">{gbp(r['Variance (£)'])}</td>
+              <td className="os-mono" style={{ color: Number(r['Variance (£)']) < 0 ? '#dc2626' : Number(r['Variance (£)']) > 0 ? '#16a34a' : undefined }}>{gbp(r['Variance (£)'])}</td>
               <td onClick={e => e.stopPropagation()}>
                 <StatusSelect record={r} allStatuses={finStatuses} handleStatusChange={reconcileEditor.handleStatusChange} saving={reconcileEditor.saving} />
               </td>
@@ -2808,10 +2813,16 @@ function FinanceTab({ reconcile, software, payouts, payoutsCsv = [], serverTime,
           )}
           emptyMsg="No reconciliation records."
         />
-      )}
+        </>);
+      })()}
 
-      {sub === 'Payouts' && (
-        <SortableTable
+      {sub === 'Payouts' && (() => {
+        const payData = payoutsEditor.dataWithStatus;
+        return (<>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+            <button className="os-sub-tab" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => downloadCSV(payData, 'shopify-payouts-airtable')}>&#8595; CSV</button>
+          </div>
+          <SortableTable
           cols={[
             { label: 'Reference', key: 'Payout Reference' },
             { label: 'Date', key: 'Payout Date', type: 'date', w: 110 },
@@ -2820,14 +2831,14 @@ function FinanceTab({ reconcile, software, payouts, payoutsCsv = [], serverTime,
             { label: 'Net Payout', key: 'Net Payout (£)', type: 'number', w: 110 },
             { label: 'Status', key: 'Status', w: 120 },
           ]}
-          data={payoutsEditor.dataWithStatus}
+          data={payData}
           renderRow={p => (
             <tr key={p.id}>
               <td><strong>{fmt(p['Payout Reference'])}</strong></td>
               <td className="os-mono">{fmt(p['Payout Date'])}</td>
               <td className="os-mono">{gbp(p['Gross Amount (£)'])}</td>
-              <td className="os-mono">{gbp(p['Fees Deducted (£)'])}</td>
-              <td className="os-mono"><strong>{gbp(p['Net Payout (£)'])}</strong></td>
+              <td className="os-mono" style={{ color: '#dc2626' }}>{gbp(p['Fees Deducted (£)'])}</td>
+              <td className="os-mono"><strong style={{ color: '#16a34a' }}>{gbp(p['Net Payout (£)'])}</strong></td>
               <td onClick={e => e.stopPropagation()}>
                 <StatusSelect record={p} allStatuses={finStatuses} handleStatusChange={payoutsEditor.handleStatusChange} saving={payoutsEditor.saving} />
               </td>
@@ -2835,7 +2846,8 @@ function FinanceTab({ reconcile, software, payouts, payoutsCsv = [], serverTime,
           )}
           emptyMsg="No payouts."
         />
-      )}
+        </>);
+      })()}
 
       {sub === 'Software' && (
         <SortableTable

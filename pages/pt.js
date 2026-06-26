@@ -13,7 +13,7 @@ import {
   getProducts,
 } from '../lib/airtable';
 
-const TABS = ['Tasks', 'Priorities', 'Risks', 'Inventory', 'Finance', 'B2B', 'Customers', 'Affiliates', 'Marketing', 'Customer Service', 'Reporting', 'Partners', 'Subscriptions', 'Klaviyo'];
+const TABS = ['Tasks', 'Priorities', 'Risks', 'Inventory', 'B2B', 'Customers', 'Affiliates', 'Partners', 'Marketing', 'Customer Service', 'Finance', 'Reporting', 'Subscriptions', 'Klaviyo'];
 
 const PT_BASE  = 'appfEakXS6FAu2FIY';
 const PT_TASKS_TABLE = 'tblCs1y6PPv0Grk75';

@@ -2320,7 +2320,7 @@ th.th-sort:hover { background: rgba(29,65,48,0.85); }
 .wh-banner-inner { display: flex; flex-direction: column; gap: 3px; }
 .wh-banner-label { font-size: 14px; font-weight: 700; color: var(--cream); }
 .wh-banner-sub { font-size: 11px; color: rgba(238,235,225,0.65); }
-.wh-banner-stats { display: flex; gap: 24px; }
+.wh-banner-stats { display: flex; gap: 24px; flex-wrap: wrap; }
 .wh-banner-stat { display: flex; align-items: baseline; gap: 5px; }
 .wh-banner-num { font-family: var(--mono); font-size: 22px; font-weight: 500; color: var(--cream); }
 .wh-banner-unit { font-size: 10px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase; color: rgba(238,235,225,0.6); }
