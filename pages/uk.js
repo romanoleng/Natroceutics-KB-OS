@@ -1380,8 +1380,8 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
                 <div className="wh-stat-card"><div className="wh-stat-label">7-Day Orders</div><div className="wh-stat-val">{totalOrders}</div></div>
               </div>
               <SortableTable
-                rows={sorted}
-                columns={[
+                data={sorted}
+                cols={[
                   { label: 'Date', key: 'Date' },
                   { label: 'Revenue £', key: 'Revenue £', type: 'number', w: 110 },
                   { label: 'Organic £', key: 'Organic Revenue £', type: 'number', w: 100 },
@@ -1438,8 +1438,8 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
                 <span style={{ fontSize: 11, color: 'var(--muted, #6b7280)' }}>{displayRows.length} ASINs</span>
               </div>
               <SortableTable
-                rows={displayRows}
-                columns={[
+                data={displayRows}
+                cols={[
                   { label: 'Product', key: 'Product Name' },
                   { label: 'ASIN', key: 'ASIN', w: 130 },
                   { label: 'Revenue £', key: 'Revenue £', type: 'number', w: 100 },
