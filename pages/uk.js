@@ -8,7 +8,7 @@ import RecordDetailPanel from '../components/RecordDetailPanel';
 import { useStatusEditor, StatusSelect, DateCell, sc as scShared, DONE_VALS as DONE_VALS_SHARED, BASE_STATUSES as BASE_STATUSES_SHARED } from '../components/StatusSelect';
 import {
   getUKTasks, getUKPriorities, getUKRisks,
-  getUKAmazon, getUKAmazonCat,
+  getUKAmazon, getUKAmazonCat, getUKAmazonDailyPnL, getUKAmazonAsinDaily,
   getUKShopify, getUKOrders, getUKDiscounts, getUKRefunds, getUKPayouts,
   getUKStock, getUKInbound,
   getUKReporting, getUKReconcile, getUKSoftware, getUKAmazonDisbursements,
@@ -1009,13 +1009,14 @@ function GoogleTab({ section = 'Shopify UK' }) {
 }
 
 /* ── Amazon UK — full hub ─────────────────────── */
-function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, reporting, ppc = [], reviews = [] }) {
+function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, reporting, ppc = [], reviews = [], dailyPnl = [], asinDaily = [] }) {
   const [sub, setSub] = useState('Overview');
   const [taskSearch, setTaskSearch] = useState('');
   const [taskStatus, setTaskStatus] = useState('');
   const [selectedPPC, setSelectedPPC] = useState(null);
+  const [selectedDateASIN, setSelectedDateASIN] = useState(null);
 
-  const AMZ_SUBS = ['Overview', 'Tasks', 'Priorities', 'FBA Stock', 'Inbound', 'Catalogue', 'Marketing', 'PPC', 'Reviews', 'Reporting'];
+  const AMZ_SUBS = ['Overview', 'Tasks', 'Priorities', 'FBA Stock', 'Daily P&L', 'ASIN Performance', 'Inbound', 'Catalogue', 'Marketing', 'PPC', 'Reviews', 'Reporting'];
 
   // Status editors — one per dataset so each table has independent optimistic state
   const tasksEditor    = useStatusEditor(tasks);
@@ -1276,6 +1277,11 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
                 <span className="wh-banner-label">Amazon UK — FBA Stock</span>
                 <span className="wh-banner-sub">Fulfilment by Amazon inventory</span>
               </div>
+              {fba[0] && fba[0]['Last Synced'] && (
+                <span style={{ fontSize: 11, color: 'var(--muted, #6b7280)', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+                  Last synced: {new Date(fba[0]['Last Synced']).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}
+                </span>
+              )}
               <div className="wh-banner-stats">
                 <div className="wh-banner-stat"><span className="wh-banner-num">{fba.length}</span><span className="wh-banner-unit">SKUs</span></div>
                 <div className="wh-banner-stat"><span className="wh-banner-num">{totalFBA.toLocaleString()}</span><span className="wh-banner-unit">Units</span></div>
@@ -1344,6 +1350,123 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
               />
             </div>
           </>
+          );
+        })()
+      )}
+
+      {/* ── Daily P&L (DashboardTotals) ── */}
+      {sub === 'Daily P&L' && (
+        !dailyPnl.length ? <div className="os-empty">No Daily P&L data yet — run the Sellerboard scheduler to populate.</div> : (() => {
+          const sorted = [...dailyPnl].sort((a, b) => new Date(b.Date) - new Date(a.Date));
+          const latest = sorted[0] || {};
+          const last7 = sorted.slice(0, 7);
+          const totalRev = last7.reduce((s, r) => s + (Number(r['Revenue £']) || 0), 0);
+          const totalProfit = last7.reduce((s, r) => s + (Number(r['Net Profit £']) || 0), 0);
+          const totalOrders = last7.reduce((s, r) => s + (Number(r.Orders) || 0), 0);
+          return (
+            <>
+              <div className="wh-banner" style={{ marginTop: 8 }}>
+                <div className="wh-banner-inner">
+                  <span className="wh-banner-label">Amazon UK — Daily P&amp;L</span>
+                  <span className="wh-banner-sub">DashboardTotals · {sorted.length} days on record</span>
+                </div>
+              </div>
+              <div className="wh-stats" style={{ marginTop: 12, marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <div className="wh-stat-card"><div className="wh-stat-label">Yesterday Revenue</div><div className="wh-stat-val">{gbp(latest['Revenue £'])}</div></div>
+                <div className="wh-stat-card"><div className="wh-stat-label">Yesterday Net Profit</div><div className="wh-stat-val" style={{ color: Number(latest['Net Profit £']) >= 0 ? 'var(--green-600, #16a34a)' : 'var(--red-500, #ef4444)' }}>{gbp(latest['Net Profit £'])}</div></div>
+                <div className="wh-stat-card"><div className="wh-stat-label">Yesterday Margin</div><div className="wh-stat-val">{latest['Margin %'] ? `${latest['Margin %']}%` : '—'}</div></div>
+                <div className="wh-stat-card"><div className="wh-stat-label">7-Day Revenue</div><div className="wh-stat-val">{gbp(totalRev)}</div></div>
+                <div className="wh-stat-card"><div className="wh-stat-label">7-Day Net Profit</div><div className="wh-stat-val" style={{ color: totalProfit >= 0 ? 'var(--green-600, #16a34a)' : 'var(--red-500, #ef4444)' }}>{gbp(totalProfit)}</div></div>
+                <div className="wh-stat-card"><div className="wh-stat-label">7-Day Orders</div><div className="wh-stat-val">{totalOrders}</div></div>
+              </div>
+              <SortableTable
+                rows={sorted}
+                columns={[
+                  { label: 'Date', key: 'Date' },
+                  { label: 'Revenue £', key: 'Revenue £', type: 'number', w: 110 },
+                  { label: 'Organic £', key: 'Organic Revenue £', type: 'number', w: 100 },
+                  { label: 'PPC £', key: 'PPC Revenue £', type: 'number', w: 90 },
+                  { label: 'Orders', key: 'Orders', type: 'number', w: 70 },
+                  { label: 'Amazon Fees', key: 'Amazon Fees £', type: 'number', w: 110 },
+                  { label: 'Ad Spend', key: 'Ad Spend £', type: 'number', w: 90 },
+                  { label: 'COGS', key: 'COGS £', type: 'number', w: 90 },
+                  { label: 'Net Profit £', key: 'Net Profit £', type: 'number', w: 110 },
+                  { label: 'Margin %', key: 'Margin %', type: 'number', w: 90 },
+                  { label: 'Sessions', key: 'Sessions', type: 'number', w: 80 },
+                ]}
+                renderRow={(r) => (
+                  <tr key={r.id || r.Date}>
+                    <td className="os-mono" style={{ fontSize: 11 }}>{fmt(r.Date)}</td>
+                    <td className="os-mono">{gbp(r['Revenue £'])}</td>
+                    <td className="os-mono">{gbp(r['Organic Revenue £'])}</td>
+                    <td className="os-mono">{gbp(r['PPC Revenue £'])}</td>
+                    <td className="os-mono">{fmt(r.Orders)}</td>
+                    <td className="os-mono">{gbp(r['Amazon Fees £'])}</td>
+                    <td className="os-mono">{gbp(r['Ad Spend £'])}</td>
+                    <td className="os-mono">{gbp(r['COGS £'])}</td>
+                    <td className="os-mono"><span style={{ color: Number(r['Net Profit £']) >= 0 ? 'var(--green-600, #16a34a)' : 'var(--red-500, #ef4444)', fontWeight: 600 }}>{gbp(r['Net Profit £'])}</span></td>
+                    <td className="os-mono">{r['Margin %'] ? `${r['Margin %']}%` : '—'}</td>
+                    <td className="os-mono">{fmt(r.Sessions)}</td>
+                  </tr>
+                )}
+              />
+            </>
+          );
+        })()
+      )}
+
+      {/* ── ASIN Performance (DashboardGoods) ── */}
+      {sub === 'ASIN Performance' && (
+        !asinDaily.length ? <div className="os-empty">No ASIN Performance data yet — run the Sellerboard scheduler to populate.</div> : (() => {
+          const dates = [...new Set(asinDaily.map(r => r.Date))].sort((a, b) => new Date(b) - new Date(a));
+          const latestDate = dates[0];
+          const activeDate = selectedDateASIN && dates.includes(selectedDateASIN) ? selectedDateASIN : latestDate;
+          const displayRows = asinDaily.filter(r => r.Date === activeDate).sort((a, b) => (Number(b['Revenue £']) || 0) - (Number(a['Revenue £']) || 0));
+          return (
+            <>
+              <div className="wh-banner" style={{ marginTop: 8 }}>
+                <div className="wh-banner-inner">
+                  <span className="wh-banner-label">Amazon UK — ASIN Performance</span>
+                  <span className="wh-banner-sub">DashboardGoods · per-ASIN daily data</span>
+                </div>
+              </div>
+              <div style={{ marginTop: 10, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <label style={{ fontSize: 12, fontWeight: 600 }}>Date:</label>
+                <select value={activeDate} onChange={e => setSelectedDateASIN(e.target.value)} style={{ fontSize: 12, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border, #e5e7eb)' }}>
+                  {dates.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+                <span style={{ fontSize: 11, color: 'var(--muted, #6b7280)' }}>{displayRows.length} ASINs</span>
+              </div>
+              <SortableTable
+                rows={displayRows}
+                columns={[
+                  { label: 'Product', key: 'Product Name' },
+                  { label: 'ASIN', key: 'ASIN', w: 130 },
+                  { label: 'Revenue £', key: 'Revenue £', type: 'number', w: 100 },
+                  { label: 'PPC £', key: 'PPC Revenue £', type: 'number', w: 90 },
+                  { label: 'Units', key: 'Units', type: 'number', w: 60 },
+                  { label: 'Net Profit £', key: 'Net Profit £', type: 'number', w: 100 },
+                  { label: 'Margin %', key: 'Margin %', type: 'number', w: 90 },
+                  { label: 'Sessions', key: 'Sessions', type: 'number', w: 80 },
+                  { label: 'ROI %', key: 'ROI %', type: 'number', w: 80 },
+                  { label: 'Ad Spend £', key: 'Ad Spend £', type: 'number', w: 90 },
+                ]}
+                renderRow={(r) => (
+                  <tr key={r.id || r['Record Key']}>
+                    <td><strong style={{ fontSize: 12 }}>{fmt(r['Product Name'])}</strong></td>
+                    <td className="os-mono" style={{ fontSize: 11 }}>{fmt(r.ASIN)}</td>
+                    <td className="os-mono">{gbp(r['Revenue £'])}</td>
+                    <td className="os-mono">{gbp(r['PPC Revenue £'])}</td>
+                    <td className="os-mono">{fmt(r.Units)}</td>
+                    <td className="os-mono"><span style={{ color: Number(r['Net Profit £']) >= 0 ? 'var(--green-600, #16a34a)' : 'var(--red-500, #ef4444)', fontWeight: 600 }}>{gbp(r['Net Profit £'])}</span></td>
+                    <td className="os-mono">{r['Margin %'] ? `${r['Margin %']}%` : '—'}</td>
+                    <td className="os-mono">{fmt(r.Sessions)}</td>
+                    <td className="os-mono">{r['ROI %'] ? `${r['ROI %']}%` : '—'}</td>
+                    <td className="os-mono">{gbp(r['Ad Spend £'])}</td>
+                  </tr>
+                )}
+              />
+            </>
           );
         })()
       )}
@@ -3007,7 +3130,7 @@ function ReportingTab({ items }) {
 }
 
 /* ── Page ─────────────────────────────────────── */
-export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers = [], cs, reconcile, software, reporting, products, ppc = [], disbursements = [], reviews = [], bionature = [], billing = [], atSalesByProduct = [], affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [], error, serverTime }) {
+export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers = [], cs, reconcile, software, reporting, products, ppc = [], disbursements = [], reviews = [], bionature = [], billing = [], atSalesByProduct = [], affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [], amazonDailyPnl = [], amazonAsinDaily = [], error, serverTime }) {
   const router = useRouter();
   const [section, setSection] = useState('Overview');
   const [tab, setTab] = useState('Tasks');
@@ -3100,7 +3223,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
           {tab === 'Customer Service' && <CSTab items={cs} />}
           {tab === 'Finance' && section === 'Shopify UK' && <FinanceTab reconcile={reconcile} software={software} payouts={payouts} payoutsCsv={payoutsCsv || []} serverTime={serverTime} billing={billing} atSalesByProduct={atSalesByProduct} />}
           {tab === 'Finance' && section === 'Amazon UK'  && <AmazonFinanceTab reconcile={reconcile} disbursements={disbursements} />}
-          {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} tasks={tasks} priorities={priorities} marketing={marketing} inbound={inbound} reporting={reporting} ppc={ppc} reviews={reviews} />}
+          {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} tasks={tasks} priorities={priorities} marketing={marketing} inbound={inbound} reporting={reporting} ppc={ppc} reviews={reviews} dailyPnl={amazonDailyPnl} asinDaily={amazonAsinDaily} />}
           {tab === 'Google'           && <GoogleTab section={section} />}
           {tab === 'Stock on Hand'    && <SOHTab soh={soh} sohSource={sohSource} />}
           {tab === 'Inbound Stock'    && <InboundTab inbound={inbound} />}
@@ -3114,7 +3237,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
 export async function getServerSideProps() {
   const safe = p => p.catch(e => { console.warn('[uk] fetch partial fail:', e.message); return []; });
 
-  const [tasks, priorities, risks, amazon, catalogue, shopifyProducts, airtableOrders, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, subscribers] = await Promise.all([
+  const [tasks, priorities, risks, amazon, catalogue, shopifyProducts, airtableOrders, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, subscribers, amazonDailyPnl, amazonAsinDaily] = await Promise.all([
     safe(getUKTasks()), safe(getUKPriorities()), safe(getUKRisks()),
     safe(getUKAmazon()), safe(getUKAmazonCat()),
     safe(getUKShopify()), safe(getUKOrders()), safe(getUKDiscounts()), safe(getUKRefunds()), safe(getUKPayouts()),
@@ -3128,6 +3251,7 @@ export async function getServerSideProps() {
     safe(getAffiliates()), safe(getAffiliateSales()), safe(getAffiliatePayouts()),
     safe(getAffiliateTraffic()), safe(getAffiliateTasks()), safe(getAffiliateProducts()),
     safe(getUKSubscribers()),
+    safe(getUKAmazonDailyPnL()), safe(getUKAmazonAsinDaily()),
   ]);
 
   // Orders — Airtable is source of truth (populated by email capture scheduler)
@@ -3159,5 +3283,5 @@ export async function getServerSideProps() {
   const sohData = soh;
   const sohSource = 'airtable';
 
-  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers: subscribers || [], cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, error: null, serverTime: new Date().toISOString() } };
+  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers: subscribers || [], cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, amazonDailyPnl: amazonDailyPnl || [], amazonAsinDaily: amazonAsinDaily || [], error: null, serverTime: new Date().toISOString() } };
 }
