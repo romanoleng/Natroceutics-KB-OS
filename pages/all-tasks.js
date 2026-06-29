@@ -6,16 +6,44 @@
 import { useState, useMemo } from 'react';
 import OsLayout from '../components/OsLayout';
 import SortableTable from '../components/SortableTable';
+import { useStatusEditor, StatusSelect } from '../components/StatusSelect';
 import { getUKTasks, getSATasks, getMETasks } from '../lib/airtable';
 
-const STATUS_CLASS = {
-  'Done': 'pill-done', 'Complete': 'pill-done', 'Completed': 'pill-done', 'Approved': 'pill-done',
-  'In Progress': 'pill-progress', 'Active': 'pill-progress', 'Under Review': 'pill-progress',
-  'To Do': 'pill-todo', 'Not Started': 'pill-todo', 'Pending': 'pill-todo',
-  'Blocked': 'pill-blocked', 'At Risk': 'pill-blocked', 'Rejected': 'pill-blocked',
+const DONE_VALS = new Set(['Done', 'Complete', 'Completed', 'Approved']);
+
+const BASE_STATUSES = ['Not Started', 'To Do', 'In Progress', 'Under Review', 'Done', 'Blocked', 'Cancelled'];
+
+/* Region base + table IDs — needed for inline status updates */
+const REGION_META = {
+  UK: { baseId: 'appb0pnXsdtALWq80', tableId: 'tbl5GXDhdcu6iwCA8' },
+  SA: { baseId: 'appz7wLo78sxzLhjV', tableId: 'tblAv5lowKpohE27i' },
+  ME: { baseId: 'appdN9dWxVcB2KFZ6', tableId: 'tbleGswAUGSDhcrE9' },
 };
-function statusClass(s) { return STATUS_CLASS[s] || 'pill-default'; }
+
 function fmt(v) { return (v === null || v === undefined || v === '') ? '—' : v; }
+
+/* Priority pill colours */
+const PRIORITY_STYLE = {
+  'High':   { background: 'rgba(217,119,6,0.12)',  color: '#b45309', border: '1px solid rgba(217,119,6,0.3)' },
+  'Medium': { background: 'rgba(202,138,4,0.1)',   color: '#a16207', border: '1px solid rgba(202,138,4,0.28)' },
+  'Normal': { background: 'rgba(100,116,139,0.1)', color: '#475569', border: '1px solid rgba(100,116,139,0.25)' },
+  'Low':    { background: 'rgba(22,163,74,0.1)',   color: '#15803d', border: '1px solid rgba(22,163,74,0.25)' },
+};
+function PriorityPill({ priority }) {
+  if (!priority) return <span className="os-muted">—</span>;
+  const style = PRIORITY_STYLE[priority] || PRIORITY_STYLE['Normal'];
+  const dot = priority === 'High' ? '#f59e0b' : priority === 'Low' ? '#22c55e' : '#94a3b8';
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+      ...style,
+    }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: dot, flexShrink: 0 }} />
+      {priority}
+    </span>
+  );
+}
 
 const REGION_STYLES = {
   UK: { background: 'rgba(29,65,48,0.12)', color: '#1d4130', border: '1px solid rgba(29,65,48,0.25)' },
@@ -44,11 +72,16 @@ export default function AllTasksPage({ tasks, error }) {
   const [regionFilter, setRegionFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
-  const statuses = useMemo(() => [...new Set(tasks.map(t => t.Status).filter(Boolean))].sort(), [tasks]);
+  const editor = useStatusEditor(tasks);
+
+  const statuses = useMemo(() =>
+    [...new Set([...BASE_STATUSES, ...tasks.map(t => t.Status).filter(Boolean)])],
+    [tasks]
+  );
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return tasks.filter(t => {
+    return editor.dataWithStatus.filter(t => {
       const matchQ = !q ||
         (t.Task || '').toLowerCase().includes(q) ||
         (t.Owner || '').toLowerCase().includes(q) ||
@@ -57,12 +90,12 @@ export default function AllTasksPage({ tasks, error }) {
       const matchS = !statusFilter || t.Status === statusFilter;
       return matchQ && matchR && matchS;
     });
-  }, [tasks, search, regionFilter, statusFilter]);
+  }, [editor.dataWithStatus, search, regionFilter, statusFilter]);
 
   const ukCount = tasks.filter(t => t._region === 'UK').length;
   const saCount = tasks.filter(t => t._region === 'SA').length;
   const meCount = tasks.filter(t => t._region === 'ME').length;
-  const openCount = tasks.filter(t => !['Done','Complete','Completed','Approved'].includes(t.Status)).length;
+  const openCount = editor.dataWithStatus.filter(t => !DONE_VALS.has(t.Status)).length;
 
   return (
     <OsLayout title="All Tasks">
@@ -82,6 +115,7 @@ export default function AllTasksPage({ tasks, error }) {
 
       <div className="os-page-wrap">
         {error && <div className="os-alert-error">{error}</div>}
+        {editor.updateError && <div className="os-alert-error" style={{ marginBottom: 8 }}>{editor.updateError}</div>}
 
         <div className="os-toolbar">
           <input
@@ -110,23 +144,35 @@ export default function AllTasksPage({ tasks, error }) {
             { label: 'Region', key: '_region', w: 70 },
             { label: 'Task', key: 'Task' },
             { label: 'Area / Phase', key: 'Business Area', w: 140 },
-            { label: 'Status', key: 'Status', w: 120 },
+            { label: 'Status', key: 'Status', w: 130 },
             { label: 'Priority', key: 'Priority', w: 110 },
             { label: 'Owner', key: 'Owner', w: 120 },
           ]}
           data={filtered}
-          renderRow={t => (
-            <tr key={`${t._region}-${t.id}`}>
-              <td><RegionTag region={t._region} /></td>
-              <td><strong>{fmt(t.Task)}</strong>
-                {t.Notes && <p className="os-table-note">{t.Notes}</p>}
-              </td>
-              <td className="os-muted">{fmt(t['Business Area'] || t.Phase)}</td>
-              <td>{t.Status ? <span className={`os-pill ${statusClass(t.Status)}`}>{t.Status}</span> : '—'}</td>
-              <td>{t.Priority ? <span className="os-pill pill-default">{t.Priority}</span> : '—'}</td>
-              <td className="os-muted">{fmt(t.Owner)}</td>
-            </tr>
-          )}
+          sinkCompleted="Status"
+          renderRow={t => {
+            const isDone = DONE_VALS.has(t.Status);
+            return (
+              <tr key={`${t._region}-${t.id}`} className={isDone ? 'row-done' : ''}>
+                <td><RegionTag region={t._region} /></td>
+                <td>
+                  <strong>{fmt(t.Task)}</strong>
+                  {t.Notes && <p className="os-table-note">{t.Notes}</p>}
+                </td>
+                <td className="os-muted">{fmt(t['Business Area'] || t.Phase)}</td>
+                <td onClick={e => e.stopPropagation()}>
+                  <StatusSelect
+                    record={t}
+                    allStatuses={statuses}
+                    handleStatusChange={editor.handleStatusChange}
+                    saving={editor.saving}
+                  />
+                </td>
+                <td><PriorityPill priority={t.Priority} /></td>
+                <td className="os-muted">{fmt(t.Owner)}</td>
+              </tr>
+            );
+          }}
           emptyMsg="No tasks found."
         />
       </div>
@@ -143,9 +189,9 @@ export async function getServerSideProps() {
     ]);
 
     const tasks = [
-      ...ukTasks.map(t => ({ ...t, _region: 'UK' })),
-      ...saTasks.map(t => ({ ...t, _region: 'SA' })),
-      ...meTasks.map(t => ({ ...t, _region: 'ME' })),
+      ...ukTasks.map(t => ({ ...t, _region: 'UK', _baseId: REGION_META.UK.baseId, _tableId: REGION_META.UK.tableId })),
+      ...saTasks.map(t => ({ ...t, _region: 'SA', _baseId: REGION_META.SA.baseId, _tableId: REGION_META.SA.tableId })),
+      ...meTasks.map(t => ({ ...t, _region: 'ME', _baseId: REGION_META.ME.baseId, _tableId: REGION_META.ME.tableId })),
     ];
 
     return { props: { tasks, error: null } };
