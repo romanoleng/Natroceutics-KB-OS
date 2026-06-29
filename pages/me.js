@@ -5,7 +5,7 @@ import OsLayout from '../components/OsLayout';
 import ProductsSection from '../components/ProductsSection';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 import SortableTable from '../components/SortableTable';
-import { useStatusEditor, StatusSelect, DONE_VALS as DONE_VALS_SHARED, BASE_STATUSES as BASE_STATUSES_SHARED } from '../components/StatusSelect';
+import { useStatusEditor, StatusSelect, sc, DONE_VALS as DONE_VALS_SHARED, BASE_STATUSES as BASE_STATUSES_SHARED } from '../components/StatusSelect';
 import {
   getMETasks, getMEPriorities, getMERisks, getMERegistrations,
   getMEInventory, getMEAffiliates, getMEB2B, getMEPartners,
@@ -19,13 +19,7 @@ const TABS = ['Tasks', 'Priorities', 'Risks', 'Registrations', 'Inventory', 'B2B
 const ME_BASE  = 'appdN9dWxVcB2KFZ6';
 const ME_TASKS_TABLE = 'tbleGswAUGSDhcrE9';
 
-const STATUS_CLASS = {
-  'Done': 'pill-done', 'Complete': 'pill-done', 'Completed': 'pill-done', 'Approved': 'pill-done', 'Registered': 'pill-done', 'Live': 'pill-done', 'Active': 'pill-done',
-  'In Progress': 'pill-progress', 'Under Review': 'pill-progress', 'Submitted': 'pill-progress',
-  'To Do': 'pill-todo', 'Not Started': 'pill-todo', 'Pending': 'pill-todo',
-  'Blocked': 'pill-blocked', 'At Risk': 'pill-blocked', 'Rejected': 'pill-blocked',
-};
-function statusClass(s) { return STATUS_CLASS[s] || 'pill-default'; }
+// sc() imported from StatusSelect — brand-green, normalizes emoji + aliases site-wide
 function fmt(v) { return (v === null || v === undefined || v === '') ? '—' : v; }
 function fmtEntryDate(dateEntry, createdTime) {
   const raw = dateEntry || createdTime;
@@ -136,7 +130,7 @@ function TaskTable({ tasks }) {
               </td>
               <td onClick={e => e.stopPropagation()}>
                 <select
-                  className={`os-pill status-select ${statusClass(t.Status)}`}
+                  className={`os-pill status-select ${sc(t.Status)}`}
                   value={t.Status || ''}
                   onChange={e => handleStatusChange(t.id, e.target.value)}
                   disabled={!!saving[t.id]}
@@ -179,7 +173,7 @@ function PriorityList({ items }) {
               {p.Week && <span className="os-tag os-tag-week">W{p.Week}</span>}
             </div>
           </div>
-          {p.Status && <span className={`os-pill ${statusClass(p.Status)}`}>{p.Status}</span>}
+          {p.Status && <span className={`os-pill ${sc(p.Status)}`}>{p.Status}</span>}
         </div>
       ))}
     </div>
@@ -262,7 +256,7 @@ function RegistrationsTab({ items }) {
               </td>
               <td className="os-mono">{fmt(r.SKU)}</td>
               <td className="os-muted">{fmt(r.Market)}</td>
-              <td>{r['Registration Status'] ? <span className={`os-pill ${statusClass(r['Registration Status'])}`}>{r['Registration Status']}</span> : '—'}</td>
+              <td>{r['Registration Status'] ? <span className={`os-pill ${sc(r['Registration Status'])}`}>{r['Registration Status']}</span> : '—'}</td>
               <td className="os-muted">{fmt(r['Regulatory Body'])}</td>
               <td className="os-mono">{fmt(r['Submission Date'])}</td>
               <td className="os-mono">{fmt(r['Expected Approval'])}</td>
@@ -306,7 +300,7 @@ function InventoryTab({ items }) {
               <td className="os-mono">{fmt(i['Units On Hand'])}</td>
               <td className="os-mono">{fmt(i['Units On Order'])}</td>
               <td className="os-muted">{fmt(i['Warehouse Location'])}</td>
-              <td>{i['Stock Status'] ? <span className={`os-pill ${statusClass(i['Stock Status'])}`}>{i['Stock Status']}</span> : '—'}</td>
+              <td>{i['Stock Status'] ? <span className={`os-pill ${sc(i['Stock Status'])}`}>{i['Stock Status']}</span> : '—'}</td>
               <td className="os-mono">{fmt(i['Next Shipment ETA'])}</td>
             </tr>
           )}
@@ -347,7 +341,7 @@ function AffiliatesTab({ items }) {
               <td className="os-muted">{fmt(a.Platform)}</td>
               <td className="os-muted">{Array.isArray(a.Market) ? a.Market.join(', ') : fmt(a.Market)}</td>
               <td>{a['Commission Tier'] ? <span className="os-pill pill-default">{a['Commission Tier']}</span> : '—'}</td>
-              <td>{a['Onboarding Status'] ? <span className={`os-pill ${statusClass(a['Onboarding Status'])}`}>{a['Onboarding Status']}</span> : '—'}</td>
+              <td>{a['Onboarding Status'] ? <span className={`os-pill ${sc(a['Onboarding Status'])}`}>{a['Onboarding Status']}</span> : '—'}</td>
             </tr>
           )}
           emptyMsg="No affiliates yet."
@@ -384,7 +378,7 @@ function B2BTab({ items }) {
               </td>
               <td className="os-muted">{fmt(b['Business Type'])}</td>
               <td className="os-muted">{fmt(b.Market)}</td>
-              <td>{b['Account Status'] ? <span className={`os-pill ${statusClass(b['Account Status'])}`}>{b['Account Status']}</span> : '—'}</td>
+              <td>{b['Account Status'] ? <span className={`os-pill ${sc(b['Account Status'])}`}>{b['Account Status']}</span> : '—'}</td>
               <td className="os-mono">{b['Monthly Order Value (AED)'] ? `AED ${Number(b['Monthly Order Value (AED)']).toLocaleString()}` : '—'}</td>
             </tr>
           )}
@@ -737,7 +731,7 @@ function SubscriptionsMETab({ items }) {
               <td className="os-muted">{fmt(s.Market)}</td>
               <td className="os-mono">{fmt(s['Active Subscribers'])}</td>
               <td className="os-mono">{s['Monthly Revenue (AED)'] ? `AED ${Number(s['Monthly Revenue (AED)']).toLocaleString()}` : '—'}</td>
-              <td>{s.Status ? <span className={`os-pill ${statusClass(s.Status)}`}>{s.Status}</span> : '—'}</td>
+              <td>{s.Status ? <span className={`os-pill ${sc(s.Status)}`}>{s.Status}</span> : '—'}</td>
             </tr>
           )}
           emptyMsg="No subscription plans."
@@ -777,7 +771,7 @@ function KlaviyoMETab({ items }) {
               <td><strong>{fmt(r['Flow Name'])}</strong></td>
               <td className="os-muted">{fmt(r['Flow Type'])}</td>
               <td className="os-muted">{fmt(r.Market)}</td>
-              <td>{r.Status ? <span className={`os-pill ${statusClass(r.Status)}`}>{r.Status}</span> : '—'}</td>
+              <td>{r.Status ? <span className={`os-pill ${sc(r.Status)}`}>{r.Status}</span> : '—'}</td>
               <td className="os-mono">{r['Open Rate %'] ? `${r['Open Rate %']}%` : '—'}</td>
               <td className="os-mono">{r['Click Rate %'] ? `${r['Click Rate %']}%` : '—'}</td>
               <td className="os-mono">{r['Revenue Attributed (AED)'] ? `AED ${Number(r['Revenue Attributed (AED)']).toLocaleString()}` : '—'}</td>

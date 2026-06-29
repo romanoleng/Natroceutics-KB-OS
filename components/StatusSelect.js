@@ -40,6 +40,7 @@ export const DONE_VALS = new Set([
 const EMOJI_RE = /[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}⌛⏰⚠️✅❌🔴🟡🟢⚪]/gu;
 
 const ALIASES = {
+  // → Done
   'complete':      'Done',
   'completed':     'Done',
   'approved':      'Done',
@@ -48,19 +49,30 @@ const ALIASES = {
   'registered':    'Done',
   'live':          'Done',
   'paid':          'Done',
+  'published':     'Done',
+  'current':       'Done',
+  // → In Progress
+  'mitigating':    'In Progress',
+  'active':        'In Progress',
+  // → Not Started
   'to do':         'Not Started',
   'todo':          'Not Started',
   'pending':       'Not Started',
   'open':          'Not Started',
   'draft':         'Not Started',
+  'planned':       'Not Started',
+  // → Under Review
   'waiting on':    'Under Review',
   'submitted':     'Under Review',
-  'active expired':'Cancelled',
-  'rejected':      'Cancelled',
+  // → Blocked
   'at risk':       'Blocked',
   'overdue':       'Blocked',
-  'mitigating':    'In Progress',
-  'active':        'In Progress',
+  // → Cancelled
+  'active expired':'Cancelled',
+  'rejected':      'Cancelled',
+  'archived':      'Cancelled',
+  'inactive':      'Cancelled',
+  'discontinued':  'Cancelled',
 };
 
 export function normalizeStatus(s) {

@@ -4,7 +4,7 @@ import OsLayout from '../components/OsLayout';
 import ProductsSection from '../components/ProductsSection';
 import SortableTable from '../components/SortableTable';
 import TaskDetailPanel from '../components/TaskDetailPanel';
-import { useStatusEditor, StatusSelect, DONE_VALS as DONE_VALS_SHARED, BASE_STATUSES as BASE_STATUSES_SHARED } from '../components/StatusSelect';
+import { useStatusEditor, StatusSelect, sc, DONE_VALS as DONE_VALS_SHARED, BASE_STATUSES as BASE_STATUSES_SHARED } from '../components/StatusSelect';
 import {
   getSATasks, getSAPriorities, getSARisks,
   getSAInventory, getSAFinance, getSAB2B,
@@ -18,13 +18,7 @@ const TABS = ['Tasks', 'Priorities', 'Risks', 'Inventory', 'B2B', 'Customers', '
 const SA_BASE  = 'appz7wLo78sxzLhjV';
 const SA_TASKS_TABLE = 'tblAv5lowKpohE27i';
 
-const STATUS_CLASS = {
-  'Done': 'pill-done', 'Complete': 'pill-done', 'Completed': 'pill-done',
-  'In Progress': 'pill-progress', 'Active': 'pill-progress',
-  'To Do': 'pill-todo', 'Not Started': 'pill-todo', 'Pending': 'pill-todo',
-  'Blocked': 'pill-blocked', 'At Risk': 'pill-blocked',
-};
-function statusClass(s) { return STATUS_CLASS[s] || 'pill-default'; }
+// sc() imported from StatusSelect — brand-green, normalizes emoji + aliases site-wide
 function fmt(v) { return (v === null || v === undefined || v === '') ? '—' : v; }
 function fmtEntryDate(dateEntry, createdTime) {
   const raw = dateEntry || createdTime;
@@ -126,7 +120,7 @@ function TaskTable({ tasks }) {
               </td>
               <td onClick={e => e.stopPropagation()}>
                 <select
-                  className={`os-pill status-select ${statusClass(t.Status)}`}
+                  className={`os-pill status-select ${sc(t.Status)}`}
                   value={t.Status || ''}
                   onChange={e => handleStatusChange(t.id, e.target.value)}
                   disabled={!!saving[t.id]}
@@ -169,7 +163,7 @@ function PriorityList({ items }) {
               {p.Week && <span className="os-tag os-tag-week">W{p.Week}</span>}
             </div>
           </div>
-          {p.Status && <span className={`os-pill ${statusClass(p.Status)}`}>{p.Status}</span>}
+          {p.Status && <span className={`os-pill ${sc(p.Status)}`}>{p.Status}</span>}
         </div>
       ))}
     </div>
@@ -199,7 +193,7 @@ function RiskList({ items }) {
           renderRow={r => (
             <tr key={r.id}>
               <td><strong>{fmt(r['Risk / Blocker'])}</strong></td>
-              <td>{r.Status ? <span className={`os-pill ${statusClass(r.Status)}`}>{r.Status}</span> : '—'}</td>
+              <td>{r.Status ? <span className={`os-pill ${sc(r.Status)}`}>{r.Status}</span> : '—'}</td>
               <td>{r.Impact ? <span className="os-pill pill-blocked">{r.Impact}</span> : '—'}</td>
               <td className="os-muted">{fmt(r['Mitigation Plan'])}</td>
               <td className="os-muted">{fmt(r.Owner)}</td>
@@ -460,7 +454,7 @@ function CSTab({ items }) {
               <td onClick={e => e.stopPropagation()}>
                 <StatusSelect record={t} allStatuses={csStatuses} handleStatusChange={csEditor.handleStatusChange} saving={csEditor.saving} />
               </td>
-              <td>{t.Priority ? <span className={`os-pill ${statusClass(t.Priority)}`}>{t.Priority}</span> : '—'}</td>
+              <td>{t.Priority ? <span className={`os-pill ${sc(t.Priority)}`}>{t.Priority}</span> : '—'}</td>
             </tr>
             );
           }}
@@ -551,7 +545,7 @@ function WebinarTab({ items }) {
               <td className="os-mono">{fmt(r['Other Registrants'])}</td>
               <td className="os-mono" style={{ fontSize: 11 }}>{fmt(r['Coupon Code'])}</td>
               <td className="os-muted">{fmt(r['Registration Page Owner'])}</td>
-              <td>{r.Status ? <span className={`os-pill ${statusClass(r.Status)}`}>{r.Status}</span> : '—'}</td>
+              <td>{r.Status ? <span className={`os-pill ${sc(r.Status)}`}>{r.Status}</span> : '—'}</td>
             </tr>
           )}
           emptyMsg="No webinar records."

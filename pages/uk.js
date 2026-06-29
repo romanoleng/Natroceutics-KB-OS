@@ -5,7 +5,7 @@ import ProductsSection from '../components/ProductsSection';
 import SortableTable from '../components/SortableTable';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 import RecordDetailPanel from '../components/RecordDetailPanel';
-import { useStatusEditor, StatusSelect, DateCell, sc as scShared, DONE_VALS as DONE_VALS_SHARED, BASE_STATUSES as BASE_STATUSES_SHARED } from '../components/StatusSelect';
+import { useStatusEditor, StatusSelect, DateCell, sc, DONE_VALS as DONE_VALS_SHARED, BASE_STATUSES as BASE_STATUSES_SHARED } from '../components/StatusSelect';
 import {
   getUKTasks, getUKPriorities, getUKRisks,
   getUKAmazon, getUKAmazonCat,
@@ -51,13 +51,7 @@ const UK_TABLES_CLIENT = {
 };
 
 /* ── Helpers ──────────────────────────────────── */
-const STATUS_CLASS = {
-  'Done': 'pill-done', 'Complete': 'pill-done', 'Completed': 'pill-done', 'Paid': 'pill-done', 'Active': 'pill-done',
-  'In Progress': 'pill-progress', 'Active Expired': 'pill-progress',
-  'To Do': 'pill-todo', 'Not Started': 'pill-todo', 'Pending': 'pill-todo', 'Draft': 'pill-todo',
-  'Blocked': 'pill-blocked', 'At Risk': 'pill-blocked', 'Overdue': 'pill-blocked',
-};
-function sc(s) { return STATUS_CLASS[s] || 'pill-default'; }
+// sc() is imported from StatusSelect — brand-green, normalizes emoji + aliases site-wide
 function fmt(v) { return (v === null || v === undefined || v === '') ? '—' : v; }
 function gbp(v) { return v ? `£${Number(v).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'; }
 function gbp0(v) { return v ? `£${Number(v).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '—'; }

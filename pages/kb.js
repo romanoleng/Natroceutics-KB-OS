@@ -7,16 +7,9 @@ import OsLayout from '../components/OsLayout';
 import ProductsSection from '../components/ProductsSection';
 import SortableTable from '../components/SortableTable';
 import { getProducts, getSOPs, getContacts, getPlatforms, getRegulatory, getBrandAssets, getCompanyInfo, getTemplates, getTraining } from '../lib/airtable';
+import { sc } from '../components/StatusSelect';
 
 function fmt(v){ return (v===null||v===undefined||v==='')?'—':v; }
-
-const SC = {
-  'Active':'pill-done','Approved':'pill-done','Live':'pill-done','Current':'pill-done','Published':'pill-done',
-  'In Progress':'pill-progress','Under Review':'pill-progress','Draft':'pill-progress',
-  'Pending':'pill-todo','Planned':'pill-todo',
-  'Archived':'pill-blocked','Inactive':'pill-blocked','Discontinued':'pill-blocked',
-};
-function sc(s){ return SC[s]||'pill-default'; }
 
 /* ── SOPs ─────────────────────────────────────── */
 function SOPsTab({ items }) {

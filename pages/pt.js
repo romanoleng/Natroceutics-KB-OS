@@ -4,7 +4,7 @@ import OsLayout from '../components/OsLayout';
 import ProductsSection from '../components/ProductsSection';
 import SortableTable from '../components/SortableTable';
 import TaskDetailPanel from '../components/TaskDetailPanel';
-import { useStatusEditor, StatusSelect, DONE_VALS as DONE_VALS_SHARED, BASE_STATUSES as BASE_STATUSES_SHARED } from '../components/StatusSelect';
+import { useStatusEditor, StatusSelect, sc, DONE_VALS as DONE_VALS_SHARED, BASE_STATUSES as BASE_STATUSES_SHARED } from '../components/StatusSelect';
 import {
   getPTTasks, getPTPriorities, getPTRisks,
   getPTInventory, getPTFinance, getPTB2B,
@@ -18,13 +18,7 @@ const TABS = ['Tasks', 'Priorities', 'Risks', 'Inventory', 'B2B', 'Customers', '
 const PT_BASE  = 'appfEakXS6FAu2FIY';
 const PT_TASKS_TABLE = 'tblCs1y6PPv0Grk75';
 
-const STATUS_CLASS = {
-  'Done': 'pill-done', 'Complete': 'pill-done', 'Completed': 'pill-done',
-  'In Progress': 'pill-progress', 'Active': 'pill-progress',
-  'To Do': 'pill-todo', 'Not Started': 'pill-todo', 'Pending': 'pill-todo',
-  'Blocked': 'pill-blocked', 'At Risk': 'pill-blocked',
-};
-function statusClass(s) { return STATUS_CLASS[s] || 'pill-default'; }
+// sc() imported from StatusSelect — brand-green, normalizes emoji + aliases site-wide
 function fmt(v) { return (v === null || v === undefined || v === '') ? '—' : v; }
 function fmtDate(raw) {
   if (!raw) return '—';
@@ -126,7 +120,7 @@ function TaskTable({ tasks }) {
               <td className="os-muted">{fmt(t.Phase)}</td>
               <td onClick={e => e.stopPropagation()}>
                 <select
-                  className={`os-pill status-select ${statusClass(t.Status)}`}
+                  className={`os-pill status-select ${sc(t.Status)}`}
                   value={t.Status || ''}
                   onChange={e => handleStatusChange(t.id, e.target.value)}
                   disabled={!!saving[t.id]}
@@ -169,7 +163,7 @@ function PriorityList({ items }) {
               {p['Due Date'] && <span className="os-tag">{fmtDate(p['Due Date'])}</span>}
             </div>
           </div>
-          {p.Status && <span className={`os-pill ${statusClass(p.Status)}`}>{p.Status}</span>}
+          {p.Status && <span className={`os-pill ${sc(p.Status)}`}>{p.Status}</span>}
         </div>
       ))}
     </div>
@@ -199,7 +193,7 @@ function RiskList({ items }) {
           renderRow={r => (
             <tr key={r.id}>
               <td><strong>{fmt(r['Risk / Blocker'])}</strong></td>
-              <td>{r.Status ? <span className={`os-pill ${statusClass(r.Status)}`}>{r.Status}</span> : '—'}</td>
+              <td>{r.Status ? <span className={`os-pill ${sc(r.Status)}`}>{r.Status}</span> : '—'}</td>
               <td>{r.Impact ? <span className="os-pill pill-blocked">{r.Impact}</span> : '—'}</td>
               <td className="os-muted">{fmt(r['Mitigation Plan'])}</td>
               <td className="os-muted">{fmt(r.Owner)}</td>
@@ -505,7 +499,7 @@ function CSTab({ items }) {
                 <td onClick={e => e.stopPropagation()}>
                   <StatusSelect record={t} allStatuses={csStatuses} handleStatusChange={csEditor.handleStatusChange} saving={csEditor.saving} />
                 </td>
-                <td>{t.Priority ? <span className={`os-pill ${statusClass(t.Priority)}`}>{t.Priority}</span> : '—'}</td>
+                <td>{t.Priority ? <span className={`os-pill ${sc(t.Priority)}`}>{t.Priority}</span> : '—'}</td>
                 <td>{t['Refund Issued'] ? <span className="os-pill pill-done">✓</span> : '—'}</td>
                 <td className="os-mono">{t['Refund Amount (EUR)'] ? `€${Number(t['Refund Amount (EUR)']).toLocaleString()}` : '—'}</td>
               </tr>
@@ -629,7 +623,7 @@ function SubscriptionsTab({ items }) {
               <td className="os-mono">{s['Discount %'] ? `${s['Discount %']}%` : '—'}</td>
               <td className="os-mono">{fmt(s['Active Subscribers'])}</td>
               <td className="os-mono">{s['Monthly Revenue (EUR)'] ? `€${Number(s['Monthly Revenue (EUR)']).toLocaleString()}` : '—'}</td>
-              <td>{s.Status ? <span className={`os-pill ${statusClass(s.Status)}`}>{s.Status}</span> : '—'}</td>
+              <td>{s.Status ? <span className={`os-pill ${sc(s.Status)}`}>{s.Status}</span> : '—'}</td>
             </tr>
           )}
           emptyMsg="No subscription plans."
@@ -665,7 +659,7 @@ function KlaviyoTab({ items }) {
             <tr key={f.id}>
               <td><strong>{fmt(f['Flow Name'])}</strong></td>
               <td className="os-muted">{fmt(f['Flow Type'])}</td>
-              <td>{f.Status ? <span className={`os-pill ${statusClass(f.Status)}`}>{f.Status}</span> : '—'}</td>
+              <td>{f.Status ? <span className={`os-pill ${sc(f.Status)}`}>{f.Status}</span> : '—'}</td>
               <td className="os-mono">{f['Open Rate %'] ? `${(f['Open Rate %'] * 100).toFixed(1)}%` : '—'}</td>
               <td className="os-mono">{f['Click Rate %'] ? `${(f['Click Rate %'] * 100).toFixed(1)}%` : '—'}</td>
               <td className="os-mono">{f['Revenue Attributed (EUR)'] ? `€${Number(f['Revenue Attributed (EUR)']).toLocaleString()}` : '—'}</td>
