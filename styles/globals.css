@@ -1245,12 +1245,13 @@ th.th-sort:hover { background: rgba(29,65,48,0.85); }
   border-radius: var(--radius-pill);
   white-space: nowrap;
 }
-.pill-done      { background: var(--green-ok-bg);       color: var(--green-ok-fg); }
-.pill-progress  { background: var(--blue-bg);           color: var(--blue-fg); }
-.pill-todo      { background: var(--amber-bg);          color: var(--amber-fg); }
-.pill-blocked   { background: var(--red-bg);            color: var(--red-fg); }
-.pill-cancelled { background: rgba(45,42,38,0.06);      color: rgba(45,42,38,0.40); }
-.pill-default   { background: var(--forest-100);        color: var(--forest-800); }
+/* Status pills — Natroceutics brand green palette */
+.pill-done      { background: var(--ok-bg);        color: var(--ok-fg); }           /* green: achieved  */
+.pill-progress  { background: var(--forest-100);   color: var(--forest-700); }       /* light green: moving */
+.pill-todo      { background: var(--cream-dark);   color: var(--charcoal-70); }      /* cream: not yet    */
+.pill-blocked   { background: var(--red-bg);       color: var(--red); }              /* red: danger       */
+.pill-cancelled { background: rgba(45,42,38,0.06); color: rgba(45,42,38,0.40); }    /* muted: inactive   */
+.pill-default   { background: var(--forest-100);   color: var(--forest-800); }
 
 /* ── STAT CARDS ──────────────────────────────── */
 .os-stat-row { display: flex; gap: 16px; flex-wrap: wrap; }
@@ -1263,7 +1264,7 @@ th.th-sort:hover { background: rgba(29,65,48,0.85); }
   background: var(--white);
 }
 .os-stat-red   { border-left: 3px solid var(--red); }
-.os-stat-green { border-left: 3px solid var(--green-ok); }
+.os-stat-green { border-left: 3px solid var(--ok); }
 .os-stat-num {
   font-family: var(--mono);
   font-size: 32px;
