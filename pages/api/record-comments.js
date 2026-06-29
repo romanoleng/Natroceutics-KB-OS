@@ -58,6 +58,16 @@ export default async function handler(req, res) {
         return res.status(r.status).json({ error: err?.error?.message || 'Airtable error' });
       }
       const comment = await r.json();
+
+      // Update "Last Note At" on the record so the Updated column reflects this comment
+      const now = new Date().toISOString();
+      const patchUrl = `https://api.airtable.com/v0/${encodeURIComponent(baseId)}/${encodeURIComponent(tableId)}/${encodeURIComponent(recordId)}`;
+      fetch(patchUrl, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: { 'Last Note At': now } }),
+      }).catch(() => {}); // fire-and-forget — don't block the response
+
       return res.json({ comment });
     } catch (e) {
       return res.status(500).json({ error: e.message });
