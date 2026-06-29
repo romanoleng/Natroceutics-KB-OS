@@ -8,7 +8,7 @@ import RecordDetailPanel from '../components/RecordDetailPanel';
 import { useStatusEditor, StatusSelect, DateCell, sc as scShared, DONE_VALS as DONE_VALS_SHARED, BASE_STATUSES as BASE_STATUSES_SHARED } from '../components/StatusSelect';
 import {
   getUKTasks, getUKPriorities, getUKRisks,
-  getUKAmazon, getUKAmazonCat, getUKAmazonDailyPnL, getUKAmazonAsinDaily, getUKAmazonOrders,
+  getUKAmazon, getUKAmazonCat,
   getUKShopify, getUKOrders, getUKDiscounts, getUKRefunds, getUKPayouts,
   getUKStock, getUKInbound,
   getUKReporting, getUKReconcile, getUKSoftware, getUKAmazonDisbursements,
@@ -1009,7 +1009,7 @@ function GoogleTab({ section = 'Shopify UK' }) {
 }
 
 /* ── Amazon UK — full hub ─────────────────────── */
-function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, reporting, ppc = [], reviews = [], dailyPnl = [], asinDaily = [], amazonOrders = [] }) {
+function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, reporting, ppc = [], reviews = [] }) {
   const [sub, setSub] = useState('Overview');
   const [taskSearch, setTaskSearch] = useState('');
   const [taskStatus, setTaskStatus] = useState('');
@@ -1019,6 +1019,26 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
   const [amzCustomFrom, setAmzCustomFrom] = useState('');
   const [amzCustomTo, setAmzCustomTo] = useState('');
   const [amzSalesSub, setAmzSalesSub] = useState('Summary');
+
+  // Sales data — loaded client-side only when Sales tab is first clicked (keeps SSR payload small)
+  const [salesData, setSalesData] = useState({ dailyPnl: [], asinDaily: [], amazonOrders: [] });
+  const [salesLoading, setSalesLoading] = useState(false);
+  const [salesLoaded, setSalesLoaded] = useState(false);
+
+  useEffect(() => {
+    if (sub === 'Sales' && !salesLoaded && !salesLoading) {
+      setSalesLoading(true);
+      fetch('/api/amazon-sales')
+        .then(r => r.json())
+        .then(d => { setSalesData({ dailyPnl: d.dailyPnl || [], asinDaily: d.asinDaily || [], amazonOrders: d.amazonOrders || [] }); setSalesLoaded(true); })
+        .catch(() => setSalesLoaded(true))
+        .finally(() => setSalesLoading(false));
+    }
+  }, [sub, salesLoaded, salesLoading]);
+
+  const dailyPnl = salesData.dailyPnl;
+  const asinDaily = salesData.asinDaily;
+  const amazonOrders = salesData.amazonOrders;
 
   const AMZ_SUBS = ['Overview', 'Tasks', 'Priorities', 'FBA Stock', 'Sales', 'Daily P&L', 'ASIN Performance', 'Inbound', 'Catalogue', 'Marketing', 'PPC', 'Reviews', 'Reporting'];
 
@@ -1478,7 +1498,10 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
       )}
 
       {/* ── Sales (Sellerboard DashboardTotals + DashboardGoods) ── */}
-      {sub === 'Sales' && (() => {
+      {sub === 'Sales' && salesLoading && (
+        <div className="os-empty" style={{ marginTop: 24 }}>Loading Amazon sales data…</div>
+      )}
+      {sub === 'Sales' && !salesLoading && (() => {
         const today = new Date();
         const amzDateRange = (() => {
           const d = new Date();
@@ -3418,7 +3441,7 @@ function ReportingTab({ items }) {
 }
 
 /* ── Page ─────────────────────────────────────── */
-export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers = [], cs, reconcile, software, reporting, products, ppc = [], disbursements = [], reviews = [], bionature = [], billing = [], atSalesByProduct = [], affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [], amazonDailyPnl = [], amazonAsinDaily = [], error, serverTime }) {
+export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers = [], cs, reconcile, software, reporting, products, ppc = [], disbursements = [], reviews = [], bionature = [], billing = [], atSalesByProduct = [], affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [], error, serverTime }) {
   const router = useRouter();
   const [section, setSection] = useState('Overview');
   const [tab, setTab] = useState('Tasks');
@@ -3511,7 +3534,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
           {tab === 'Customer Service' && <CSTab items={cs} />}
           {tab === 'Finance' && section === 'Shopify UK' && <FinanceTab reconcile={reconcile} software={software} payouts={payouts} payoutsCsv={payoutsCsv || []} serverTime={serverTime} billing={billing} atSalesByProduct={atSalesByProduct} />}
           {tab === 'Finance' && section === 'Amazon UK'  && <AmazonFinanceTab reconcile={reconcile} disbursements={disbursements} />}
-          {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} tasks={tasks} priorities={priorities} marketing={marketing} inbound={inbound} reporting={reporting} ppc={ppc} reviews={reviews} dailyPnl={amazonDailyPnl} asinDaily={amazonAsinDaily} amazonOrders={amazonOrders} />}
+          {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} tasks={tasks} priorities={priorities} marketing={marketing} inbound={inbound} reporting={reporting} ppc={ppc} reviews={reviews} />}
           {tab === 'Google'           && <GoogleTab section={section} />}
           {tab === 'Stock on Hand'    && <SOHTab soh={soh} sohSource={sohSource} />}
           {tab === 'Inbound Stock'    && <InboundTab inbound={inbound} />}
@@ -3525,7 +3548,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
 export async function getServerSideProps() {
   const safe = p => p.catch(e => { console.warn('[uk] fetch partial fail:', e.message); return []; });
 
-  const [tasks, priorities, risks, amazon, catalogue, shopifyProducts, airtableOrders, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, subscribers, amazonDailyPnl, amazonAsinDaily, amazonOrders] = await Promise.all([
+  const [tasks, priorities, risks, amazon, catalogue, shopifyProducts, airtableOrders, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, subscribers] = await Promise.all([
     safe(getUKTasks()), safe(getUKPriorities()), safe(getUKRisks()),
     safe(getUKAmazon()), safe(getUKAmazonCat()),
     safe(getUKShopify()), safe(getUKOrders()), safe(getUKDiscounts()), safe(getUKRefunds()), safe(getUKPayouts()),
@@ -3539,8 +3562,6 @@ export async function getServerSideProps() {
     safe(getAffiliates()), safe(getAffiliateSales()), safe(getAffiliatePayouts()),
     safe(getAffiliateTraffic()), safe(getAffiliateTasks()), safe(getAffiliateProducts()),
     safe(getUKSubscribers()),
-    safe(getUKAmazonDailyPnL()), safe(getUKAmazonAsinDaily()),
-    safe(getUKAmazonOrders()),
   ]);
 
   // Orders — Airtable is source of truth (populated by email capture scheduler)
@@ -3572,5 +3593,5 @@ export async function getServerSideProps() {
   const sohData = soh;
   const sohSource = 'airtable';
 
-  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers: subscribers || [], cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, amazonDailyPnl: amazonDailyPnl || [], amazonAsinDaily: amazonAsinDaily || [], amazonOrders: amazonOrders || [], error: null, serverTime: new Date().toISOString() } };
+  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers: subscribers || [], cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, error: null, serverTime: new Date().toISOString() } };
 }
