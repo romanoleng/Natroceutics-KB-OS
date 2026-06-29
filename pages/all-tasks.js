@@ -92,10 +92,12 @@ export default function AllTasksPage({ tasks, error }) {
     });
   }, [editor.dataWithStatus, search, regionFilter, statusFilter]);
 
-  const ukCount = tasks.filter(t => t._region === 'UK').length;
-  const saCount = tasks.filter(t => t._region === 'SA').length;
-  const meCount = tasks.filter(t => t._region === 'ME').length;
-  const openCount = editor.dataWithStatus.filter(t => !DONE_VALS.has(t.Status)).length;
+  const allWithStatus = editor.dataWithStatus;
+  const openCount = allWithStatus.filter(t => !DONE_VALS.has(t.Status)).length;
+  const doneCount  = allWithStatus.filter(t =>  DONE_VALS.has(t.Status)).length;
+  const ukCount = allWithStatus.filter(t => t._region === 'UK' && !DONE_VALS.has(t.Status)).length;
+  const saCount = allWithStatus.filter(t => t._region === 'SA' && !DONE_VALS.has(t.Status)).length;
+  const meCount = allWithStatus.filter(t => t._region === 'ME' && !DONE_VALS.has(t.Status)).length;
 
   return (
     <OsLayout title="All Tasks">
@@ -104,8 +106,8 @@ export default function AllTasksPage({ tasks, error }) {
           <p className="os-eyebrow">Cross-Region</p>
           <h1 className="os-hero-title">✅ All Tasks</h1>
           <div className="region-hero-stats" style={{marginTop:20}}>
-            <div className="rhs"><span className="rhs-num">{tasks.length}</span><span className="rhs-label">Total Tasks</span></div>
             <div className="rhs"><span className="rhs-num">{openCount}</span><span className="rhs-label">Open</span></div>
+            <div className="rhs"><span className="rhs-num" style={{color:'rgba(255,255,255,0.45)'}}>{doneCount}</span><span className="rhs-label" style={{color:'rgba(255,255,255,0.35)'}}>Done</span></div>
             <div className="rhs"><span className="rhs-num">{ukCount}</span><span className="rhs-label">🇬🇧 UK</span></div>
             <div className="rhs"><span className="rhs-num">{saCount}</span><span className="rhs-label">🇿🇦 SA</span></div>
             <div className="rhs"><span className="rhs-num">{meCount}</span><span className="rhs-label">🇦🇪 ME</span></div>
