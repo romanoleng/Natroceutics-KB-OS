@@ -8,7 +8,7 @@ import RecordDetailPanel from '../components/RecordDetailPanel';
 import { useStatusEditor, StatusSelect, DateCell, sc as scShared, DONE_VALS as DONE_VALS_SHARED, BASE_STATUSES as BASE_STATUSES_SHARED } from '../components/StatusSelect';
 import {
   getUKTasks, getUKPriorities, getUKRisks,
-  getUKAmazon, getUKAmazonCat, getUKAmazonDailyPnL, getUKAmazonAsinDaily,
+  getUKAmazon, getUKAmazonCat, getUKAmazonDailyPnL, getUKAmazonAsinDaily, getUKAmazonOrders,
   getUKShopify, getUKOrders, getUKDiscounts, getUKRefunds, getUKPayouts,
   getUKStock, getUKInbound,
   getUKReporting, getUKReconcile, getUKSoftware, getUKAmazonDisbursements,
@@ -1009,14 +1009,18 @@ function GoogleTab({ section = 'Shopify UK' }) {
 }
 
 /* ── Amazon UK — full hub ─────────────────────── */
-function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, reporting, ppc = [], reviews = [], dailyPnl = [], asinDaily = [] }) {
+function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, reporting, ppc = [], reviews = [], dailyPnl = [], asinDaily = [], amazonOrders = [] }) {
   const [sub, setSub] = useState('Overview');
   const [taskSearch, setTaskSearch] = useState('');
   const [taskStatus, setTaskStatus] = useState('');
   const [selectedPPC, setSelectedPPC] = useState(null);
   const [selectedDateASIN, setSelectedDateASIN] = useState(null);
+  const [amzRange, setAmzRange] = useState('MTD');
+  const [amzCustomFrom, setAmzCustomFrom] = useState('');
+  const [amzCustomTo, setAmzCustomTo] = useState('');
+  const [amzSalesSub, setAmzSalesSub] = useState('Summary');
 
-  const AMZ_SUBS = ['Overview', 'Tasks', 'Priorities', 'FBA Stock', 'Daily P&L', 'ASIN Performance', 'Inbound', 'Catalogue', 'Marketing', 'PPC', 'Reviews', 'Reporting'];
+  const AMZ_SUBS = ['Overview', 'Tasks', 'Priorities', 'FBA Stock', 'Sales', 'Daily P&L', 'ASIN Performance', 'Inbound', 'Catalogue', 'Marketing', 'PPC', 'Reviews', 'Reporting'];
 
   // Status editors — one per dataset so each table has independent optimistic state
   const tasksEditor    = useStatusEditor(tasks);
@@ -1472,6 +1476,288 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
           );
         })()
       )}
+
+      {/* ── Sales (Sellerboard DashboardTotals + DashboardGoods) ── */}
+      {sub === 'Sales' && (() => {
+        const today = new Date();
+        const amzDateRange = (() => {
+          const d = new Date();
+          if (amzRange === 'MTD') return { from: new Date(d.getFullYear(), d.getMonth(), 1), to: today };
+          if (amzRange === 'Last Month') return { from: new Date(d.getFullYear(), d.getMonth() - 1, 1), to: new Date(d.getFullYear(), d.getMonth(), 0) };
+          if (amzRange === '30 Days') { const f = new Date(); f.setDate(f.getDate() - 30); return { from: f, to: today }; }
+          if (amzRange === '90 Days') { const f = new Date(); f.setDate(f.getDate() - 90); return { from: f, to: today }; }
+          if (amzRange === 'YTD') return { from: new Date(d.getFullYear(), 0, 1), to: today };
+          if (amzRange === 'Custom') return { from: amzCustomFrom ? new Date(amzCustomFrom) : null, to: amzCustomTo ? new Date(amzCustomTo) : today };
+          return { from: null, to: today };
+        })();
+
+        const filteredPnl = dailyPnl.filter(r => {
+          if (!r.Date) return false;
+          const d = new Date(r.Date);
+          return (!amzDateRange.from || d >= amzDateRange.from) && d <= amzDateRange.to;
+        }).sort((a, b) => new Date(b.Date) - new Date(a.Date));
+
+        const filteredAsin = asinDaily.filter(r => {
+          if (!r.Date) return false;
+          const d = new Date(r.Date);
+          return (!amzDateRange.from || d >= amzDateRange.from) && d <= amzDateRange.to;
+        });
+
+        // KPI aggregates
+        const kRevenue    = filteredPnl.reduce((s, r) => s + (Number(r['Revenue £']) || 0), 0);
+        const kNetProfit  = filteredPnl.reduce((s, r) => s + (Number(r['Net Profit £']) || 0), 0);
+        const kOrders     = filteredPnl.reduce((s, r) => s + (Number(r.Orders) || 0), 0);
+        const kAdSpend    = filteredPnl.reduce((s, r) => s + (Number(r['Ad Spend £']) || 0), 0);
+        const kFees       = filteredPnl.reduce((s, r) => s + (Number(r['Amazon Fees £']) || 0), 0);
+        const kCOGS       = filteredPnl.reduce((s, r) => s + (Number(r['COGS £']) || 0), 0);
+        const kMargin     = kRevenue > 0 ? ((kNetProfit / kRevenue) * 100).toFixed(1) : '—';
+
+        // By-product aggregates from asinDaily
+        const byProductMap = {};
+        filteredAsin.forEach(r => {
+          const key = r.ASIN || r['Product Name'] || r.SKU || 'Unknown';
+          if (!byProductMap[key]) byProductMap[key] = { 'Product Name': r['Product Name'], ASIN: r.ASIN, Revenue: 0, Units: 0, 'Net Profit £': 0, 'Ad Spend £': 0, Sessions: 0, days: 0 };
+          byProductMap[key].Revenue += Number(r['Revenue £']) || 0;
+          byProductMap[key].Units   += Number(r.Units) || 0;
+          byProductMap[key]['Net Profit £'] += Number(r['Net Profit £']) || 0;
+          byProductMap[key]['Ad Spend £']   += Number(r['Ad Spend £']) || 0;
+          byProductMap[key].Sessions += Number(r.Sessions) || 0;
+          byProductMap[key].days += 1;
+        });
+        const byProductRows = Object.values(byProductMap).sort((a, b) => b.Revenue - a.Revenue).map(p => ({
+          ...p,
+          'Revenue £': p.Revenue,
+          'Margin %': p.Revenue > 0 ? ((p['Net Profit £'] / p.Revenue) * 100).toFixed(1) : '—',
+        }));
+
+        const AMZ_RANGES = ['MTD', 'Last Month', '30 Days', '90 Days', 'YTD', 'Custom'];
+
+        return (
+          <>
+            {/* Range selector */}
+            <div className="orders-filter-bar" style={{ marginTop: 8 }}>
+              <div className="orders-range-group" style={{ overflowX: 'auto', display: 'flex', flexWrap: 'nowrap', gap: 4 }}>
+                {AMZ_RANGES.map(r => (
+                  <button key={r} className={`orders-range-btn${amzRange === r ? ' active' : ''}`} onClick={() => setAmzRange(r)}>{r}</button>
+                ))}
+                <span className="orders-live-badge orders-live-airtable">📋 Sellerboard · Airtable</span>
+              </div>
+              {amzRange === 'Custom' && (
+                <div className="orders-custom-dates">
+                  <input type="date" className="os-date-input" value={amzCustomFrom} onChange={e => setAmzCustomFrom(e.target.value)} />
+                  <span className="os-muted">→</span>
+                  <input type="date" className="os-date-input" value={amzCustomTo} onChange={e => setAmzCustomTo(e.target.value)} />
+                </div>
+              )}
+            </div>
+
+            {/* KPI cards */}
+            <div className="orders-kpi-row">
+              <div className="orders-kpi-card">
+                <div className="orders-kpi-num">{gbp0(kRevenue)}</div>
+                <div className="orders-kpi-label">REVENUE</div>
+                <div className="orders-kpi-sub">{filteredPnl.length} days</div>
+              </div>
+              <div className="orders-kpi-card" style={{ borderTop: `3px solid ${kNetProfit >= 0 ? 'var(--green-600, #16a34a)' : 'var(--red-500, #ef4444)'}` }}>
+                <div className="orders-kpi-num" style={{ color: kNetProfit >= 0 ? 'var(--green-600, #16a34a)' : 'var(--red-500, #ef4444)' }}>{gbp(kNetProfit)}</div>
+                <div className="orders-kpi-label">NET PROFIT</div>
+              </div>
+              <div className="orders-kpi-card">
+                <div className="orders-kpi-num">{kMargin !== '—' ? `${kMargin}%` : '—'}</div>
+                <div className="orders-kpi-label">MARGIN</div>
+              </div>
+              <div className="orders-kpi-card">
+                <div className="orders-kpi-num">{kOrders.toLocaleString()}</div>
+                <div className="orders-kpi-label">ORDERS</div>
+              </div>
+              <div className="orders-kpi-card">
+                <div className="orders-kpi-num">{gbp(kAdSpend)}</div>
+                <div className="orders-kpi-label">AD SPEND</div>
+              </div>
+              <div className="orders-kpi-card">
+                <div className="orders-kpi-num">{gbp(kFees)}</div>
+                <div className="orders-kpi-label">AMAZON FEES</div>
+              </div>
+              <div className="orders-kpi-card">
+                <div className="orders-kpi-num">{gbp(kCOGS)}</div>
+                <div className="orders-kpi-label">COGS</div>
+              </div>
+            </div>
+
+            {/* Inner sub-tabs */}
+            <div className="os-sub-tabs" style={{ marginTop: 20, overflowX: 'auto', display: 'flex', flexWrap: 'nowrap', gap: 4 }}>
+              {['Summary', 'Daily Sales', 'By Product', 'Orders'].map(s => (
+                <button key={s} className={`os-sub-tab${amzSalesSub === s ? ' active' : ''}`} onClick={() => setAmzSalesSub(s)}>{s}</button>
+              ))}
+            </div>
+
+            {/* Summary */}
+            {amzSalesSub === 'Summary' && (
+              <div style={{ marginTop: 16 }}>
+                <div className="wh-banner">
+                  <div className="wh-banner-inner">
+                    <span className="wh-banner-label">Amazon UK — Sales Summary</span>
+                    <span className="wh-banner-sub">{amzRange} · {filteredPnl.length} days · {byProductRows.length} products</span>
+                  </div>
+                </div>
+                {!filteredPnl.length
+                  ? <div className="os-empty" style={{ marginTop: 12 }}>No Sellerboard data for this period. Run the Sellerboard sync to populate.</div>
+                  : (
+                  <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    <div style={{ background: 'var(--surface, #fff)', border: '1px solid var(--border, #e5e7eb)', borderRadius: 8, padding: 16 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted, #6b7280)', marginBottom: 12 }}>P&L Breakdown</div>
+                      {[
+                        ['Revenue', gbp0(kRevenue)],
+                        ['Amazon Fees', `−${gbp(kFees)}`],
+                        ['Ad Spend', `−${gbp(kAdSpend)}`],
+                        ['COGS', `−${gbp(kCOGS)}`],
+                        ['Net Profit', gbp(kNetProfit)],
+                        ['Margin', kMargin !== '—' ? `${kMargin}%` : '—'],
+                      ].map(([label, val]) => (
+                        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border, #e5e7eb)', fontSize: 13 }}>
+                          <span style={{ color: 'var(--muted, #6b7280)' }}>{label}</span>
+                          <span className="os-mono" style={{ fontWeight: label === 'Net Profit' || label === 'Revenue' ? 700 : 400, color: label === 'Net Profit' ? (kNetProfit >= 0 ? 'var(--green-600, #16a34a)' : 'var(--red-500, #ef4444)') : undefined }}>{val}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ background: 'var(--surface, #fff)', border: '1px solid var(--border, #e5e7eb)', borderRadius: 8, padding: 16 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted, #6b7280)', marginBottom: 12 }}>Top Products by Revenue</div>
+                      {byProductRows.slice(0, 8).map((p, i) => (
+                        <div key={p.ASIN || i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid var(--border, #e5e7eb)', fontSize: 12 }}>
+                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 8 }}>{p['Product Name'] || p.ASIN || 'Unknown'}</span>
+                          <span className="os-mono" style={{ fontWeight: 600, minWidth: 70, textAlign: 'right' }}>{gbp(p['Revenue £'])}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Daily Sales */}
+            {amzSalesSub === 'Daily Sales' && (
+              <div style={{ marginTop: 16 }}>
+                {!filteredPnl.length
+                  ? <div className="os-empty">No daily P&L data for this period.</div>
+                  : <SortableTable
+                      data={filteredPnl}
+                      cols={[
+                        { label: 'Date', key: 'Date' },
+                        { label: 'Revenue £', key: 'Revenue £', type: 'number', w: 110 },
+                        { label: 'Organic £', key: 'Organic Revenue £', type: 'number', w: 100 },
+                        { label: 'PPC £', key: 'PPC Revenue £', type: 'number', w: 90 },
+                        { label: 'Orders', key: 'Orders', type: 'number', w: 70 },
+                        { label: 'Amazon Fees', key: 'Amazon Fees £', type: 'number', w: 110 },
+                        { label: 'Ad Spend', key: 'Ad Spend £', type: 'number', w: 90 },
+                        { label: 'COGS', key: 'COGS £', type: 'number', w: 90 },
+                        { label: 'Net Profit £', key: 'Net Profit £', type: 'number', w: 110 },
+                        { label: 'Margin %', key: 'Margin %', type: 'number', w: 90 },
+                        { label: 'Sessions', key: 'Sessions', type: 'number', w: 80 },
+                      ]}
+                      renderRow={(r) => (
+                        <tr key={r.id || r.Date}>
+                          <td className="os-mono" style={{ fontSize: 11 }}>{fmt(r.Date)}</td>
+                          <td className="os-mono">{gbp(r['Revenue £'])}</td>
+                          <td className="os-mono">{gbp(r['Organic Revenue £'])}</td>
+                          <td className="os-mono">{gbp(r['PPC Revenue £'])}</td>
+                          <td className="os-mono">{fmt(r.Orders)}</td>
+                          <td className="os-mono">{gbp(r['Amazon Fees £'])}</td>
+                          <td className="os-mono">{gbp(r['Ad Spend £'])}</td>
+                          <td className="os-mono">{gbp(r['COGS £'])}</td>
+                          <td className="os-mono"><span style={{ color: Number(r['Net Profit £']) >= 0 ? 'var(--green-600, #16a34a)' : 'var(--red-500, #ef4444)', fontWeight: 600 }}>{gbp(r['Net Profit £'])}</span></td>
+                          <td className="os-mono">{r['Margin %'] ? `${r['Margin %']}%` : '—'}</td>
+                          <td className="os-mono">{fmt(r.Sessions)}</td>
+                        </tr>
+                      )}
+                    />
+                }
+              </div>
+            )}
+
+            {/* By Product */}
+            {amzSalesSub === 'By Product' && (
+              <div style={{ marginTop: 16 }}>
+                {!byProductRows.length
+                  ? <div className="os-empty">No ASIN data for this period. Run the Sellerboard sync to populate.</div>
+                  : <SortableTable
+                      data={byProductRows}
+                      cols={[
+                        { label: 'Product', key: 'Product Name' },
+                        { label: 'ASIN', key: 'ASIN', w: 130 },
+                        { label: 'Revenue £', key: 'Revenue £', type: 'number', w: 110 },
+                        { label: 'Units', key: 'Units', type: 'number', w: 70 },
+                        { label: 'Net Profit £', key: 'Net Profit £', type: 'number', w: 110 },
+                        { label: 'Margin %', key: 'Margin %', w: 90 },
+                        { label: 'Ad Spend £', key: 'Ad Spend £', type: 'number', w: 100 },
+                        { label: 'Sessions', key: 'Sessions', type: 'number', w: 80 },
+                      ]}
+                      renderRow={(p, i) => (
+                        <tr key={p.ASIN || i}>
+                          <td><strong style={{ fontSize: 12 }}>{fmt(p['Product Name'])}</strong></td>
+                          <td className="os-mono" style={{ fontSize: 11 }}>{fmt(p.ASIN)}</td>
+                          <td className="os-mono">{gbp(p['Revenue £'])}</td>
+                          <td className="os-mono">{fmt(p.Units)}</td>
+                          <td className="os-mono"><span style={{ color: p['Net Profit £'] >= 0 ? 'var(--green-600, #16a34a)' : 'var(--red-500, #ef4444)', fontWeight: 600 }}>{gbp(p['Net Profit £'])}</span></td>
+                          <td className="os-mono">{p['Margin %'] !== '—' ? `${p['Margin %']}%` : '—'}</td>
+                          <td className="os-mono">{gbp(p['Ad Spend £'])}</td>
+                          <td className="os-mono">{fmt(p.Sessions)}</td>
+                        </tr>
+                      )}
+                    />
+                }
+              </div>
+            )}
+
+            {/* Orders — from email capture (Amazon FBA shipped notifications) */}
+            {amzSalesSub === 'Orders' && (() => {
+              const filteredOrders = amazonOrders.filter(o => {
+                const d = new Date(o['Shipped Date'] || o['Order Date'] || o['Email Source Date']);
+                if (isNaN(d)) return true; // include if no date
+                return (!amzDateRange.from || d >= amzDateRange.from) && d <= amzDateRange.to;
+              }).sort((a, b) => new Date(b['Shipped Date'] || b['Order Date'] || 0) - new Date(a['Shipped Date'] || a['Order Date'] || 0));
+              const totalUnits = filteredOrders.reduce((s, o) => s + (Number(o.Quantity) || 0), 0);
+              return (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+                    <div className="wh-stat-card"><div className="wh-stat-label">Orders in Period</div><div className="wh-stat-val">{filteredOrders.length}</div></div>
+                    <div className="wh-stat-card"><div className="wh-stat-label">Units Shipped</div><div className="wh-stat-val">{totalUnits}</div></div>
+                    <div className="wh-stat-card"><div className="wh-stat-label">Total on Record</div><div className="wh-stat-val">{amazonOrders.length}</div></div>
+                    <div className="wh-stat-card" style={{ fontSize: 11, color: 'var(--muted, #6b7280)', maxWidth: 220, display: 'flex', alignItems: 'center' }}>
+                      <span>Source: Amazon FBA dispatched emails via Outlook capture · Revenue populated by Sellerboard</span>
+                    </div>
+                  </div>
+                  {!filteredOrders.length
+                    ? <div className="os-empty">No orders found for this period. The email capture runs daily and writes to this table automatically.</div>
+                    : <SortableTable
+                        data={filteredOrders}
+                        cols={[
+                          { label: 'Order ID', key: 'Order ID', w: 160 },
+                          { label: 'Shipped', key: 'Shipped Date', type: 'date', w: 100 },
+                          { label: 'Product', key: 'Product Name' },
+                          { label: 'ASIN', key: 'ASIN', w: 130 },
+                          { label: 'Qty', key: 'Quantity', type: 'number', w: 55 },
+                          { label: 'Revenue £', key: 'Revenue (£)', type: 'number', w: 100 },
+                          { label: 'Status', key: 'Status', w: 90 },
+                        ]}
+                        renderRow={(o) => (
+                          <tr key={o.id || o['Order ID']}>
+                            <td className="os-mono" style={{ fontSize: 10 }}>{fmt(o['Order ID'])}</td>
+                            <td className="os-mono" style={{ fontSize: 11 }}>{fmt(o['Shipped Date'] || o['Order Date'])}</td>
+                            <td style={{ fontSize: 12 }}>{fmt(o['Product Name'])}</td>
+                            <td className="os-mono" style={{ fontSize: 11 }}>{fmt(o.ASIN)}</td>
+                            <td className="os-mono">{fmt(o.Quantity)}</td>
+                            <td className="os-mono">{o['Revenue (£)'] ? gbp(o['Revenue (£)']) : <span style={{ color: 'var(--muted, #6b7280)', fontSize: 11 }}>—</span>}</td>
+                            <td>{o.Status ? <span className="os-pill pill-done">{o.Status}</span> : '—'}</td>
+                          </tr>
+                        )}
+                      />
+                  }
+                </div>
+              );
+            })()}
+          </>
+        );
+      })()}
 
       {/* ── Inbound (Bio-nature → Amazon FBA) ── */}
       {sub === 'Inbound' && (
@@ -3225,7 +3511,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
           {tab === 'Customer Service' && <CSTab items={cs} />}
           {tab === 'Finance' && section === 'Shopify UK' && <FinanceTab reconcile={reconcile} software={software} payouts={payouts} payoutsCsv={payoutsCsv || []} serverTime={serverTime} billing={billing} atSalesByProduct={atSalesByProduct} />}
           {tab === 'Finance' && section === 'Amazon UK'  && <AmazonFinanceTab reconcile={reconcile} disbursements={disbursements} />}
-          {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} tasks={tasks} priorities={priorities} marketing={marketing} inbound={inbound} reporting={reporting} ppc={ppc} reviews={reviews} dailyPnl={amazonDailyPnl} asinDaily={amazonAsinDaily} />}
+          {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} tasks={tasks} priorities={priorities} marketing={marketing} inbound={inbound} reporting={reporting} ppc={ppc} reviews={reviews} dailyPnl={amazonDailyPnl} asinDaily={amazonAsinDaily} amazonOrders={amazonOrders} />}
           {tab === 'Google'           && <GoogleTab section={section} />}
           {tab === 'Stock on Hand'    && <SOHTab soh={soh} sohSource={sohSource} />}
           {tab === 'Inbound Stock'    && <InboundTab inbound={inbound} />}
@@ -3239,7 +3525,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
 export async function getServerSideProps() {
   const safe = p => p.catch(e => { console.warn('[uk] fetch partial fail:', e.message); return []; });
 
-  const [tasks, priorities, risks, amazon, catalogue, shopifyProducts, airtableOrders, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, subscribers, amazonDailyPnl, amazonAsinDaily] = await Promise.all([
+  const [tasks, priorities, risks, amazon, catalogue, shopifyProducts, airtableOrders, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, subscribers, amazonDailyPnl, amazonAsinDaily, amazonOrders] = await Promise.all([
     safe(getUKTasks()), safe(getUKPriorities()), safe(getUKRisks()),
     safe(getUKAmazon()), safe(getUKAmazonCat()),
     safe(getUKShopify()), safe(getUKOrders()), safe(getUKDiscounts()), safe(getUKRefunds()), safe(getUKPayouts()),
@@ -3254,6 +3540,7 @@ export async function getServerSideProps() {
     safe(getAffiliateTraffic()), safe(getAffiliateTasks()), safe(getAffiliateProducts()),
     safe(getUKSubscribers()),
     safe(getUKAmazonDailyPnL()), safe(getUKAmazonAsinDaily()),
+    safe(getUKAmazonOrders()),
   ]);
 
   // Orders — Airtable is source of truth (populated by email capture scheduler)
@@ -3285,5 +3572,5 @@ export async function getServerSideProps() {
   const sohData = soh;
   const sohSource = 'airtable';
 
-  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers: subscribers || [], cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, amazonDailyPnl: amazonDailyPnl || [], amazonAsinDaily: amazonAsinDaily || [], error: null, serverTime: new Date().toISOString() } };
+  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers: subscribers || [], cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, amazonDailyPnl: amazonDailyPnl || [], amazonAsinDaily: amazonAsinDaily || [], amazonOrders: amazonOrders || [], error: null, serverTime: new Date().toISOString() } };
 }
