@@ -6,12 +6,8 @@
 import { useState, useMemo } from 'react';
 import OsLayout from '../components/OsLayout';
 import SortableTable from '../components/SortableTable';
-import { useStatusEditor, StatusSelect } from '../components/StatusSelect';
+import { useStatusEditor, StatusSelect, DONE_VALS, CANONICAL_STATUSES } from '../components/StatusSelect';
 import { getUKTasks, getSATasks, getMETasks } from '../lib/airtable';
-
-const DONE_VALS = new Set(['Done', 'Complete', 'Completed', 'Approved']);
-
-const BASE_STATUSES = ['Not Started', 'To Do', 'In Progress', 'Under Review', 'Done', 'Blocked', 'Cancelled'];
 
 /* Region base + table IDs — needed for inline status updates */
 const REGION_META = {
@@ -74,10 +70,8 @@ export default function AllTasksPage({ tasks, error }) {
 
   const editor = useStatusEditor(tasks);
 
-  const statuses = useMemo(() =>
-    [...new Set([...BASE_STATUSES, ...tasks.map(t => t.Status).filter(Boolean)])],
-    [tasks]
-  );
+  // Use canonical set — no emoji, no Airtable variants, no duplicates
+  const statuses = CANONICAL_STATUSES;
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();

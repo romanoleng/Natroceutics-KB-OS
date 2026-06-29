@@ -1245,11 +1245,12 @@ th.th-sort:hover { background: rgba(29,65,48,0.85); }
   border-radius: var(--radius-pill);
   white-space: nowrap;
 }
-.pill-done    { background: var(--green-ok-bg); color: var(--green-ok-fg); }
-.pill-progress{ background: var(--blue-bg);     color: var(--blue-fg); }
-.pill-todo    { background: var(--amber-bg);    color: var(--amber-fg); }
-.pill-blocked { background: var(--red-bg);      color: var(--red-fg); }
-.pill-default { background: var(--forest-100);  color: var(--forest-800); }
+.pill-done      { background: var(--green-ok-bg);       color: var(--green-ok-fg); }
+.pill-progress  { background: var(--blue-bg);           color: var(--blue-fg); }
+.pill-todo      { background: var(--amber-bg);          color: var(--amber-fg); }
+.pill-blocked   { background: var(--red-bg);            color: var(--red-fg); }
+.pill-cancelled { background: rgba(45,42,38,0.06);      color: rgba(45,42,38,0.40); }
+.pill-default   { background: var(--forest-100);        color: var(--forest-800); }
 
 /* ── STAT CARDS ──────────────────────────────── */
 .os-stat-row { display: flex; gap: 16px; flex-wrap: wrap; }

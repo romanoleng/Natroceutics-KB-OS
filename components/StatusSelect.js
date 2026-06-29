@@ -4,38 +4,87 @@
  *
  * Exports:
  *   useStatusEditor(data, fieldName)  — hook: optimistic state + Airtable PATCH, sessionStorage-backed
- *   StatusSelect     — editable status pill <select>
- *   DateCell         — inline date <input> that patches Airtable on change
- *   DONE_VALS        — Set of "done" status strings
- *   BASE_STATUSES    — default status option list
- *   sc(status)       — returns the CSS pill class for a given status string
+ *   StatusSelect        — editable status pill <select>
+ *   DateCell            — inline date <input> that patches Airtable on change
+ *   DONE_VALS           — Set of canonical "done" status strings
+ *   CANONICAL_STATUSES  — single source of truth for all status dropdowns site-wide
+ *   normalizeStatus(s)  — strips emoji/symbols + resolves aliases → canonical label
+ *   BASE_STATUSES       — alias for CANONICAL_STATUSES (back-compat)
+ *   sc(status)          — returns the CSS pill class for a given status string
  */
 import { useState, useMemo, useEffect, useRef } from 'react';
 
+// ── Canonical status set ────────────────────────────────────────────────────
+// This is the ONLY place statuses are defined. Every dropdown site-wide uses
+// this list. Adding a status here propagates to every page automatically.
+export const CANONICAL_STATUSES = [
+  'Not Started',
+  'In Progress',
+  'Under Review',
+  'Blocked',
+  'Cancelled',
+  'Done',
+];
+
+// Back-compat alias so older imports of BASE_STATUSES still work
+export const BASE_STATUSES = CANONICAL_STATUSES;
+
+// Done = completed/resolved — controls strikethrough + sinking rows
 export const DONE_VALS = new Set([
   'Done', 'Complete', 'Completed', 'Approved', 'Resolved', 'Closed',
 ]);
 
-export const BASE_STATUSES = [
-  'Not Started', 'To Do', 'In Progress', 'Under Review',
-  'Done', 'Blocked', 'Cancelled',
-];
+// ── Status normalization ────────────────────────────────────────────────────
+// Strips emoji, colored-dot prefixes, and extra whitespace injected by
+// Airtable singleSelect options, then resolves known aliases → canonical label.
+const EMOJI_RE = /[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}⌛⏰⚠️✅❌🔴🟡🟢⚪]/gu;
 
-const STATUS_CLASS = {
-  'Done': 'pill-done', 'Complete': 'pill-done', 'Completed': 'pill-done',
-  'Approved': 'pill-done', 'Registered': 'pill-done', 'Live': 'pill-done',
-  'Active': 'pill-done', 'Resolved': 'pill-done', 'Closed': 'pill-done',
-  'Paid': 'pill-done',
-  'In Progress': 'pill-progress', 'Under Review': 'pill-progress',
-  'Submitted': 'pill-progress', 'Active Expired': 'pill-progress', 'Mitigating': 'pill-progress',
-  'To Do': 'pill-todo', 'Not Started': 'pill-todo', 'Pending': 'pill-todo',
-  'Draft': 'pill-todo', 'Open': 'pill-todo',
-  'Blocked': 'pill-blocked', 'At Risk': 'pill-blocked', 'Rejected': 'pill-blocked',
-  'Overdue': 'pill-blocked',
+const ALIASES = {
+  'complete':      'Done',
+  'completed':     'Done',
+  'approved':      'Done',
+  'resolved':      'Done',
+  'closed':        'Done',
+  'registered':    'Done',
+  'live':          'Done',
+  'paid':          'Done',
+  'to do':         'Not Started',
+  'todo':          'Not Started',
+  'pending':       'Not Started',
+  'open':          'Not Started',
+  'draft':         'Not Started',
+  'waiting on':    'Under Review',
+  'submitted':     'Under Review',
+  'active expired':'Cancelled',
+  'rejected':      'Cancelled',
+  'at risk':       'Blocked',
+  'overdue':       'Blocked',
+  'mitigating':    'In Progress',
+  'active':        'In Progress',
 };
 
-export function sc(s) { return STATUS_CLASS[s] || 'pill-default'; }
+export function normalizeStatus(s) {
+  if (!s) return '';
+  const stripped = s.replace(EMOJI_RE, '').replace(/\s+/g, ' ').trim();
+  return ALIASES[stripped.toLowerCase()] || stripped;
+}
 
+// ── CSS pill class mapping ──────────────────────────────────────────────────
+const STATUS_CLASS = {
+  'Done':         'pill-done',
+  'In Progress':  'pill-progress',
+  'Under Review': 'pill-progress',
+  'Not Started':  'pill-todo',
+  'Blocked':      'pill-blocked',
+  'Cancelled':    'pill-cancelled',
+};
+
+export function sc(s) {
+  const n = normalizeStatus(s);
+  return STATUS_CLASS[n] || STATUS_CLASS[s] || 'pill-default';
+}
+
+// ── Airtable PATCH helper ───────────────────────────────────────────────────
 async function patchRecord(baseId, tableId, recordId, fields) {
   const res = await fetch('/api/update-record', {
     method: 'PATCH',
@@ -52,13 +101,12 @@ async function patchRecord(baseId, tableId, recordId, fields) {
  * useStatusEditor(data, fieldName)
  *
  * Manages optimistic field updates for a list of Airtable records.
- * Each record must carry _baseId and _tableId (injected by lib/airtable.js).
+ * Each record must carry _baseId and _tableId.
  *
- * Changes are persisted to sessionStorage keyed by base + table + fieldName so they
- * survive tab switches and section changes within the same browser session.
+ * Raw Airtable values (e.g. "🟢 Complete", "Waiting On") are normalized
+ * to canonical labels in dataWithStatus so all downstream logic is clean.
  *
- * @param {Array}  data      - array of Airtable records
- * @param {string} fieldName - which field to track and patch (default: 'Status')
+ * Changes persist to sessionStorage for the browser session.
  */
 export function useStatusEditor(data, fieldName = 'Status') {
   const [localStatus, setLocalStatus] = useState({});
@@ -66,7 +114,6 @@ export function useStatusEditor(data, fieldName = 'Status') {
   const [updateError, setUpdateError] = useState('');
   const hydrated = useRef(false);
 
-  // Stable storage key derived from the first record's table coordinates + field name.
   const storageKey = useMemo(() => {
     const r = data?.[0];
     if (!r?._baseId || !r?._tableId) return null;
@@ -74,7 +121,6 @@ export function useStatusEditor(data, fieldName = 'Status') {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.[0]?._baseId, data?.[0]?._tableId, fieldName]);
 
-  // Hydrate from sessionStorage on mount / when key changes (component remounts on tab switch)
   useEffect(() => {
     if (!storageKey) return;
     try {
@@ -84,18 +130,18 @@ export function useStatusEditor(data, fieldName = 'Status') {
     hydrated.current = true;
   }, [storageKey]);
 
-  // Persist to sessionStorage whenever localStatus changes
   useEffect(() => {
     if (!storageKey || !hydrated.current) return;
-    try {
-      sessionStorage.setItem(storageKey, JSON.stringify(localStatus));
-    } catch {}
+    try { sessionStorage.setItem(storageKey, JSON.stringify(localStatus)); } catch {}
   }, [localStatus, storageKey]);
 
   const dataWithStatus = useMemo(() =>
     (data || []).map(r => ({
       ...r,
-      [fieldName]: localStatus[r.id] !== undefined ? localStatus[r.id] : r[fieldName],
+      // User-changed values are already canonical; raw Airtable values are normalized here
+      [fieldName]: localStatus[r.id] !== undefined
+        ? localStatus[r.id]
+        : normalizeStatus(r[fieldName]),
     })),
     [data, localStatus, fieldName]
   );
@@ -128,25 +174,24 @@ export function useStatusEditor(data, fieldName = 'Status') {
  * StatusSelect
  *
  * Drop-in replacement for a static status pill. Renders an editable <select>.
+ * Always shows CANONICAL_STATUSES regardless of what allStatuses is passed — this
+ * eliminates emoji duplicates from Airtable singleSelect options site-wide.
  *
  * Props:
  *   record             — row record (must have .id, ._baseId, ._tableId)
- *   allStatuses        — option strings for the <select>
+ *   allStatuses        — ignored (kept for API back-compat); canonical list is always used
  *   handleStatusChange — from useStatusEditor
  *   saving             — from useStatusEditor
  *   fieldName          — which field to read/display (default: 'Status')
  */
 export function StatusSelect({ record, allStatuses, handleStatusChange, saving, fieldName = 'Status' }) {
-  const status = record[fieldName] || '';
-  const rawOptions = allStatuses?.length ? allStatuses : BASE_STATUSES;
-  // Case-insensitive dedup — prevents duplicates when Airtable casing differs from defaults
-  const seen = new Set();
-  const options = rawOptions.filter(s => {
-    const key = s.toLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  // dataWithStatus already normalizes, but guard here for records used outside useStatusEditor
+  const status = normalizeStatus(record[fieldName] || '');
+  // If the record somehow has a value outside the canonical set, append it
+  const options = CANONICAL_STATUSES.includes(status) || !status
+    ? CANONICAL_STATUSES
+    : [...CANONICAL_STATUSES, status];
+
   return (
     <select
       className={`os-pill status-select ${sc(status)}`}
@@ -155,9 +200,6 @@ export function StatusSelect({ record, allStatuses, handleStatusChange, saving, 
       disabled={!!saving[record.id]}
       onClick={e => e.stopPropagation()}
     >
-      {!options.some(s => s.toLowerCase() === status.toLowerCase()) && status && (
-        <option value={status}>{status}</option>
-      )}
       {options.map(s => <option key={s} value={s}>{s}</option>)}
     </select>
   );
@@ -185,14 +227,14 @@ export function DateCell({ record, fieldName }) {
   const [saving, setSaving] = useState(false);
 
   async function handleChange(e) {
-    const val = e.target.value; // 'YYYY-MM-DD' or ''
+    const val = e.target.value;
     setLocalDate(val);
     if (!record._baseId || !record._tableId) return;
     setSaving(true);
     try {
       await patchRecord(record._baseId, record._tableId, record.id, { [fieldName]: val || null });
     } catch {
-      setLocalDate(toInput(record[fieldName] || '')); // revert on error
+      setLocalDate(toInput(record[fieldName] || ''));
     } finally {
       setSaving(false);
     }
