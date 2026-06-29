@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import React from 'react';
 import RecordDetailPanel from './RecordDetailPanel';
+import { relativeDate, fullDate } from '../lib/dateUtils';
 
 /**
  * SortableTable — site-wide sortable table component
@@ -15,16 +16,38 @@ import RecordDetailPanel from './RecordDetailPanel';
  *   emptyMsg        String shown when data is empty (default: 'No records.')
  *   sinkCompleted   Field name (e.g. 'Status') — if set, rows whose value is in
  *                   DONE_VALUES are always sorted to the bottom, regardless of sort col.
+ *   hideDates       Set true to suppress the auto Date Created / Last Updated columns.
+ *
+ * Date columns (auto-appended unless hideDates={true}):
+ *   • "Created"     — always shown; reads createdTime (available on every Airtable record)
+ *   • "Updated"     — shown only when at least one row has a _updatedAt value
+ *                     Populated by normaliseRecord from a "Last Modified" Airtable field.
+ *                     Add a "Last modified time" field named "Last Modified" to any Airtable
+ *                     table and this column appears automatically for that table.
  *
  * Auto-expand:
  *   If a rendered <tr> does NOT already have an onClick prop, SortableTable
  *   automatically adds click-to-expand that opens RecordDetailPanel.
- *   To opt out for a specific row, add a no-op onClick to the <tr>:
- *     <tr key={r.id} onClick={null}>  — won't help, null is falsy
- *     <tr key={r.id} data-no-expand>  — not checked
- *   Instead pass noExpand={true} to the SortableTable to disable globally.
+ *   Pass noExpand={true} to disable globally.
  */
 const DONE_VALUES = new Set(['Done', 'Complete', 'Completed', 'Approved']);
+
+// Inline date cell style — compact, muted
+const dateCellStyle = {
+  fontSize: '0.72rem',
+  color: 'rgba(45,42,38,0.55)',
+  whiteSpace: 'nowrap',
+  letterSpacing: '0.01em',
+};
+
+function DateCell({ iso }) {
+  if (!iso) return <td style={dateCellStyle}>—</td>;
+  return (
+    <td style={dateCellStyle} title={fullDate(iso)}>
+      {relativeDate(iso)}
+    </td>
+  );
+}
 
 export default function SortableTable({
   cols,
@@ -33,15 +56,38 @@ export default function SortableTable({
   emptyMsg = 'No records.',
   sinkCompleted,
   noExpand,
+  hideDates = false,
 }) {
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
   const [detail, setDetail] = useState(null);
 
+  // Check once whether any row has _updatedAt — determines if "Updated" column shows
+  const hasUpdated = useMemo(
+    () => !hideDates && data.some(r => r._updatedAt),
+    [data, hideDates]
+  );
+  const showCreated = !hideDates;
+
+  // Build the full column list including date meta columns.
+  // Auto-Created is suppressed when the caller already defined a date-type column
+  // (e.g. ME tasks already shows "Date of Entry" — no need to duplicate).
+  const callerHasDateCol = useMemo(() => cols.some(c => c.type === 'date'), [cols]);
+
+  const allCols = useMemo(() => {
+    if (hideDates) return cols;
+    const meta = [];
+    if (showCreated && !callerHasDateCol)
+      meta.push({ label: 'Created', key: 'createdTime', type: 'date', w: 88 });
+    if (hasUpdated)
+      meta.push({ label: 'Updated', key: '_updatedAt', type: 'date', w: 88 });
+    return [...cols, ...meta];
+  }, [cols, hideDates, showCreated, hasUpdated, callerHasDateCol]);
+
   const sorted = useMemo(() => {
     let result = data;
     if (sortKey) {
-      const col = cols.find(c => c.key === sortKey);
+      const col = allCols.find(c => c.key === sortKey);
       const type = col?.type || 'string';
       result = [...data].sort((a, b) => {
         let av = a[sortKey], bv = b[sortKey];
@@ -64,7 +110,7 @@ export default function SortableTable({
       result = [...active, ...done];
     }
     return result;
-  }, [data, sortKey, sortDir, cols, sinkCompleted]);
+  }, [data, sortKey, sortDir, allCols, sinkCompleted]);
 
   function handleSort(key) {
     if (sortKey === key) {
@@ -83,7 +129,7 @@ export default function SortableTable({
         <table className="os-table">
           <thead>
             <tr>
-              {cols.map((c, i) => (
+              {allCols.map((c, i) => (
                 <th
                   key={i}
                   style={c.w ? { width: c.w } : {}}
@@ -103,11 +149,22 @@ export default function SortableTable({
           <tbody>
             {sorted.map((row, i) => {
               const el = renderRow(row, i);
-              // If caller already set onClick on the tr (e.g. TaskTable), don't interfere
-              if (noExpand || el.props.onClick) return el;
+              // Append date cells to the rendered <tr>
+              // Only inject Created cell if we actually added the Created header column
+              const injectCreated = showCreated && !callerHasDateCol;
+              const withDates = (!hideDates && (injectCreated || hasUpdated))
+                ? React.cloneElement(el, {}, [
+                    ...(React.Children.toArray(el.props.children)),
+                    injectCreated && <DateCell key="__created" iso={row.createdTime} />,
+                    hasUpdated    && <DateCell key="__updated" iso={row._updatedAt} />,
+                  ].filter(Boolean))
+                : el;
+
+              // If caller already set onClick on the tr, don't interfere
+              if (noExpand || withDates.props.onClick) return withDates;
               // Auto-expand: click row to open RecordDetailPanel
-              return React.cloneElement(el, {
-                style: { ...el.props.style, cursor: 'pointer' },
+              return React.cloneElement(withDates, {
+                style: { ...withDates.props.style, cursor: 'pointer' },
                 onClick: () => setDetail(row),
               });
             })}
