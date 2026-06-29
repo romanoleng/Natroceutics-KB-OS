@@ -800,6 +800,7 @@ export default function MEPage({ tasks, priorities, risks, registrations, invent
     if (router.query.tab && TABS.includes(router.query.tab)) setTab(router.query.tab);
   }, [router.query.tab]);
   const openRisks = risks.filter(r => !['Resolved','Closed','Done'].includes(r.Status)).length;
+  const openTasks = tasks.filter(t => !['Done','Complete','Completed','Approved'].includes(t.Status)).length;
   const registered = registrations.filter(r => ['Approved', 'Registered', 'Done', 'Complete'].includes(r['Registration Status'])).length;
   const eligibleME = registrations.filter(r => r['Eligible for ME Launch'] === true || r['Eligible for ME Launch'] === 'true').length;
 
@@ -810,7 +811,7 @@ export default function MEPage({ tasks, priorities, risks, registrations, invent
           <p className="os-eyebrow">Regional Module</p>
           <h1 className="os-region-title">🇦🇪 Middle East</h1>
           <div className="region-hero-stats">
-            <div className="rhs"><span className="rhs-num">{tasks.length}</span><span className="rhs-label">Launch Tasks</span></div>
+            <div className="rhs"><span className="rhs-num">{openTasks}</span><span className="rhs-label">Open Tasks</span></div>
             <div className="rhs"><span className="rhs-num">{registered}/{registrations.length}</span><span className="rhs-label">Registrations</span></div>
             <div className="rhs"><span className="rhs-num">{eligibleME}</span><span className="rhs-label">ME Launch Ready</span></div>
             <div className="rhs"><span className="rhs-num">{openRisks}</span><span className="rhs-label">Open Risks</span></div>

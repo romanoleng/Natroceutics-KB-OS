@@ -1111,7 +1111,12 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
     });
   }, [amazonTasks, taskSearch, taskStatus]);
 
-  const totalInbound = amazonInbound.reduce((s, i) => s + (Number(i['Inbound QTY']) || 0), 0);
+  // Active inbound = excludes Done/Completed rows (matching strikethrough logic)
+  const activeInbound = useMemo(
+    () => amazonInbound.filter(i => !DONE_VALS_SHARED.has(i.Status)),
+    [amazonInbound]
+  );
+  const totalInbound = activeInbound.reduce((s, i) => s + (Number(i['Inbound QTY']) || 0), 0);
 
   // Aggregate update errors
   const anyError = tasksEditor.updateError || catEditor.updateError || fbaEditor.updateError ||
@@ -1135,7 +1140,7 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
             <div className="os-stat-card"><div className="os-stat-num">{fba.length}</div><div className="os-stat-label">Amazon SKUs</div></div>
             <div className="os-stat-card"><div className="os-stat-num">{totalFBA.toLocaleString()}</div><div className="os-stat-label">FBA Units</div></div>
             <div className={`os-stat-card${reorderCount > 0 ? ' os-stat-red' : ' os-stat-green'}`}><div className="os-stat-num">{reorderCount}</div><div className="os-stat-label">Reorder Required</div></div>
-            <div className="os-stat-card"><div className="os-stat-num">{amazonInbound.length}</div><div className="os-stat-label">Inbound Lines</div></div>
+            <div className="os-stat-card"><div className="os-stat-num">{activeInbound.length}</div><div className="os-stat-label">Inbound Lines</div></div>
             <div className="os-stat-card"><div className="os-stat-num">{totalInbound.toLocaleString()}</div><div className="os-stat-label">Inbound Units</div></div>
             <div className={`os-stat-card${openTasks.length > 0 ? ' os-stat-amber' : ' os-stat-green'}`}><div className="os-stat-num">{openTasks.length}</div><div className="os-stat-label">Open Tasks</div></div>
           </div>
@@ -1791,8 +1796,8 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
               <span className="wh-banner-sub">Stock en route to FBA fulfilment centres</span>
             </div>
             <div className="wh-banner-stats">
-              <div className="wh-banner-stat"><span className="wh-banner-num">{amazonInbound.length}</span><span className="wh-banner-unit">Lines</span></div>
-              <div className="wh-banner-stat"><span className="wh-banner-num">{totalInbound.toLocaleString()}</span><span className="wh-banner-unit">Units</span></div>
+              <div className="wh-banner-stat"><span className="wh-banner-num">{activeInbound.length}</span><span className="wh-banner-unit">Active Lines</span></div>
+              <div className="wh-banner-stat"><span className="wh-banner-num">{totalInbound.toLocaleString()}</span><span className="wh-banner-unit">Active Units</span></div>
             </div>
           </div>
           <div style={{ marginTop: 16 }}>

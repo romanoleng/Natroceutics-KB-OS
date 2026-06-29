@@ -565,6 +565,7 @@ function WebinarTab({ items }) {
 export default function SAPage({ tasks, priorities, risks, inventory, finance, b2b, customers, marketing, cs, reporting, products, webinar = [], error, serverTime }) {
   const [tab, setTab] = useState('Tasks');
   const openRisks = risks.filter(r => !['Resolved','Closed','Done'].includes(r.Status)).length;
+  const openTasks = tasks.filter(t => !['Done','Complete','Completed','Approved'].includes(t.Status)).length;
 
   return (
     <OsLayout title="SA Dashboard" region="South Africa" airtableUrl="https://airtable.com/appz7wLo78sxzLhjV" serverTime={serverTime}>
@@ -573,7 +574,7 @@ export default function SAPage({ tasks, priorities, risks, inventory, finance, b
           <p className="os-eyebrow">Regional Module</p>
           <h1 className="os-region-title">🇿🇦 South Africa</h1>
           <div className="region-hero-stats">
-            <div className="rhs"><span className="rhs-num">{tasks.length}</span><span className="rhs-label">Tasks</span></div>
+            <div className="rhs"><span className="rhs-num">{openTasks}</span><span className="rhs-label">Open Tasks</span></div>
             <div className="rhs"><span className="rhs-num">{priorities.length}</span><span className="rhs-label">Priorities</span></div>
             <div className="rhs"><span className="rhs-num">{openRisks}</span><span className="rhs-label">Open Risks</span></div>
             <div className="rhs"><span className="rhs-num">{b2b.length}</span><span className="rhs-label">B2B Accounts</span></div>
