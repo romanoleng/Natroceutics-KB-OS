@@ -1326,6 +1326,7 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
                   { label: 'P30 Forecast', key: 'P30 Forecast £', type: 'number', w: 120 },
                   { label: 'Reorder', key: 'Reorder', w: 90 },
                   { label: 'Status', key: 'Status', w: 110 },
+                  { label: 'Last Updated', key: 'Last Updated', type: 'date', w: 120 },
                 ]}
                 data={fbaEditor.dataWithStatus}
                 sinkCompleted="Status"
@@ -1344,6 +1345,7 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
                     <td onClick={e => e.stopPropagation()}>
                       <StatusSelect record={p} allStatuses={fbaStatuses} handleStatusChange={fbaEditor.handleStatusChange} saving={fbaEditor.saving} />
                     </td>
+                    <td className="os-mono" style={{ fontSize: 11, color: 'var(--muted, #6b7280)' }}>{p['Last Updated'] ? new Date(p['Last Updated']).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</td>
                   </tr>
                   );
                 }}
