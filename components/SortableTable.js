@@ -20,10 +20,9 @@ import { relativeDate, fullDate } from '../lib/dateUtils';
  *
  * Date columns (auto-appended unless hideDates={true}):
  *   • "Created"     — always shown; reads createdTime (available on every Airtable record)
- *   • "Updated"     — shown only when at least one row has a _updatedAt value
- *                     Populated by normaliseRecord from a "Last Modified" Airtable field.
- *                     Add a "Last modified time" field named "Last Modified" to any Airtable
- *                     table and this column appears automatically for that table.
+ *   • "Updated"     — always shown; reads _updatedAt when available (from "Last Modified"
+ *                     Airtable field), falls back to createdTime. Add a "Last modified time"
+ *                     field named "Last Modified" to any table to get real update timestamps.
  *
  * Auto-expand:
  *   If a rendered <tr> does NOT already have an onClick prop, SortableTable
@@ -62,11 +61,8 @@ export default function SortableTable({
   const [sortDir, setSortDir] = useState('asc');
   const [detail, setDetail] = useState(null);
 
-  // Check once whether any row has _updatedAt — determines if "Updated" column shows
-  const hasUpdated = useMemo(
-    () => !hideDates && data.some(r => r._updatedAt),
-    [data, hideDates]
-  );
+  // "Updated" always shows — uses _updatedAt when available, falls back to createdTime
+  const hasUpdated = !hideDates;
   const showCreated = !hideDates;
 
   // Build the full column list including date meta columns.
@@ -156,7 +152,7 @@ export default function SortableTable({
                 ? React.cloneElement(el, {}, [
                     ...(React.Children.toArray(el.props.children)),
                     injectCreated && <DateCell key="__created" iso={row.createdTime} />,
-                    hasUpdated    && <DateCell key="__updated" iso={row._updatedAt} />,
+                    hasUpdated    && <DateCell key="__updated" iso={row._updatedAt || row.createdTime} />,
                   ].filter(Boolean))
                 : el;
 
