@@ -860,14 +860,18 @@ a { text-decoration: none; color: inherit; }
   font-size: inherit;
   font-weight: inherit;
   padding-right: 20px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236b7c72' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  /* Force dark green / white regardless of which pill class is applied */
+  background-color: var(--forest-800) !important;
+  color: #ffffff !important;
+  /* White chevron */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23ffffff' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 5px center;
   background-size: 10px;
   outline: none;
 }
 .status-select:disabled { opacity: 0.6; cursor: not-allowed; }
-.status-select:focus { box-shadow: 0 0 0 2px rgba(29,65,48,0.25); border-radius: 2px; }
+.status-select:focus { box-shadow: 0 0 0 2px rgba(29,65,48,0.35); border-radius: 2px; }
 
 /* ── REGION SWITCHER ─────────────────────────── */
 .os-region-switcher {
@@ -1245,13 +1249,13 @@ th.th-sort:hover { background: rgba(29,65,48,0.85); }
   border-radius: var(--radius-pill);
   white-space: nowrap;
 }
-/* Status pills — Natroceutics brand green palette */
-.pill-done      { background: var(--ok-bg);        color: var(--ok-fg); }           /* green: achieved  */
-.pill-progress  { background: var(--forest-100);   color: var(--forest-700); }       /* light green: moving */
-.pill-todo      { background: var(--cream-dark);   color: var(--charcoal-70); }      /* cream: not yet    */
-.pill-blocked   { background: var(--red-bg);       color: var(--red); }              /* red: danger       */
-.pill-cancelled { background: rgba(45,42,38,0.06); color: rgba(45,42,38,0.40); }    /* muted: inactive   */
-.pill-default   { background: var(--forest-100);   color: var(--forest-800); }
+/* Status pills — dark green / white across the board */
+.pill-done      { background: var(--forest-800); color: #ffffff; }
+.pill-progress  { background: var(--forest-800); color: #ffffff; }
+.pill-todo      { background: var(--forest-800); color: #ffffff; }
+.pill-blocked   { background: var(--red);        color: #ffffff; }
+.pill-cancelled { background: rgba(45,42,38,0.12); color: rgba(45,42,38,0.45); }
+.pill-default   { background: var(--forest-800); color: #ffffff; }
 
 /* ── STAT CARDS ──────────────────────────────── */
 .os-stat-row { display: flex; gap: 16px; flex-wrap: wrap; }
