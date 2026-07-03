@@ -3,6 +3,16 @@ import Layout from '../components/Layout';
 import SortableTable from '../components/SortableTable';
 import { getContacts } from '../lib/airtable';
 
+function downloadCSV(rows, filename) {
+  if (!rows || !rows.length) return;
+  const keys = Object.keys(rows[0]).filter(k => !k.startsWith('_'));
+  const csv = [keys.join(','), ...rows.map(r => keys.map(k => JSON.stringify(r[k] ?? '')).join(','))].join('\n');
+  const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = filename + '.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+const csvBtnStyle = { fontSize: 11, fontWeight: 600, padding: '4px 10px', border: '1px solid var(--cream-dark)', borderRadius: 6, background: 'transparent', color: 'var(--forest-600)', cursor: 'pointer' };
+
 export default function ContactsPage({ contacts, error }) {
   const [search, setSearch] = useState('');
   const [cat, setCat] = useState('');
@@ -64,7 +74,12 @@ export default function ContactsPage({ contacts, error }) {
           </div>
         )}
 
-        <p className="results-label">{filtered.length} contact{filtered.length !== 1 ? 's' : ''}</p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <p className="results-label">{filtered.length} contact{filtered.length !== 1 ? 's' : ''}</p>
+          {filtered.length > 8 && (
+            <button style={csvBtnStyle} onClick={() => downloadCSV(filtered, 'vendor-contacts')}>↓ CSV</button>
+          )}
+        </div>
 
         <SortableTable
           cols={[

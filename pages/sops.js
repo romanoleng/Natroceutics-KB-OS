@@ -4,6 +4,16 @@ import { getSOPs } from '../lib/airtable';
 
 const STATUS_BADGE = { 'Live': 'badge-live', 'Draft': 'badge-draft', 'To Build': 'badge-build' };
 
+function downloadCSV(rows, filename) {
+  if (!rows || !rows.length) return;
+  const keys = Object.keys(rows[0]).filter(k => !k.startsWith('_'));
+  const csv = [keys.join(','), ...rows.map(r => keys.map(k => JSON.stringify(r[k] ?? '')).join(','))].join('\n');
+  const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = filename + '.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+const csvBtnStyle = { fontSize: 11, fontWeight: 600, padding: '4px 10px', border: '1px solid var(--cream-dark)', borderRadius: 6, background: 'transparent', color: 'var(--forest-600)', cursor: 'pointer' };
+
 export default function SOPsPage({ sops, error }) {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
@@ -67,7 +77,12 @@ export default function SOPsPage({ sops, error }) {
           </div>
         )}
 
-        <p className="results-label">{filtered.length} SOP{filtered.length !== 1 ? 's' : ''}</p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <p className="results-label">{filtered.length} SOP{filtered.length !== 1 ? 's' : ''}</p>
+          {filtered.length > 8 && (
+            <button style={csvBtnStyle} onClick={() => downloadCSV(filtered, 'sop-library')}>↓ CSV</button>
+          )}
+        </div>
 
         {filtered.length === 0 ? (
           <div className="empty-state"><h3>No SOPs found</h3><p>Adjust your filters.</p></div>

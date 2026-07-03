@@ -4,6 +4,16 @@ import { getRegulatory } from '../lib/airtable';
 
 const STATUS_BADGE = { 'Compliant': 'badge-live', 'In Progress': 'badge-draft', 'Pending': 'badge-build', 'Not Started': 'badge-build' };
 
+function downloadCSV(rows, filename) {
+  if (!rows || !rows.length) return;
+  const keys = Object.keys(rows[0]).filter(k => !k.startsWith('_'));
+  const csv = [keys.join(','), ...rows.map(r => keys.map(k => JSON.stringify(r[k] ?? '')).join(','))].join('\n');
+  const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = filename + '.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+const csvBtnStyle = { fontSize: 11, fontWeight: 600, padding: '4px 10px', border: '1px solid var(--cream-dark)', borderRadius: 6, background: 'transparent', color: 'var(--forest-600)', cursor: 'pointer' };
+
 export default function RegulatoryPage({ items, error }) {
   const [search, setSearch] = useState('');
   const [region, setRegion] = useState('');
@@ -64,7 +74,12 @@ export default function RegulatoryPage({ items, error }) {
           </div>
         )}
 
-        <p className="results-label">{filtered.length} item{filtered.length !== 1 ? 's' : ''}</p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <p className="results-label">{filtered.length} item{filtered.length !== 1 ? 's' : ''}</p>
+          {filtered.length > 8 && (
+            <button style={csvBtnStyle} onClick={() => downloadCSV(filtered, 'regulatory-tracker')}>↓ CSV</button>
+          )}
+        </div>
 
         {filtered.length === 0 ? (
           <div className="empty-state"><h3>No items found</h3><p>Try adjusting your filters.</p></div>

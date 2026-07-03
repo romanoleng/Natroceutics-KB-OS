@@ -18,6 +18,16 @@ const REGION_META = {
 
 function fmt(v) { return (v === null || v === undefined || v === '') ? '—' : v; }
 
+function downloadCSV(rows, filename) {
+  if (!rows || !rows.length) return;
+  const keys = Object.keys(rows[0]).filter(k => !k.startsWith('_'));
+  const csv = [keys.join(','), ...rows.map(r => keys.map(k => JSON.stringify(r[k] ?? '')).join(','))].join('\n');
+  const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = filename + '.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+const csvBtnStyle = { fontSize: 11, fontWeight: 600, padding: '4px 10px', border: '1px solid var(--cream-dark)', borderRadius: 6, background: 'transparent', color: 'var(--forest-600)', cursor: 'pointer', whiteSpace: 'nowrap' };
+
 /* Priority pill colours */
 const PRIORITY_STYLE = {
   'High':   { background: 'rgba(217,119,6,0.12)',  color: '#b45309', border: '1px solid rgba(217,119,6,0.3)' },
@@ -133,6 +143,9 @@ export default function AllTasksPage({ tasks, error }) {
             </select>
           )}
           <span className="os-count">{filtered.length} task{filtered.length !== 1 ? 's' : ''}</span>
+          {filtered.length > 8 && (
+            <button style={csvBtnStyle} onClick={() => downloadCSV(filtered, 'all-tasks')}>↓ CSV</button>
+          )}
         </div>
 
         <SortableTable
