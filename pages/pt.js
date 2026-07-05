@@ -32,6 +32,16 @@ function fmtDate(raw) {
 const DONE_VALS_PT = new Set(['Done', 'Complete', 'Completed', 'Approved']);
 const BASE_STATUSES_PT = ['Not Started', 'To Do', 'In Progress', 'Under Review', 'Done', 'Blocked', 'Cancelled'];
 
+function downloadCSV(rows, filename) {
+  if (!rows || !rows.length) return;
+  const keys = Object.keys(rows[0]).filter(k => !k.startsWith('_'));
+  const csv = [keys.join(','), ...rows.map(r => keys.map(k => JSON.stringify(r[k] ?? '')).join(','))].join('\n');
+  const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = filename + '.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+const csvBtnStyle = { fontSize: 11, fontWeight: 600, padding: '4px 10px', border: '1px solid var(--cream-dark)', borderRadius: 6, background: 'transparent', color: 'var(--forest-600)', cursor: 'pointer', whiteSpace: 'nowrap' };
+const csvRowStyle = { display: 'flex', justifyContent: 'flex-end', margin: '12px 0 6px' };
+
 async function patchPTRecord(tableId, recordId, fields) {
   const res = await fetch('/api/update-record', {
     method: 'PATCH',
@@ -97,6 +107,7 @@ function TaskTable({ tasks }) {
           </select>
         )}
         <span className="os-count">{filtered.length} task{filtered.length !== 1 ? 's' : ''}</span>
+        <button style={csvBtnStyle} onClick={() => downloadCSV(dataWithStatus, 'pt-tasks')}>↓ CSV</button>
       </div>
       <SortableTable
         cols={[
@@ -221,7 +232,10 @@ function InventoryTab({ items }) {
           <div className="os-stat-card os-stat-green"><div className="os-stat-num">{items.length - lowStock.length}</div><div className="os-stat-label">Adequate Stock</div></div>
         </div>
       )}
-      <div style={{marginTop: lowStock.length ? 24 : 0}}>
+      <div style={{...csvRowStyle, marginTop: lowStock.length ? 16 : 0}}>
+        <button style={csvBtnStyle} onClick={() => downloadCSV(editor.dataWithStatus, 'pt-inventory')}>↓ CSV</button>
+      </div>
+      <div>
         <SortableTable
           cols={[
             { label: 'Product', key: 'Product Name' },
@@ -261,6 +275,9 @@ function FinanceTab({ items }) {
   return (
     <>
       {editor.updateError && <div className="os-alert-error" style={{ marginBottom: 8 }}>{editor.updateError}</div>}
+      <div style={csvRowStyle}>
+        <button style={csvBtnStyle} onClick={() => downloadCSV(editor.dataWithStatus, 'pt-finance')}>↓ CSV</button>
+      </div>
       <SortableTable
         cols={[
           { label: 'Period', key: 'Period' },
@@ -282,7 +299,7 @@ function FinanceTab({ items }) {
               <td className="os-mono">{r['Revenue (EUR)'] ? `€${Number(r['Revenue (EUR)']).toLocaleString()}` : '—'}</td>
               <td className="os-mono">{r['Revenue (GBP)'] ? `£${Number(r['Revenue (GBP)']).toLocaleString()}` : '—'}</td>
               <td className="os-mono">{r['Platform Fees'] ? `€${Number(r['Platform Fees']).toLocaleString()}` : '—'}</td>
-              <td className="os-mono">{r['Net Revenue'] ? `€${Number(r['Net Revenue']).toLocaleString()}` : '—'}</td>
+              <td className="os-mono" style={r['Net Revenue'] ? { color: Number(r['Net Revenue']) < 0 ? '#dc2626' : '#16a34a', fontWeight: 600 } : {}}>{r['Net Revenue'] ? `€${Number(r['Net Revenue']).toLocaleString()}` : '—'}</td>
               <td onClick={e => e.stopPropagation()}>
                 <StatusSelect record={r} allStatuses={finStatuses} handleStatusChange={editor.handleStatusChange} saving={editor.saving} />
               </td>
@@ -308,7 +325,10 @@ function B2BTab({ items }) {
         <div className="os-stat-card os-stat-green"><div className="os-stat-num">{active.length}</div><div className="os-stat-label">Active Accounts</div></div>
         <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Total Accounts</div></div>
       </div>
-      <div style={{marginTop:24}}>
+      <div style={{...csvRowStyle, marginTop: 16}}>
+        <button style={csvBtnStyle} onClick={() => downloadCSV(editor.dataWithStatus, 'pt-b2b')}>↓ CSV</button>
+      </div>
+      <div>
         <SortableTable
           cols={[
             { label: 'Account', key: 'Account Name' },
@@ -348,6 +368,9 @@ function CustomersTab({ items }) {
   return (
     <>
       {editor.updateError && <div className="os-alert-error" style={{ marginBottom: 8 }}>{editor.updateError}</div>}
+      <div style={csvRowStyle}>
+        <button style={csvBtnStyle} onClick={() => downloadCSV(editor.dataWithStatus, 'pt-customers')}>↓ CSV</button>
+      </div>
       <SortableTable
         cols={[
           { label: 'Customer', key: 'Customer Name' },
@@ -391,7 +414,10 @@ function AffiliatesTab({ items }) {
         <div className="os-stat-card os-stat-green"><div className="os-stat-num">{active.length}</div><div className="os-stat-label">Active Affiliates</div></div>
         <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Total Affiliates</div></div>
       </div>
-      <div style={{marginTop:24}}>
+      <div style={{...csvRowStyle, marginTop: 16}}>
+        <button style={csvBtnStyle} onClick={() => downloadCSV(editor.dataWithStatus, 'pt-affiliates')}>↓ CSV</button>
+      </div>
+      <div>
         <SortableTable
           cols={[
             { label: 'Affiliate', key: 'Affiliate Name' },
@@ -429,6 +455,9 @@ function MarketingTab({ items }) {
   return (
     <>
       {editor.updateError && <div className="os-alert-error" style={{ marginBottom: 8 }}>{editor.updateError}</div>}
+      <div style={csvRowStyle}>
+        <button style={csvBtnStyle} onClick={() => downloadCSV(editor.dataWithStatus, 'pt-marketing')}>↓ CSV</button>
+      </div>
       <SortableTable
         cols={[
           { label: 'Campaign', key: 'Campaign / Launch' },
@@ -476,7 +505,10 @@ function CSTab({ items }) {
         <div className="os-stat-card os-stat-red"><div className="os-stat-num">{open.length}</div><div className="os-stat-label">Open Tickets</div></div>
         <div className="os-stat-card os-stat-green"><div className="os-stat-num">{items.length - open.length}</div><div className="os-stat-label">Resolved</div></div>
       </div>
-      <div style={{marginTop:24}}>
+      <div style={{...csvRowStyle, marginTop: 16}}>
+        <button style={csvBtnStyle} onClick={() => downloadCSV(csEditor.dataWithStatus, 'pt-customer-service')}>↓ CSV</button>
+      </div>
+      <div>
         <SortableTable
           cols={[
             { label: 'Ticket / Reference', key: 'Ticket ID / Reference' },
@@ -520,6 +552,9 @@ function ReportingTab({ items }) {
   return (
     <>
       {editor.updateError && <div className="os-alert-error" style={{ marginBottom: 8 }}>{editor.updateError}</div>}
+      <div style={csvRowStyle}>
+        <button style={csvBtnStyle} onClick={() => downloadCSV(editor.dataWithStatus, 'pt-reporting')}>↓ CSV</button>
+      </div>
       <SortableTable
         cols={[
           { label: 'Period', key: 'Report Period' },

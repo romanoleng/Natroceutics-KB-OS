@@ -11,6 +11,16 @@ import { sc } from '../components/StatusSelect';
 
 function fmt(v){ return (v===null||v===undefined||v==='')?'—':v; }
 
+function downloadCSV(rows, filename) {
+  if (!rows || !rows.length) return;
+  const keys = Object.keys(rows[0]).filter(k => !k.startsWith('_'));
+  const csv = [keys.join(','), ...rows.map(r => keys.map(k => JSON.stringify(r[k] ?? '')).join(','))].join('\n');
+  const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = filename + '.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+const csvBtnStyle = { fontSize: 11, fontWeight: 600, padding: '4px 10px', border: '1px solid var(--cream-dark)', borderRadius: 6, background: 'transparent', color: 'var(--forest-600)', cursor: 'pointer', whiteSpace: 'nowrap' };
+const csvRowStyle = { display: 'flex', justifyContent: 'flex-end', margin: '12px 0 6px' };
+
 /* ── SOPs ─────────────────────────────────────── */
 function SOPsTab({ items }) {
   const [srch,setSrch] = useState('');
@@ -23,6 +33,7 @@ function SOPsTab({ items }) {
       <div className="os-toolbar">
         <input className="os-search" placeholder="Search SOPs…" value={srch} onChange={e=>setSrch(e.target.value)}/>
         <span className="os-count">{filtered.length} SOPs</span>
+        <button style={csvBtnStyle} onClick={() => downloadCSV(filtered, 'kb-sops')}>↓ CSV</button>
       </div>
       <SortableTable
         cols={[
@@ -71,6 +82,7 @@ function ContactsTab({ items }) {
         <input className="os-search" placeholder="Search contacts…" value={srch} onChange={e=>setSrch(e.target.value)}/>
         {roles.length>0&&<select className="os-select" value={roleFilter} onChange={e=>setRoleFilter(e.target.value)}><option value="">All Roles</option>{roles.map(r=><option key={r} value={r}>{r}</option>)}</select>}
         <span className="os-count">{filtered.length} contacts</span>
+        <button style={csvBtnStyle} onClick={() => downloadCSV(filtered, 'kb-contacts')}>↓ CSV</button>
       </div>
       <SortableTable
         cols={[
@@ -102,6 +114,10 @@ function ContactsTab({ items }) {
 function PlatformsTab({ items }) {
   if(!items.length) return <div className="os-empty">No platforms logged.</div>;
   return (
+    <>
+    <div style={csvRowStyle}>
+      <button style={csvBtnStyle} onClick={() => downloadCSV(items, 'kb-platforms')}>↓ CSV</button>
+    </div>
     <SortableTable
       cols={[
         { label: 'Platform', key: 'Platform' },
@@ -124,6 +140,7 @@ function PlatformsTab({ items }) {
       )}
       emptyMsg="No platforms logged."
     />
+    </>
   );
 }
 
@@ -131,6 +148,10 @@ function PlatformsTab({ items }) {
 function RegulatoryTab({ items }) {
   if(!items.length) return <div className="os-empty">No regulatory items.</div>;
   return (
+    <>
+    <div style={csvRowStyle}>
+      <button style={csvBtnStyle} onClick={() => downloadCSV(items, 'kb-regulatory')}>↓ CSV</button>
+    </div>
     <SortableTable
       cols={[
         { label: 'Item', key: 'Item' },
@@ -155,6 +176,7 @@ function RegulatoryTab({ items }) {
       )}
       emptyMsg="No regulatory items."
     />
+    </>
   );
 }
 
@@ -178,6 +200,7 @@ function BrandAssetsTab({ items }) {
         <input className="os-search" placeholder="Search assets…" value={srch} onChange={e=>setSrch(e.target.value)}/>
         {cats.length>0&&<select className="os-select" value={cat} onChange={e=>setCat(e.target.value)}><option value="">All Categories</option>{cats.map(c=><option key={c} value={c}>{c}</option>)}</select>}
         <span className="os-count">{filtered.length} assets</span>
+        <button style={csvBtnStyle} onClick={() => downloadCSV(filtered, 'kb-brand-assets')}>↓ CSV</button>
       </div>
       <SortableTable
         cols={[
@@ -216,6 +239,7 @@ function CompanyInfoTab({ items }) {
       <div className="os-toolbar">
         {cats.length>0&&<select className="os-select" value={cat} onChange={e=>setCat(e.target.value)}><option value="">All Categories</option>{cats.map(c=><option key={c} value={c}>{c}</option>)}</select>}
         <span className="os-count">{filtered.length} records</span>
+        <button style={csvBtnStyle} onClick={() => downloadCSV(filtered, 'kb-company-info')}>↓ CSV</button>
       </div>
       <SortableTable
         cols={[
@@ -263,6 +287,7 @@ function TemplatesTab({ items }) {
         <input className="os-search" placeholder="Search templates…" value={srch} onChange={e=>setSrch(e.target.value)}/>
         {cats.length>0&&<select className="os-select" value={cat} onChange={e=>setCat(e.target.value)}><option value="">All Categories</option>{cats.map(c=><option key={c} value={c}>{c}</option>)}</select>}
         <span className="os-count">{filtered.length} templates</span>
+        <button style={csvBtnStyle} onClick={() => downloadCSV(filtered, 'kb-templates')}>↓ CSV</button>
       </div>
       <SortableTable
         cols={[
@@ -310,6 +335,7 @@ function TrainingTab({ items }) {
         <input className="os-search" placeholder="Search resources…" value={srch} onChange={e=>setSrch(e.target.value)}/>
         {cats.length>0&&<select className="os-select" value={cat} onChange={e=>setCat(e.target.value)}><option value="">All Categories</option>{cats.map(c=><option key={c} value={c}>{c}</option>)}</select>}
         <span className="os-count">{filtered.length} resources</span>
+        <button style={csvBtnStyle} onClick={() => downloadCSV(filtered, 'kb-training')}>↓ CSV</button>
       </div>
       <SortableTable
         cols={[

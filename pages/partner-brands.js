@@ -11,6 +11,15 @@ import { getPartnerBrands } from '../lib/airtable';
 function fmt(v) { return (v === null || v === undefined || v === '') ? '—' : v; }
 function zar(v) { return v ? `R ${Number(v).toFixed(2)}` : '—'; }
 
+function downloadCSV(rows, filename) {
+  if (!rows || !rows.length) return;
+  const keys = Object.keys(rows[0]).filter(k => !k.startsWith('_'));
+  const csv = [keys.join(','), ...rows.map(r => keys.map(k => JSON.stringify(r[k] ?? '')).join(','))].join('\n');
+  const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = filename + '.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+const csvBtnStyle = { fontSize: 11, fontWeight: 600, padding: '4px 10px', border: '1px solid var(--cream-dark)', borderRadius: 6, background: 'transparent', color: 'var(--forest-600)', cursor: 'pointer', whiteSpace: 'nowrap' };
+
 const CHANNEL_CLASS = {
   'Practitioner': 'pill-done',
   'Doctor only':  'pill-blocked',
@@ -85,6 +94,7 @@ export default function PartnerBrandsPage({ products, error }) {
             onChange={e => setSearch(e.target.value)}
           />
           <span className="os-count">{filtered.length} products</span>
+          <button style={csvBtnStyle} onClick={() => downloadCSV(filtered, 'partner-brands-products')}>↓ CSV</button>
         </div>
 
         {/* ── Brand cards ── */}
