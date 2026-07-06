@@ -16,7 +16,7 @@ import {
   getUKAffiliates, getUKMarketing, getUKSubscriptions, getUKSubscribers,
   getUKEmailList, getUKPPC,
   getAffiliates, getAffiliateSales, getAffiliatePayouts, getAffiliateTraffic, getAffiliateTasks, getAffiliateProducts,
-  getUKAmazonReviews, getUKBionature, getUKBilling, getUKSalesByProduct,
+  getUKAmazonReviews, getUKBionature, getUKBilling, getUKSalesByProduct, getUKRSPTracker,
   getProducts,
 } from '../lib/airtable';
 import { getLocalDailySales, getLocalSalesByProduct, getLocalPayouts } from '../lib/shopify';
@@ -1003,7 +1003,7 @@ function GoogleTab({ section = 'Shopify UK' }) {
 }
 
 /* ── Amazon UK — full hub ─────────────────────── */
-function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, reporting, ppc = [], reviews = [] }) {
+function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, reporting, ppc = [], reviews = [], rspTracker = [] }) {
   const [sub, setSub] = useState('Overview');
   const [taskSearch, setTaskSearch] = useState('');
   const [taskStatus, setTaskStatus] = useState('');
@@ -1013,6 +1013,8 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
   const [amzCustomFrom, setAmzCustomFrom] = useState('');
   const [amzCustomTo, setAmzCustomTo] = useState('');
   const [amzSalesSub, setAmzSalesSub] = useState('Summary');
+  const [rspSearch, setRspSearch] = useState('');
+  const [rspFilter, setRspFilter] = useState('All');
 
   // Sales data — loaded client-side only when Sales tab is first clicked (keeps SSR payload small)
   const [salesData, setSalesData] = useState({ dailyPnl: [], asinDaily: [], amazonOrders: [] });
@@ -1034,7 +1036,7 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
   const asinDaily = salesData.asinDaily;
   const amazonOrders = salesData.amazonOrders;
 
-  const AMZ_SUBS = ['Overview', 'Tasks', 'Priorities', 'FBA Stock', 'Sales', 'Daily P&L', 'ASIN Performance', 'Inbound', 'Catalogue', 'Marketing', 'PPC', 'Reviews', 'Reporting'];
+  const AMZ_SUBS = ['Overview', 'Tasks', 'Priorities', 'FBA Stock', 'Sales', 'Daily P&L', 'ASIN Performance', 'Inbound', 'Catalogue', 'Marketing', 'PPC', 'Reviews', 'RSP & Pricing', 'Reporting'];
 
   // Status editors — one per dataset so each table has independent optimistic state
   const tasksEditor    = useStatusEditor(tasks);
@@ -1988,6 +1990,126 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
 
       {/* ── Reviews ── */}
       {sub === 'Reviews' && <AmazonReviewsTab reviews={reviews} />}
+
+      {/* ── RSP & Pricing Monitor ── */}
+      {sub === 'RSP & Pricing' && (() => {
+        const active = rspTracker.filter(r => r['SC Status'] === 'Active');
+        const inactive = rspTracker.filter(r => r['SC Status'] === 'Inactive');
+        const flagged = active.filter(r => (Number(r['Consumer Discount %']) || 0) >= 10);
+        const pending = active.filter(r => r['Confirmation Status'] === 'Pending Confirmation');
+        const filtered = active.filter(r => {
+          const q = rspSearch.toLowerCase();
+          const mQ = !q || (r.Product || '').toLowerCase().includes(q) || (r.ASIN || '').toLowerCase().includes(q);
+          const disc = Number(r['Consumer Discount %']) || 0;
+          const mF = rspFilter === 'All' || (rspFilter === 'Flagged ≥10%' && disc >= 10) || (rspFilter === 'Pending' && r['Confirmation Status'] === 'Pending Confirmation') || (rspFilter === 'Clear <10%' && disc < 10 && disc >= 0);
+          return mQ && mF;
+        });
+        return (
+          <>
+            <div className="wh-banner" style={{ marginTop: 16 }}>
+              <div className="wh-banner-inner">
+                <span className="wh-banner-label">RSP &amp; Pricing Monitor</span>
+                <span className="wh-banner-sub">Amazon UK · Source: Seller Central + June 2026 Transaction Report</span>
+              </div>
+              <div className="wh-banner-stats">
+                <div className="wh-banner-stat"><span className="wh-banner-num">{active.length}</span><span className="wh-banner-unit">Active ASINs</span></div>
+                <div className="wh-banner-stat"><span className="wh-banner-num" style={{ color: flagged.length > 0 ? '#ef4444' : 'inherit' }}>{flagged.length}</span><span className="wh-banner-unit">Flagged ≥10%</span></div>
+                <div className="wh-banner-stat"><span className="wh-banner-num" style={{ color: '#d97706' }}>{pending.length}</span><span className="wh-banner-unit">Pending Confirm</span></div>
+                <div className="wh-banner-stat"><span className="wh-banner-num" style={{ color: 'rgba(45,42,38,.45)' }}>{inactive.length}</span><span className="wh-banner-unit">Inactive</span></div>
+              </div>
+            </div>
+            {flagged.length > 0 && (
+              <div className="os-alert-error" style={{ marginTop: 12, marginBottom: 0 }}>
+                ⚠ {flagged.length} ASIN{flagged.length > 1 ? 's' : ''} with consumer discount ≥ 10% — confirm live Buy Box price with Kunle / CC agency.
+              </div>
+            )}
+            <div className="os-toolbar" style={{ marginTop: 14 }}>
+              <input className="os-search" placeholder="Search product or ASIN…" value={rspSearch} onChange={e => setRspSearch(e.target.value)} />
+              <select className="os-select" value={rspFilter} onChange={e => setRspFilter(e.target.value)}>
+                <option value="All">All Active</option>
+                <option value="Flagged ≥10%">Flagged ≥10%</option>
+                <option value="Clear <10%">Clear &lt;10%</option>
+                <option value="Pending">Pending Confirm</option>
+              </select>
+              <span className="os-count">{filtered.length} SKUs</span>
+            </div>
+            <div style={{ overflowX: 'auto', marginTop: 4 }}>
+              <table className="os-table">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th style={{ width: 130 }}>ASIN</th>
+                    <th style={{ width: 110, textAlign: 'right' }}>SC Listed Price</th>
+                    <th style={{ width: 120, textAlign: 'right' }}>Avg Sale Price (Jun)</th>
+                    <th style={{ width: 110, textAlign: 'center' }}>Consumer Discount %</th>
+                    <th style={{ width: 105, textAlign: 'center' }}>Last Updated</th>
+                    <th style={{ width: 145 }}>Confirmation Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(r => {
+                    const disc = Number(r['Consumer Discount %']) || 0;
+                    const isFlagged = disc >= 10;
+                    return (
+                      <tr key={r.id} style={isFlagged ? { background: 'rgba(239,68,68,0.07)' } : {}}>
+                        <td><strong style={isFlagged ? { color: '#b91c1c' } : {}}>{fmt(r.Product)}</strong></td>
+                        <td className="os-mono" style={{ fontSize: 11, color: 'var(--charcoal-45)' }}>
+                          <a href={`https://www.amazon.co.uk/dp/${r.ASIN}`} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>{r.ASIN || '—'}</a>
+                        </td>
+                        <td className="os-mono" style={{ textAlign: 'right' }}>{r['SC Listed Price £'] != null ? `£${Number(r['SC Listed Price £']).toFixed(2)}` : '—'}</td>
+                        <td className="os-mono" style={{ textAlign: 'right' }}>{r['Avg Sale Price - June £'] != null ? `£${Number(r['Avg Sale Price - June £']).toFixed(2)}` : '—'}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          {r['Consumer Discount %'] != null
+                            ? <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: isFlagged ? '#b91c1c' : disc >= 7 ? '#d97706' : '#16a34a', background: isFlagged ? 'rgba(239,68,68,0.12)' : disc >= 7 ? 'rgba(217,119,6,0.10)' : 'rgba(22,163,74,0.10)', padding: '2px 8px', borderRadius: 4 }}>{disc}%</span>
+                            : <span className="os-muted">—</span>}
+                        </td>
+                        <td className="os-mono" style={{ textAlign: 'center', fontSize: 11, color: 'var(--charcoal-45)' }}>{r['Last Updated'] ? new Date(r['Last Updated']).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}</td>
+                        <td>
+                          {r['Confirmation Status'] === 'Confirmed'
+                            ? <span className="os-pill pill-done">Confirmed</span>
+                            : r['Confirmation Status'] === 'Pending Confirmation'
+                              ? <span className="os-pill pill-progress">Pending</span>
+                              : <span className="os-muted">{fmt(r['Confirmation Status'])}</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filtered.length === 0 && (
+                    <tr><td colSpan={7} className="os-empty" style={{ textAlign: 'center', padding: 24 }}>No records match this filter.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {inactive.length > 0 && (
+              <details style={{ marginTop: 20 }}>
+                <summary className="os-muted" style={{ cursor: 'pointer', fontSize: 13, userSelect: 'none' }}>Inactive ASINs ({inactive.length})</summary>
+                <div style={{ overflowX: 'auto', marginTop: 8 }}>
+                  <table className="os-table" style={{ opacity: 0.6 }}>
+                    <thead>
+                      <tr>
+                        <th>Product</th>
+                        <th style={{ width: 130 }}>ASIN</th>
+                        <th style={{ width: 110, textAlign: 'right' }}>SC Listed Price</th>
+                        <th style={{ width: 110 }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {inactive.map(r => (
+                        <tr key={r.id}>
+                          <td>{fmt(r.Product)}</td>
+                          <td className="os-mono" style={{ fontSize: 11 }}>{r.ASIN || '—'}</td>
+                          <td className="os-mono" style={{ textAlign: 'right' }}>{r['SC Listed Price £'] != null ? `£${Number(r['SC Listed Price £']).toFixed(2)}` : '—'}</td>
+                          <td><span className="os-pill" style={{ background: 'rgba(45,42,38,0.08)', color: 'rgba(45,42,38,0.55)' }}>Inactive</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            )}
+          </>
+        );
+      })()}
 
       {/* ── Reporting / Finance (with date filter + P&L waterfall) ── */}
       {sub === 'Reporting' && <AmazonReportingTab reporting={reporting} />}
@@ -3440,7 +3562,7 @@ function ReportingTab({ items }) {
 }
 
 /* ── Page ─────────────────────────────────────── */
-export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers = [], cs, reconcile, software, reporting, products, ppc = [], disbursements = [], reviews = [], bionature = [], billing = [], atSalesByProduct = [], affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [], error, serverTime }) {
+export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers = [], cs, reconcile, software, reporting, products, ppc = [], disbursements = [], reviews = [], bionature = [], billing = [], atSalesByProduct = [], affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [], rspTracker = [], error, serverTime }) {
   const router = useRouter();
   const [section, setSection] = useState('Overview');
   const [tab, setTab] = useState('Tasks');
@@ -3533,7 +3655,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
           {tab === 'Customer Service' && <CSTab items={cs} />}
           {tab === 'Finance' && section === 'Shopify UK' && <FinanceTab reconcile={reconcile} software={software} payouts={payouts} payoutsCsv={payoutsCsv || []} serverTime={serverTime} billing={billing} atSalesByProduct={atSalesByProduct} />}
           {tab === 'Finance' && section === 'Amazon UK'  && <AmazonFinanceTab reconcile={reconcile} disbursements={disbursements} />}
-          {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} tasks={tasks} priorities={priorities} marketing={marketing} inbound={inbound} reporting={reporting} ppc={ppc} reviews={reviews} />}
+          {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} tasks={tasks} priorities={priorities} marketing={marketing} inbound={inbound} reporting={reporting} ppc={ppc} reviews={reviews} rspTracker={rspTracker} />}
           {tab === 'Google'           && <GoogleTab section={section} />}
           {tab === 'Stock on Hand'    && <SOHTab soh={soh} sohSource={sohSource} />}
           {tab === 'Inbound Stock'    && <InboundTab inbound={inbound} />}
@@ -3547,7 +3669,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
 export async function getServerSideProps() {
   const safe = p => p.catch(e => { console.warn('[uk] fetch partial fail:', e.message); return []; });
 
-  const [tasks, priorities, risks, amazon, catalogue, shopifyProducts, airtableOrders, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, subscribers] = await Promise.all([
+  const [tasks, priorities, risks, amazon, catalogue, shopifyProducts, airtableOrders, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, subscribers, rspTracker] = await Promise.all([
     safe(getUKTasks()), safe(getUKPriorities()), safe(getUKRisks()),
     safe(getUKAmazon()), safe(getUKAmazonCat()),
     safe(getUKShopify()), safe(getUKOrders()), safe(getUKDiscounts()), safe(getUKRefunds()), safe(getUKPayouts()),
@@ -3561,6 +3683,7 @@ export async function getServerSideProps() {
     safe(getAffiliates()), safe(getAffiliateSales()), safe(getAffiliatePayouts()),
     safe(getAffiliateTraffic()), safe(getAffiliateTasks()), safe(getAffiliateProducts()),
     safe(getUKSubscribers()),
+    safe(getUKRSPTracker()),
   ]);
 
   // Orders — Airtable is source of truth (populated by email capture scheduler)
@@ -3592,5 +3715,5 @@ export async function getServerSideProps() {
   const sohData = soh;
   const sohSource = 'airtable';
 
-  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers: subscribers || [], cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, error: null, serverTime: new Date().toISOString() } };
+  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers: subscribers || [], cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, rspTracker: rspTracker || [], error: null, serverTime: new Date().toISOString() } };
 }
