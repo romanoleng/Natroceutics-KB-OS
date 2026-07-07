@@ -2039,9 +2039,11 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
                   <tr>
                     <th>Product</th>
                     <th style={{ width: 130 }}>ASIN</th>
+                    <th style={{ width: 100, textAlign: 'right' }}>RRP</th>
                     <th style={{ width: 110, textAlign: 'right' }}>SC Listed Price</th>
                     <th style={{ width: 120, textAlign: 'right' }}>Avg Sale Price (Jun)</th>
                     <th style={{ width: 110, textAlign: 'center' }}>Consumer Discount %</th>
+                    <th style={{ width: 100, textAlign: 'center' }}>vs RRP %</th>
                     <th style={{ width: 105, textAlign: 'center' }}>Last Updated</th>
                     <th style={{ width: 145 }}>Confirmation Status</th>
                   </tr>
@@ -2050,17 +2052,27 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
                   {filtered.map(r => {
                     const disc = Number(r['Consumer Discount %']) || 0;
                     const isFlagged = disc >= 10;
+                    const rrp = r['RRP'] != null && r['RRP'] !== '' ? Number(r['RRP']) : null;
+                    const scPrice = r['SC Listed Price £'] != null && r['SC Listed Price £'] !== '' ? Number(r['SC Listed Price £']) : null;
+                    const vsRrp = rrp != null && rrp !== 0 && scPrice != null ? ((scPrice - rrp) / rrp) * 100 : null;
+                    const vsRrpAbs = vsRrp != null ? Math.abs(vsRrp) : 0;
                     return (
                       <tr key={r.id} style={isFlagged ? { background: 'rgba(239,68,68,0.07)' } : {}}>
                         <td><strong style={isFlagged ? { color: '#b91c1c' } : {}}>{fmt(r.Product)}</strong></td>
                         <td className="os-mono" style={{ fontSize: 11, color: 'var(--charcoal-45)' }}>
                           <a href={`https://www.amazon.co.uk/dp/${r.ASIN}`} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>{r.ASIN || '—'}</a>
                         </td>
+                        <td className="os-mono" style={{ textAlign: 'right' }}>{rrp != null ? `£${rrp.toFixed(2)}` : '—'}</td>
                         <td className="os-mono" style={{ textAlign: 'right' }}>{r['SC Listed Price £'] != null ? `£${Number(r['SC Listed Price £']).toFixed(2)}` : '—'}</td>
                         <td className="os-mono" style={{ textAlign: 'right' }}>{r['Avg Sale Price - June £'] != null ? `£${Number(r['Avg Sale Price - June £']).toFixed(2)}` : '—'}</td>
                         <td style={{ textAlign: 'center' }}>
                           {r['Consumer Discount %'] != null
                             ? <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: isFlagged ? '#b91c1c' : disc >= 7 ? '#d97706' : '#16a34a', background: isFlagged ? 'rgba(239,68,68,0.12)' : disc >= 7 ? 'rgba(217,119,6,0.10)' : 'rgba(22,163,74,0.10)', padding: '2px 8px', borderRadius: 4 }}>{disc}%</span>
+                            : <span className="os-muted">—</span>}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          {vsRrp != null
+                            ? <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: vsRrpAbs >= 10 ? '#b91c1c' : vsRrpAbs >= 7 ? '#d97706' : '#16a34a', background: vsRrpAbs >= 10 ? 'rgba(239,68,68,0.12)' : vsRrpAbs >= 7 ? 'rgba(217,119,6,0.10)' : 'rgba(22,163,74,0.10)', padding: '2px 8px', borderRadius: 4 }}>{vsRrp > 0 ? '+' : ''}{vsRrp.toFixed(1)}%</span>
                             : <span className="os-muted">—</span>}
                         </td>
                         <td className="os-mono" style={{ textAlign: 'center', fontSize: 11, color: 'var(--charcoal-45)' }}>{r['Last Updated'] ? new Date(r['Last Updated']).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}</td>
@@ -2075,7 +2087,7 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
                     );
                   })}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={7} className="os-empty" style={{ textAlign: 'center', padding: 24 }}>No records match this filter.</td></tr>
+                    <tr><td colSpan={9} className="os-empty" style={{ textAlign: 'center', padding: 24 }}>No records match this filter.</td></tr>
                   )}
                 </tbody>
               </table>
