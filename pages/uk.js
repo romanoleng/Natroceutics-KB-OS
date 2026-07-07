@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, Fragment } from 'react';
 import { useRouter } from 'next/router';
 import OsLayout from '../components/OsLayout';
 import ProductsSection from '../components/ProductsSection';
@@ -2055,6 +2055,13 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
                     <th style={{ width: 100, textAlign: 'center' }}>vs RRP %</th>
                     <th style={{ width: 105, textAlign: 'center' }}>Last Updated</th>
                     <th style={{ width: 145 }}>Confirmation Status</th>
+                    <th style={{ width: 80, textAlign: 'center', borderLeft: '1px solid var(--border, #e5e7eb)' }}># Sellers</th>
+                    {[1, 2, 3, 4, 5, 6, 7].map(n => (
+                      <Fragment key={n}>
+                        <th style={{ width: 140 }}>{n === 1 ? 'Seller 1 (Buy Box)' : `Seller ${n}`}</th>
+                        <th style={{ width: 80, textAlign: 'right' }}>{`Price ${n}`}</th>
+                      </Fragment>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -2093,11 +2100,24 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
                               ? <span className="os-pill pill-progress">Pending</span>
                               : <span className="os-muted">{fmt(r['Confirmation Status'])}</span>}
                         </td>
+                        <td className="os-mono" style={{ textAlign: 'center', borderLeft: '1px solid var(--border, #e5e7eb)' }}>{r['# of Sellers'] != null ? r['# of Sellers'] : '—'}</td>
+                        {[1, 2, 3, 4, 5, 6, 7].map(n => {
+                          const sellerKey = n === 1 ? 'Seller 1 (Buy Box)' : `Seller ${n}`;
+                          const seller = r[sellerKey];
+                          const price = r[`Price ${n}`];
+                          const isUs = seller === 'Natroceutics®';
+                          return (
+                            <Fragment key={n}>
+                              <td style={{ fontSize: 12, color: isUs ? '#16a34a' : 'var(--charcoal-70, inherit)', fontWeight: isUs ? 600 : 400 }}>{seller || '—'}</td>
+                              <td className="os-mono" style={{ textAlign: 'right', fontSize: 12, color: isUs ? '#16a34a' : 'inherit', fontWeight: isUs ? 600 : 400 }}>{price != null ? `£${Number(price).toFixed(2)}` : '—'}</td>
+                            </Fragment>
+                          );
+                        })}
                       </tr>
                     );
                   })}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={9} className="os-empty" style={{ textAlign: 'center', padding: 24 }}>No records match this filter.</td></tr>
+                    <tr><td colSpan={24} className="os-empty" style={{ textAlign: 'center', padding: 24 }}>No records match this filter.</td></tr>
                   )}
                 </tbody>
               </table>
