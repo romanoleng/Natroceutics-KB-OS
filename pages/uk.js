@@ -1993,14 +1993,23 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
 
       {/* ── RSP & Pricing Monitor ── */}
       {sub === 'RSP & Pricing' && (() => {
+        // Consumer Discount % is derived live from SC Listed Price vs Avg Sale Price
+        // (not read from the static Airtable field) so it never goes stale between
+        // manual data refreshes: (SC Listed Price − Avg Sale Price) / SC Listed Price.
+        const computeDiscount = r => {
+          const sc = r['SC Listed Price £'] != null && r['SC Listed Price £'] !== '' ? Number(r['SC Listed Price £']) : null;
+          const avg = r['Avg Sale Price - June £'] != null && r['Avg Sale Price - June £'] !== '' ? Number(r['Avg Sale Price - June £']) : null;
+          if (sc == null || avg == null || sc === 0) return null;
+          return Math.round(((sc - avg) / sc) * 100);
+        };
         const active = rspTracker.filter(r => r['SC Status'] === 'Active');
         const inactive = rspTracker.filter(r => r['SC Status'] === 'Inactive');
-        const flagged = active.filter(r => (Number(r['Consumer Discount %']) || 0) >= 10);
+        const flagged = active.filter(r => (computeDiscount(r) || 0) >= 10);
         const pending = active.filter(r => r['Confirmation Status'] === 'Pending Confirmation');
         const filtered = active.filter(r => {
           const q = rspSearch.toLowerCase();
           const mQ = !q || (r.Product || '').toLowerCase().includes(q) || (r.ASIN || '').toLowerCase().includes(q);
-          const disc = Number(r['Consumer Discount %']) || 0;
+          const disc = computeDiscount(r) || 0;
           const mF = rspFilter === 'All' || (rspFilter === 'Flagged ≥10%' && disc >= 10) || (rspFilter === 'Pending' && r['Confirmation Status'] === 'Pending Confirmation') || (rspFilter === 'Clear <10%' && disc < 10 && disc >= 0);
           return mQ && mF;
         });
@@ -2050,7 +2059,8 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
                 </thead>
                 <tbody>
                   {filtered.map(r => {
-                    const disc = Number(r['Consumer Discount %']) || 0;
+                    const discRaw = computeDiscount(r);
+                    const disc = discRaw || 0;
                     const isFlagged = disc >= 10;
                     const rrp = r['RRP'] != null && r['RRP'] !== '' ? Number(r['RRP']) : null;
                     const scPrice = r['SC Listed Price £'] != null && r['SC Listed Price £'] !== '' ? Number(r['SC Listed Price £']) : null;
@@ -2066,7 +2076,7 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
                         <td className="os-mono" style={{ textAlign: 'right' }}>{r['SC Listed Price £'] != null ? `£${Number(r['SC Listed Price £']).toFixed(2)}` : '—'}</td>
                         <td className="os-mono" style={{ textAlign: 'right' }}>{r['Avg Sale Price - June £'] != null ? `£${Number(r['Avg Sale Price - June £']).toFixed(2)}` : '—'}</td>
                         <td style={{ textAlign: 'center' }}>
-                          {r['Consumer Discount %'] != null
+                          {discRaw != null
                             ? <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: isFlagged ? '#b91c1c' : disc >= 7 ? '#d97706' : '#16a34a', background: isFlagged ? 'rgba(239,68,68,0.12)' : disc >= 7 ? 'rgba(217,119,6,0.10)' : 'rgba(22,163,74,0.10)', padding: '2px 8px', borderRadius: 4 }}>{disc}%</span>
                             : <span className="os-muted">—</span>}
                         </td>
