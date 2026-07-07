@@ -1114,6 +1114,19 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
   );
   const totalInbound = activeInbound.reduce((s, i) => s + (Number(i['Inbound QTY']) || 0), 0);
 
+  // RSP & Pricing signals — surfaced on Overview so pricing risk sits alongside stock/tasks.
+  // Consumer Discount % computed live (same formula as the RSP & Pricing tab), not read from Airtable.
+  const ovDiscount = r => {
+    const sc = r['SC Listed Price £'] != null && r['SC Listed Price £'] !== '' ? Number(r['SC Listed Price £']) : null;
+    const avg = r['Avg Sale Price - June £'] != null && r['Avg Sale Price - June £'] !== '' ? Number(r['Avg Sale Price - June £']) : null;
+    if (sc == null || avg == null || sc === 0) return null;
+    return Math.round(((sc - avg) / sc) * 100);
+  };
+  const rspActive = rspTracker.filter(r => r['SC Status'] === 'Active');
+  const rspFlagged = rspActive.filter(r => (ovDiscount(r) || 0) >= 10);
+  const rspPending = rspActive.filter(r => r['Confirmation Status'] === 'Pending Confirmation');
+  const buyBoxLost = rspActive.filter(r => r['Seller 1 (Buy Box)'] && r['Seller 1 (Buy Box)'] !== 'Natroceutics®');
+
   // Aggregate update errors
   const anyError = tasksEditor.updateError || catEditor.updateError || fbaEditor.updateError ||
     mktEditor.updateError || inboundEditor.updateError || reportingEditor.updateError || ppcEditor.updateError;
@@ -1140,6 +1153,53 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
             <div className="os-stat-card"><div className="os-stat-num">{totalInbound.toLocaleString()}</div><div className="os-stat-label">Inbound Units</div></div>
             <div className={`os-stat-card${openTasks.length > 0 ? ' os-stat-amber' : ' os-stat-green'}`}><div className="os-stat-num">{openTasks.length}</div><div className="os-stat-label">Open Tasks</div></div>
           </div>
+
+          <div className="os-stat-row" style={{ marginTop: 10 }}>
+            <div className={`os-stat-card${buyBoxLost.length > 0 ? ' os-stat-red' : ' os-stat-green'}`} style={{ cursor: 'pointer' }} onClick={() => setSub('RSP & Pricing')}><div className="os-stat-num">{buyBoxLost.length}</div><div className="os-stat-label">Buy Box Lost</div></div>
+            <div className={`os-stat-card${rspFlagged.length > 0 ? ' os-stat-red' : ' os-stat-green'}`} style={{ cursor: 'pointer' }} onClick={() => setSub('RSP & Pricing')}><div className="os-stat-num">{rspFlagged.length}</div><div className="os-stat-label">RSP Discount ≥10%</div></div>
+            <div className={`os-stat-card${rspPending.length > 0 ? ' os-stat-amber' : ' os-stat-green'}`} style={{ cursor: 'pointer' }} onClick={() => setSub('RSP & Pricing')}><div className="os-stat-num">{rspPending.length}</div><div className="os-stat-label">Pending Confirm</div></div>
+            <div className="os-stat-card" style={{ cursor: 'pointer' }} onClick={() => setSub('RSP & Pricing')}><div className="os-stat-num">{rspActive.length}</div><div className="os-stat-label">Active ASINs Tracked</div></div>
+          </div>
+
+          {buyBoxLost.length > 0 && (
+            <>
+              <h3 className="os-section-heading" style={{ marginTop: 28 }}>⚠️ Buy Box Lost — Check Today</h3>
+              <div className="os-alert-error" style={{ marginBottom: 0 }}>
+                {buyBoxLost.length} ASIN{buyBoxLost.length > 1 ? 's' : ''} currently held by a competitor. <span style={{ textDecoration: 'underline', cursor: 'pointer' }} onClick={() => setSub('RSP & Pricing')}>View full breakdown in RSP &amp; Pricing →</span>
+              </div>
+              <div style={{ overflowX: 'auto', marginTop: 8 }}>
+                <table className="os-table">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th style={{ width: 130 }}>ASIN</th>
+                      <th style={{ width: 160 }}>Buy Box Held By</th>
+                      <th style={{ width: 90, textAlign: 'right' }}>Their Price</th>
+                      <th style={{ width: 90, textAlign: 'right' }}>Our SC Price</th>
+                      <th style={{ width: 80, textAlign: 'right' }}>Gap</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {buyBoxLost.map(r => {
+                      const theirs = r['Price 1'] != null ? Number(r['Price 1']) : null;
+                      const ours = r['SC Listed Price £'] != null ? Number(r['SC Listed Price £']) : null;
+                      const gap = theirs != null && ours != null ? ours - theirs : null;
+                      return (
+                        <tr key={r.id} style={{ cursor: 'pointer' }} onClick={() => setSub('RSP & Pricing')}>
+                          <td><strong>{fmt(r.Product)}</strong></td>
+                          <td className="os-mono" style={{ fontSize: 11, color: 'var(--charcoal-45)' }}>{r.ASIN || '—'}</td>
+                          <td>{r['Seller 1 (Buy Box)'] || '—'}</td>
+                          <td className="os-mono" style={{ textAlign: 'right' }}>{theirs != null ? `£${theirs.toFixed(2)}` : '—'}</td>
+                          <td className="os-mono" style={{ textAlign: 'right' }}>{ours != null ? `£${ours.toFixed(2)}` : '—'}</td>
+                          <td className="os-mono" style={{ textAlign: 'right', color: gap != null && gap > 0 ? '#b91c1c' : 'inherit', fontWeight: gap != null && gap > 0 ? 600 : 400 }}>{gap != null ? `${gap > 0 ? '+' : ''}£${gap.toFixed(2)}` : '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
 
           {amazonPriorities.length > 0 && (
             <>
