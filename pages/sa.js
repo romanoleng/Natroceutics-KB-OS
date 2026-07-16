@@ -432,8 +432,8 @@ function MarketingTab({ items }) {
               <StatusSelect record={m} allStatuses={mktStatuses} handleStatusChange={editor.handleStatusChange} saving={editor.saving} />
             </td>
             <td className="os-muted">{fmt(m.Owner)}</td>
-            <td className="os-mono">{fmt(m['Start Date'])}</td>
-            <td className="os-mono">{fmt(m['End Date'])}</td>
+            <td className="os-mono">{fmtEntryDate(m['Start Date'])}</td>
+            <td className="os-mono">{fmtEntryDate(m['End Date'])}</td>
             <td className="os-mono">{m['Budget (ZAR)'] ? `R${Number(m['Budget (ZAR)']).toLocaleString()}` : '—'}</td>
           </tr>
           );

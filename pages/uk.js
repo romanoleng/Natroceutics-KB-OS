@@ -257,7 +257,17 @@ function RiskList({ items }) {
 
 /* ── Orders (date-filtered, KPI summary) ─────── */
 function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = [], dailySales = [] }) {
-  const [range, setRange] = useState('MTD');
+  // Default to the range with data: MTD if current month has orders, else Last Month, else YTD
+  const [range, setRange] = useState(() => {
+    if (!orders || !orders.length) return 'MTD';
+    const t = new Date();
+    const mtdStart = new Date(t.getFullYear(), t.getMonth(), 1);
+    if (orders.some(o => o['Order Date'] && new Date(o['Order Date']) >= mtdStart)) return 'MTD';
+    const lmStart = new Date(t.getFullYear(), t.getMonth() - 1, 1);
+    const lmEnd = new Date(t.getFullYear(), t.getMonth(), 0);
+    if (orders.some(o => { if (!o['Order Date']) return false; const d = new Date(o['Order Date']); return d >= lmStart && d <= lmEnd; })) return 'Last Month';
+    return 'YTD';
+  });
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [sub, setSub] = useState('Summary');
@@ -308,6 +318,10 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
     const lmStart = new Date(t.getFullYear(), t.getMonth() - 1, 1);
     const lmEnd   = new Date(t.getFullYear(), t.getMonth(), 0);
     if (!orders.some(o => { const d = new Date(o['Order Date']); return d >= lmStart && d <= lmEnd; })) disabled.add('Last Month');
+    const mtdStart = new Date(t.getFullYear(), t.getMonth(), 1);
+    if (!orders.some(o => o['Order Date'] && new Date(o['Order Date']) >= mtdStart)) disabled.add('MTD');
+    const ytdStart = new Date(t.getFullYear(), 0, 1);
+    if (!orders.some(o => o['Order Date'] && new Date(o['Order Date']) >= ytdStart)) disabled.add('YTD');
     return disabled;
   }, [orders]);
 
@@ -379,6 +393,7 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
         <div className="orders-summary-grid">
           <div className="orders-summary-card">
             <h4 className="orders-summary-title">BY FINANCIAL STATUS</h4>
+            <div style={{ overflowX: 'auto' }}>
             <table className="os-table" style={{ marginTop: 8 }}>
               <thead><tr><th>Status</th><th style={{ width: 80 }}>Count</th></tr></thead>
               <tbody>
@@ -393,9 +408,11 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
                 )}
               </tbody>
             </table>
+            </div>
           </div>
           <div className="orders-summary-card">
             <h4 className="orders-summary-title">BY FULFILMENT STATUS</h4>
+            <div style={{ overflowX: 'auto' }}>
             <table className="os-table" style={{ marginTop: 8 }}>
               <thead><tr><th>Status</th><th style={{ width: 80 }}>Count</th></tr></thead>
               <tbody>
@@ -407,9 +424,11 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
           <div className="orders-summary-card">
             <h4 className="orders-summary-title">BY CHANNEL</h4>
+            <div style={{ overflowX: 'auto' }}>
             <table className="os-table" style={{ marginTop: 8 }}>
               <thead><tr><th>Channel</th><th style={{ width: 80 }}>Count</th></tr></thead>
               <tbody>
@@ -421,6 +440,7 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}
@@ -877,6 +897,7 @@ function AmazonReportingTab({ reporting }) {
           {sub === 'Finance' && (
             <>
               <h3 className="os-section-heading" style={{ marginTop: 24 }}>P&amp;L — {filtered.length} period{filtered.length !== 1 ? 's' : ''}</h3>
+              <div style={{ overflowX: 'auto' }}>
               <table className="os-table" style={{ maxWidth: 480, marginBottom: 24 }}>
                 <tbody>
                   <tr><td><strong>Gross Sales</strong></td><td className="os-mono">{gbp(kpis.totSales)}</td></tr>
@@ -889,6 +910,7 @@ function AmazonReportingTab({ reporting }) {
                   <tr><td><strong>Net Profit</strong></td><td className="os-mono"><strong style={{ fontSize: 17 }}>{gbp(kpis.totNet)}</strong> <span style={{ fontSize: 11, color: 'rgba(45,42,38,.45)' }}>({kpis.avgMargin.toFixed(1)}%)</span></td></tr>
                 </tbody>
               </table>
+              </div>
               <p className="os-muted" style={{ fontSize: 13, marginBottom: 24 }}>Est. Amazon payout: <strong>{gbp(kpis.totPayout)}</strong></p>
               <h3 className="os-section-heading">Weekly P&amp;L Detail</h3>
               <SortableTable
@@ -960,6 +982,7 @@ function GoogleTab({ section = 'Shopify UK' }) {
               <div className="wh-banner-stat"><span className="wh-banner-num">{MC_TOTAL}</span><span className="wh-banner-unit">Total</span></div>
             </div>
           </div>
+          <div style={{ overflowX: 'auto' }}>
           <table className="os-table" style={{ marginTop: 16, maxWidth: 440 }}>
             <tbody>
               <tr><td><strong>Total Products in Feed</strong></td><td className="os-mono">{MC_TOTAL}</td></tr>
@@ -968,6 +991,7 @@ function GoogleTab({ section = 'Shopify UK' }) {
               <tr><td>Approval Rate</td><td className="os-mono">{((MC_APPROVED / MC_TOTAL) * 100).toFixed(1)}%</td></tr>
             </tbody>
           </table>
+          </div>
           <p className="os-muted" style={{ marginTop: 12, fontSize: 12 }}>
             Source: Global Tasks scope record. Not-approved products require image or description review in GMC.
             Connect the GMC Content API for live sync.
