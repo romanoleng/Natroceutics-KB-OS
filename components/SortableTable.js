@@ -17,12 +17,17 @@ import { relativeDate, fullDate } from '../lib/dateUtils';
  *   sinkCompleted   Field name (e.g. 'Status') — if set, rows whose value is in
  *                   DONE_VALUES are always sorted to the bottom, regardless of sort col.
  *   hideDates       Set true to suppress the auto Date Created / Last Updated columns.
+ *   updatedLabel    Label for the auto "Updated" column (default 'Updated'). Pass 'Last Sync'
+ *                    for tables populated by a scheduled/external sync (Shopify, Amazon, etc.)
+ *                    rather than by manual editing, so the header reflects what the date means.
  *
  * Date columns (auto-appended unless hideDates={true}):
  *   • "Created"     — always shown; reads createdTime (available on every Airtable record)
  *   • "Updated"     — always shown; reads _updatedAt when available (from "Last Modified"
- *                     Airtable field), falls back to createdTime. Add a "Last modified time"
- *                     field named "Last Modified" to any table to get real update timestamps.
+ *                     Airtable field, or a "Last Synced"-style field — see lib/airtable.js
+ *                     normaliseRecord), falls back to createdTime. Add a "Last modified time"
+ *                     field named "Last Modified" (manual tables) or a date field named
+ *                     "Last Synced" / "<X> Last Synced" (sync-driven tables) to enable this.
  *
  * Auto-expand:
  *   If a rendered <tr> does NOT already have an onClick prop, SortableTable
@@ -56,6 +61,7 @@ export default function SortableTable({
   sinkCompleted,
   noExpand,
   hideDates = false,
+  updatedLabel = 'Updated',
 }) {
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
@@ -76,9 +82,9 @@ export default function SortableTable({
     if (showCreated && !callerHasDateCol)
       meta.push({ label: 'Created', key: 'createdTime', type: 'date', w: 88 });
     if (hasUpdated)
-      meta.push({ label: 'Updated', key: '_updatedAt', type: 'date', w: 88 });
+      meta.push({ label: updatedLabel, key: '_updatedAt', type: 'date', w: 88 });
     return [...cols, ...meta];
-  }, [cols, hideDates, showCreated, hasUpdated, callerHasDateCol]);
+  }, [cols, hideDates, showCreated, hasUpdated, callerHasDateCol, updatedLabel]);
 
   const sorted = useMemo(() => {
     let result = data;

@@ -720,6 +720,7 @@ function ShopifyTab({ products }) {
         <span className="os-count">{filtered.length} products</span>
       </div>
       <SortableTable
+        updatedLabel="Last Sync"
         cols={[
           { label: 'Product', key: 'Product' },
           { label: 'SKU', key: 'SKU', w: 100 },
