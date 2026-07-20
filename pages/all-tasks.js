@@ -1,19 +1,20 @@
 /**
  * ALL TASKS — Cross-region aggregated task view.
- * Pulls from UK Ops, SA Ops, and ME Ops.
+ * Pulls from UK Ops, SA Ops, ME Ops, and PT Ops.
  * Each task is tagged with its region of origin.
  */
 import { useState, useMemo } from 'react';
 import OsLayout from '../components/OsLayout';
 import SortableTable from '../components/SortableTable';
 import { useStatusEditor, StatusSelect, DONE_VALS, CANONICAL_STATUSES } from '../components/StatusSelect';
-import { getUKTasks, getSATasks, getMETasks } from '../lib/airtable';
+import { getUKTasks, getSATasks, getMETasks, getPTTasks } from '../lib/airtable';
 
 /* Region base + table IDs — needed for inline status updates */
 const REGION_META = {
   UK: { baseId: 'appb0pnXsdtALWq80', tableId: 'tbl5GXDhdcu6iwCA8' },
   SA: { baseId: 'appz7wLo78sxzLhjV', tableId: 'tblAv5lowKpohE27i' },
   ME: { baseId: 'appdN9dWxVcB2KFZ6', tableId: 'tbleGswAUGSDhcrE9' },
+  PT: { baseId: 'appfEakXS6FAu2FIY', tableId: 'tblCs1y6PPv0Grk75' },
 };
 
 function fmt(v) { return (v === null || v === undefined || v === '') ? '—' : v; }
@@ -55,6 +56,7 @@ const REGION_STYLES = {
   UK: { background: 'rgba(29,65,48,0.12)', color: '#1d4130', border: '1px solid rgba(29,65,48,0.25)' },
   SA: { background: 'rgba(180,110,30,0.12)', color: '#7a4a00', border: '1px solid rgba(180,110,30,0.25)' },
   ME: { background: 'rgba(0,90,160,0.1)', color: '#00508a', border: '1px solid rgba(0,90,160,0.25)' },
+  PT: { background: 'rgba(64,101,80,0.12)', color: '#406550', border: '1px solid rgba(64,101,80,0.28)' },
 };
 
 function RegionTag({ region }) {
@@ -102,6 +104,7 @@ export default function AllTasksPage({ tasks, error }) {
   const ukCount = allWithStatus.filter(t => t._region === 'UK' && !DONE_VALS.has(t.Status)).length;
   const saCount = allWithStatus.filter(t => t._region === 'SA' && !DONE_VALS.has(t.Status)).length;
   const meCount = allWithStatus.filter(t => t._region === 'ME' && !DONE_VALS.has(t.Status)).length;
+  const ptCount = allWithStatus.filter(t => t._region === 'PT' && !DONE_VALS.has(t.Status)).length;
 
   return (
     <OsLayout title="All Tasks">
@@ -115,6 +118,7 @@ export default function AllTasksPage({ tasks, error }) {
             <div className="rhs"><span className="rhs-num">{ukCount}</span><span className="rhs-label">🇬🇧 UK</span></div>
             <div className="rhs"><span className="rhs-num">{saCount}</span><span className="rhs-label">🇿🇦 SA</span></div>
             <div className="rhs"><span className="rhs-num">{meCount}</span><span className="rhs-label">🇦🇪 ME</span></div>
+            <div className="rhs"><span className="rhs-num">{ptCount}</span><span className="rhs-label">🇵🇹 PT</span></div>
           </div>
         </div>
       </section>
@@ -135,6 +139,7 @@ export default function AllTasksPage({ tasks, error }) {
             <option value="UK">🇬🇧 UK</option>
             <option value="SA">🇿🇦 SA</option>
             <option value="ME">🇦🇪 ME</option>
+            <option value="PT">🇵🇹 PT</option>
           </select>
           {statuses.length > 0 && (
             <select className="os-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
@@ -191,16 +196,20 @@ export default function AllTasksPage({ tasks, error }) {
 
 export async function getServerSideProps() {
   try {
-    const [ukTasks, saTasks, meTasks] = await Promise.all([
+    // PT is launch-stage and may be empty — never let it break the whole roll-up
+    const safe = p => p.catch(() => []);
+    const [ukTasks, saTasks, meTasks, ptTasks] = await Promise.all([
       getUKTasks(),
       getSATasks(),
       getMETasks(),
+      safe(getPTTasks()),
     ]);
 
     const tasks = [
       ...ukTasks.map(t => ({ ...t, _region: 'UK', _baseId: REGION_META.UK.baseId, _tableId: REGION_META.UK.tableId })),
       ...saTasks.map(t => ({ ...t, _region: 'SA', _baseId: REGION_META.SA.baseId, _tableId: REGION_META.SA.tableId })),
       ...meTasks.map(t => ({ ...t, _region: 'ME', _baseId: REGION_META.ME.baseId, _tableId: REGION_META.ME.tableId })),
+      ...ptTasks.map(t => ({ ...t, _region: 'PT', _baseId: REGION_META.PT.baseId, _tableId: REGION_META.PT.tableId })),
     ];
 
     return { props: { tasks, error: null } };

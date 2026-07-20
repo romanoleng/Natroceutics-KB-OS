@@ -16,7 +16,7 @@ import {
   getUKAffiliates, getUKMarketing, getUKSubscriptions, getUKSubscribers,
   getUKEmailList, getUKPPC,
   getAffiliates, getAffiliateSales, getAffiliatePayouts, getAffiliateTraffic, getAffiliateTasks, getAffiliateProducts,
-  getUKAmazonReviews, getUKBionature, getUKBilling, getUKSalesByProduct, getUKRSPTracker,
+  getUKAmazonReviews, getUKBionature, getUKBilling, getUKSalesByProduct, getUKRSPTracker, getUKVine,
   getProducts,
 } from '../lib/airtable';
 import { getLocalDailySales, getLocalSalesByProduct, getLocalPayouts } from '../lib/shopify';
@@ -272,6 +272,24 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
   const [customTo, setCustomTo] = useState('');
   const [sub, setSub] = useState('Summary');
 
+  // Net Profit / COGS / Fees data — loaded client-side only when that sub-tab is first clicked
+  const [pnlData, setPnlData] = useState({ dailyPnl: [], productCosts: [] });
+  const [pnlLoading, setPnlLoading] = useState(false);
+  const [pnlLoaded, setPnlLoaded] = useState(false);
+
+  useEffect(() => {
+    if (sub === 'Net Profit' && !pnlLoaded && !pnlLoading) {
+      setPnlLoading(true);
+      fetch('/api/shopify-pnl')
+        .then(r => r.json())
+        .then(d => { setPnlData({ dailyPnl: d.dailyPnl || [], productCosts: d.productCosts || [] }); setPnlLoaded(true); })
+        .catch(() => setPnlLoaded(true))
+        .finally(() => setPnlLoading(false));
+    }
+  }, [sub, pnlLoaded, pnlLoading]);
+
+  const shopifyDailyPnl = pnlData.dailyPnl;
+
   const today = new Date();
 
   const { dateFrom, dateTo } = useMemo(() => {
@@ -383,7 +401,7 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
 
       {/* ── Sub-tabs ── */}
       <div className="os-sub-tabs" style={{ marginTop: 24, overflowX: 'auto', display: 'flex', flexWrap: 'nowrap', gap: 4 }}>
-        {['Summary', 'Orders', 'Daily Sales', 'By Product', 'Discounts', 'Refunds'].map(s => (
+        {['Summary', 'Orders', 'Daily Sales', 'By Product', 'Net Profit', 'Discounts', 'Refunds'].map(s => (
           <button key={s} className={`os-sub-tab${sub === s ? ' active' : ''}`} onClick={() => setSub(s)}>{s}</button>
         ))}
       </div>
@@ -608,7 +626,7 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
               <div className="wh-banner" style={{ marginTop: 12 }}>
                 <div className="wh-banner-inner">
                   <span className="wh-banner-label">Sales by Product</span>
-                  <span className="wh-banner-sub">📊 CSV Export · Last 30 days · Shopify UK</span>
+                  <span className="wh-banner-sub">📊 CSV Export · Shopify UK</span>
                 </div>
                 <div className="wh-banner-stats">
                   <div className="wh-banner-stat"><span className="wh-banner-num">{salesByProduct.length}</span><span className="wh-banner-unit">SKUs</span></div>
@@ -646,6 +664,109 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
             </>
           )
       )}
+
+      {/* ── Net Profit / COGS / Fees ── */}
+      {sub === 'Net Profit' && (() => {
+        if (pnlLoading && !pnlLoaded) return <div className="os-empty" style={{ marginTop: 12 }}>Loading Net Profit data…</div>;
+        if (!shopifyDailyPnl.length) return <div className="wh-banner" style={{ marginTop: 12 }}><div className="wh-banner-inner"><span className="wh-banner-label">No Net Profit data yet</span><span className="wh-banner-sub">Run the Shopify Daily P&L sync to populate.</span></div></div>;
+
+        const sorted = [...shopifyDailyPnl].sort((a, b) => new Date(b.Date) - new Date(a.Date));
+        const pRevenue   = sorted.reduce((s, r) => s + (Number(r['Revenue £']) || 0), 0);
+        const pDiscounts = sorted.reduce((s, r) => s + (Number(r['Discounts £']) || 0), 0);
+        const pFees      = sorted.reduce((s, r) => s + (Number(r['Shopify Fees £']) || 0), 0);
+        const pCOGS      = sorted.reduce((s, r) => s + (Number(r['COGS £']) || 0), 0);
+        const pNetProfit = sorted.reduce((s, r) => s + (Number(r['Net Profit £']) || 0), 0);
+        const pOrders    = sorted.reduce((s, r) => s + (Number(r.Orders) || 0), 0);
+        const pMargin    = pRevenue > 0 ? ((pNetProfit / pRevenue) * 100).toFixed(1) : '—';
+        // Weighted avg COGS coverage (by revenue) — flags how much of COGS is verified vs proxy/estimated
+        const coverageDays = sorted.filter(r => r['COGS Coverage %'] != null && r['COGS Coverage %'] !== '');
+        const avgCoverage = coverageDays.length
+          ? (coverageDays.reduce((s, r) => s + (Number(r['COGS Coverage %']) || 0), 0) / coverageDays.length * 100).toFixed(0)
+          : null;
+
+        return (
+          <>
+            <div className="wh-banner" style={{ marginTop: 12 }}>
+              <div className="wh-banner-inner">
+                <span className="wh-banner-label">Shopify UK — Net Profit</span>
+                <span className="wh-banner-sub">📋 Shopify Payments fees (live) · COGS: Amazon-derived proxy · {sorted.length} days</span>
+              </div>
+            </div>
+
+            {avgCoverage !== null && Number(avgCoverage) < 100 && (
+              <div className="wh-banner" style={{ marginTop: 8, borderColor: 'var(--amber, #d97706)' }}>
+                <div className="wh-banner-inner">
+                  <span className="wh-banner-label" style={{ color: 'var(--amber, #d97706)' }}>⚠ Estimated COGS</span>
+                  <span className="wh-banner-sub">~{avgCoverage}% of units matched to a known cost (Amazon-derived proxy or Shopify-confirmed). Unmatched units are excluded from COGS — Net Profit is likely slightly overstated. See Product Costs table in Airtable for per-SKU detail.</span>
+                </div>
+              </div>
+            )}
+
+            {/* KPI cards */}
+            <div className="orders-kpi-row" style={{ marginTop: 12 }}>
+              <div className="orders-kpi-card">
+                <div className="orders-kpi-num">{gbp0(pRevenue)}</div>
+                <div className="orders-kpi-label">REVENUE</div>
+                <div className="orders-kpi-sub">{pOrders} orders</div>
+              </div>
+              <div className="orders-kpi-card" style={{ borderTop: `3px solid ${pNetProfit >= 0 ? 'var(--green-600, #16a34a)' : 'var(--red-500, #ef4444)'}` }}>
+                <div className="orders-kpi-num" style={{ color: pNetProfit >= 0 ? 'var(--green-600, #16a34a)' : 'var(--red-500, #ef4444)' }}>{gbp(pNetProfit)}</div>
+                <div className="orders-kpi-label">NET PROFIT</div>
+              </div>
+              <div className="orders-kpi-card">
+                <div className="orders-kpi-num">{pMargin !== '—' ? `${pMargin}%` : '—'}</div>
+                <div className="orders-kpi-label">MARGIN</div>
+              </div>
+              <div className="orders-kpi-card">
+                <div className="orders-kpi-num">{gbp(pFees)}</div>
+                <div className="orders-kpi-label">SHOPIFY FEES</div>
+              </div>
+              <div className="orders-kpi-card">
+                <div className="orders-kpi-num">{gbp(pCOGS)}</div>
+                <div className="orders-kpi-label">COGS</div>
+                {avgCoverage !== null && <div className="orders-kpi-sub">~{avgCoverage}% coverage</div>}
+              </div>
+              <div className="orders-kpi-card">
+                <div className="orders-kpi-num">{gbp(pDiscounts)}</div>
+                <div className="orders-kpi-label">DISCOUNTS</div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16, marginBottom: 2 }}>
+              <button className="os-sub-tab" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => downloadCSV(sorted, 'shopify-daily-net-profit')}>↓ CSV</button>
+            </div>
+            <SortableTable
+              data={sorted}
+              cols={[
+                { label: 'Date', key: 'Date' },
+                { label: 'Revenue £', key: 'Revenue £', type: 'number', w: 100 },
+                { label: 'Discounts £', key: 'Discounts £', type: 'number', w: 100 },
+                { label: 'Orders', key: 'Orders', type: 'number', w: 70 },
+                { label: 'Units', key: 'Units', type: 'number', w: 70 },
+                { label: 'Shopify Fees', key: 'Shopify Fees £', type: 'number', w: 100 },
+                { label: 'COGS', key: 'COGS £', type: 'number', w: 90 },
+                { label: 'Coverage', key: 'COGS Coverage %', type: 'number', w: 90 },
+                { label: 'Net Profit £', key: 'Net Profit £', type: 'number', w: 110 },
+                { label: 'Margin %', key: 'Margin %', type: 'number', w: 90 },
+              ]}
+              renderRow={(r) => (
+                <tr key={r.id || r.Date}>
+                  <td className="os-mono" style={{ fontSize: 11 }}>{fmt(r.Date)}</td>
+                  <td className="os-mono">{gbp(r['Revenue £'])}</td>
+                  <td className="os-mono">{r['Discounts £'] ? <span style={{ color: 'var(--amber)' }}>-{gbp(r['Discounts £'])}</span> : '—'}</td>
+                  <td className="os-mono">{fmt(r.Orders)}</td>
+                  <td className="os-mono">{fmt(r.Units)}</td>
+                  <td className="os-mono">{gbp(r['Shopify Fees £'])}</td>
+                  <td className="os-mono">{gbp(r['COGS £'])}</td>
+                  <td className="os-mono">{r['COGS Coverage %'] != null && r['COGS Coverage %'] !== '' ? `${(Number(r['COGS Coverage %']) * 100).toFixed(0)}%` : '—'}</td>
+                  <td className="os-mono"><span style={{ color: Number(r['Net Profit £']) >= 0 ? 'var(--green-600, #16a34a)' : 'var(--red-500, #ef4444)', fontWeight: 600 }}>{gbp(r['Net Profit £'])}</span></td>
+                  <td className="os-mono">{r['Margin %'] ? `${r['Margin %']}%` : '—'}</td>
+                </tr>
+              )}
+            />
+          </>
+        );
+      })()}
     </>
   );
 }
@@ -1028,7 +1149,7 @@ function GoogleTab({ section = 'Shopify UK' }) {
 }
 
 /* ── Amazon UK — full hub ─────────────────────── */
-function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, reporting, ppc = [], reviews = [], rspTracker = [] }) {
+function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, reporting, ppc = [], reviews = [], rspTracker = [], vine = [] }) {
   const [sub, setSub] = useState('Overview');
   const [taskSearch, setTaskSearch] = useState('');
   const [taskStatus, setTaskStatus] = useState('');
@@ -1061,7 +1182,7 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
   const asinDaily = salesData.asinDaily;
   const amazonOrders = salesData.amazonOrders;
 
-  const AMZ_SUBS = ['Overview', 'Tasks', 'Priorities', 'FBA Stock', 'Sales', 'Daily P&L', 'ASIN Performance', 'Inbound', 'Catalogue', 'Marketing', 'PPC', 'Reviews', 'RSP & Pricing', 'Reporting'];
+  const AMZ_SUBS = ['Overview', 'Tasks', 'Priorities', 'FBA Stock', 'Sales', 'Daily P&L', 'ASIN Performance', 'Inbound', 'Catalogue', 'Marketing', 'PPC', 'Reviews', 'Vine', 'RSP & Pricing', 'Reporting'];
 
   // Status editors — one per dataset so each table has independent optimistic state
   const tasksEditor    = useStatusEditor(tasks);
@@ -2076,6 +2197,9 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
       {/* ── Reviews ── */}
       {sub === 'Reviews' && <AmazonReviewsTab reviews={reviews} />}
 
+      {/* ── Vine ── */}
+      {sub === 'Vine' && <AmazonVineTab vine={vine} />}
+
       {/* ── RSP & Pricing Monitor ── */}
       {sub === 'RSP & Pricing' && (() => {
         // Consumer Discount % is derived live from SC Listed Price vs Avg Sale Price
@@ -2563,6 +2687,65 @@ function AmazonReviewsTab({ reviews = [] }) {
   );
 }
 
+/* ── Amazon Vine Review Tracker ───────────────── */
+function AmazonVineTab({ vine = [] }) {
+  if (!vine.length) return <div className="os-empty">No Vine tracking records. Add entries to the Amazon UK — Vine Review Tracker table in Airtable.</div>;
+
+  const num = v => (typeof v === 'number' ? v : parseFloat(v)) || 0;
+  const totalClaimed  = vine.reduce((s, r) => s + num(r['Vine Units Claimed']), 0);
+  const totalReviewed = vine.reduce((s, r) => s + num(r['Vine Units Reviewed']), 0);
+  const totalPending  = vine.reduce((s, r) => s + num(r['Vine Units Pending']), 0);
+  const below42 = vine.filter(r => num(r['Current Rating']) > 0 && num(r['Current Rating']) < 4.2).length;
+
+  return (
+    <>
+      <div className="os-stat-row">
+        <div className="os-stat-card"><div className="os-stat-num">{vine.length}</div><div className="os-stat-label">ASINs Tracked</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{totalClaimed}</div><div className="os-stat-label">Vine Units Claimed</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{totalReviewed}</div><div className="os-stat-label">Reviewed</div></div>
+        <div className="os-stat-card"><div className="os-stat-num">{totalPending}</div><div className="os-stat-label">Pending</div></div>
+        {below42 > 0 && <div className="os-stat-card os-stat-red"><div className="os-stat-num">{below42}</div><div className="os-stat-label">Below 4.2 Target</div></div>}
+      </div>
+      <div style={{ marginTop: 24 }}>
+        <SortableTable
+          cols={[
+            { label: 'Product', key: 'Product' },
+            { label: 'ASIN', key: 'ASIN', w: 120 },
+            { label: 'Rating', key: 'Current Rating', type: 'number', w: 90 },
+            { label: 'Reviews', key: 'Current Reviews', type: 'number', w: 90 },
+            { label: 'Need → 4.2', key: 'Reviews Needed (4.2 target)', type: 'number', w: 100 },
+            { label: 'Need → 4.5', key: 'Reviews Needed (4.5 target)', type: 'number', w: 100 },
+            { label: 'Claimed', key: 'Vine Units Claimed', type: 'number', w: 90 },
+            { label: 'Reviewed', key: 'Vine Units Reviewed', type: 'number', w: 90 },
+            { label: 'Pending', key: 'Vine Units Pending', type: 'number', w: 90 },
+            { label: 'Status', key: 'Status', w: 120 },
+          ]}
+          data={vine}
+          renderRow={r => {
+            const rating = num(r['Current Rating']);
+            const atRisk = rating > 0 && rating < 4.2;
+            return (
+              <tr key={r.id} style={atRisk ? { background: 'rgba(214,92,44,0.06)' } : undefined}>
+                <td><strong>{fmt(r.Product)}</strong>{r.Notes && <p className="os-table-note">{r.Notes}</p>}</td>
+                <td className="os-mono" style={{ fontSize: 12 }}>{fmt(r.ASIN)}</td>
+                <td className="os-mono" style={atRisk ? { color: '#d65c2c', fontWeight: 600 } : undefined}>{rating ? rating.toFixed(1) : '—'}</td>
+                <td className="os-mono">{fmt(r['Current Reviews'])}</td>
+                <td className="os-mono">{fmt(r['Reviews Needed (4.2 target)'])}</td>
+                <td className="os-mono">{fmt(r['Reviews Needed (4.5 target)'])}</td>
+                <td className="os-mono">{fmt(r['Vine Units Claimed'])}</td>
+                <td className="os-mono">{fmt(r['Vine Units Reviewed'])}</td>
+                <td className="os-mono">{fmt(r['Vine Units Pending'])}</td>
+                <td>{r.Status ? <span className={`os-pill ${sc(r.Status)}`}>{r.Status}</span> : '—'}</td>
+              </tr>
+            );
+          }}
+          emptyMsg="No Vine records."
+        />
+      </div>
+    </>
+  );
+}
+
 /* ── B2B ──────────────────────────────────────── */
 function B2BTab({ items }) {
   const editor = useStatusEditor(items, 'Account Status');
@@ -2637,7 +2820,7 @@ function CustomersTab({ items }) {
 }
 
 /* ── Affiliates ───────────────────────────────── */
-const AFF_SUBS = ['Programme', 'Performance', 'Sales', 'Payouts', 'Traffic', 'Products', 'Tasks'];
+const AFF_SUBS = ['Performance', 'Sales', 'Traffic', 'Products', 'Payouts', 'Tasks', 'Programme'];
 
 /* Programme — UK base CRM/onboarding records */
 function AffProgrammeTab({ items }) {
@@ -2995,13 +3178,17 @@ function AffTasksInnerTab({ items }) {
 }
 
 /* Outer wrapper — manages inner sub-tabs */
-function AffiliatesTab({ items, affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [] }) {
-  const [sub, setSub] = useState('Programme');
+function AffiliatesTab({ items = [], affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [] }) {
+  const affCounts = {
+    Performance: affPerformance.length, Sales: affSales.length, Traffic: affTraffic.length,
+    Products: affProducts.length, Payouts: affPayouts.length, Tasks: affTasks.length, Programme: items.length,
+  };
+  const [sub, setSub] = useState(() => AFF_SUBS.find(s => affCounts[s] > 0) || AFF_SUBS[0]);
   return (
     <>
-      <div className="os-subnav-inner" style={{ marginBottom: 20, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+      <div className="os-subnav-inner" style={{ marginBottom: 20, display: 'flex', gap: 4, flexWrap: 'nowrap', overflowX: 'auto', whiteSpace: 'nowrap' }}>
         {AFF_SUBS.map(s => (
-          <button key={s} className={`os-subnav-btn${sub === s ? ' active' : ''}`} onClick={() => setSub(s)} style={{ fontSize: 12, padding: '4px 12px' }}>{s}</button>
+          <button key={s} className={`os-subnav-btn${sub === s ? ' active' : ''}`} onClick={() => setSub(s)} style={{ fontSize: 12, padding: '4px 12px', flexShrink: 0, opacity: affCounts[s] > 0 ? 1 : 0.4 }}>{s}</button>
         ))}
       </div>
       {sub === 'Programme'   && <AffProgrammeTab items={items} />}
@@ -3448,7 +3635,7 @@ function FinanceTab({ reconcile, software, payouts, payoutsCsv = [], serverTime,
                       <td className="os-mono" style={{ textAlign: 'right' }}>{gbp(p.charges)}</td>
                       <td className="os-mono" style={{ textAlign: 'right' }}>{p.refunds > 0 ? <span style={{ color: 'var(--red)' }}>-{gbp(p.refunds)}</span> : '—'}</td>
                       <td className="os-mono" style={{ textAlign: 'right' }}><span style={{ color: 'var(--red)' }}>{gbp(p.fees)}</span></td>
-                      <td className="os-mono" style={{ textAlign: 'right' }}><strong style={{ color: p.total < 0 ? 'var(--red)' : undefined }}>{gbp(Math.abs(p.total))}</strong></td>
+                      <td className="os-mono" style={{ textAlign: 'right' }}><strong style={{ color: p.total < 0 ? 'var(--red)' : p.status === 'paid' && p.total > 0 ? '#16a34a' : p.total > 0 ? '#d97706' : undefined }}>{gbp(Math.abs(p.total))}</strong></td>
                       <td className="os-muted" style={{ fontSize: '0.78rem' }}>{p.bankRef || '—'}</td>
                     </tr>
                   ))}
@@ -3689,7 +3876,7 @@ function ReportingTab({ items }) {
 }
 
 /* ── Page ─────────────────────────────────────── */
-export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers = [], cs, reconcile, software, reporting, products, ppc = [], disbursements = [], reviews = [], bionature = [], billing = [], atSalesByProduct = [], affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [], rspTracker = [], error, serverTime }) {
+export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers = [], cs, reconcile, software, reporting, products, ppc = [], disbursements = [], reviews = [], bionature = [], billing = [], atSalesByProduct = [], affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [], rspTracker = [], vine = [], error, serverTime }) {
   const router = useRouter();
   const [section, setSection] = useState('Overview');
   const [tab, setTab] = useState('Tasks');
@@ -3782,7 +3969,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
           {tab === 'Customer Service' && <CSTab items={cs} />}
           {tab === 'Finance' && section === 'Shopify UK' && <FinanceTab reconcile={reconcile} software={software} payouts={payouts} payoutsCsv={payoutsCsv || []} serverTime={serverTime} billing={billing} atSalesByProduct={atSalesByProduct} />}
           {tab === 'Finance' && section === 'Amazon UK'  && <AmazonFinanceTab reconcile={reconcile} disbursements={disbursements} />}
-          {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} tasks={tasks} priorities={priorities} marketing={marketing} inbound={inbound} reporting={reporting} ppc={ppc} reviews={reviews} rspTracker={rspTracker} />}
+          {tab === 'Amazon UK'        && <AmazonTab fba={amazon} catalogue={catalogue} tasks={tasks} priorities={priorities} marketing={marketing} inbound={inbound} reporting={reporting} ppc={ppc} reviews={reviews} rspTracker={rspTracker} vine={vine} />}
           {tab === 'Google'           && <GoogleTab section={section} />}
           {tab === 'Stock on Hand'    && <SOHTab soh={soh} sohSource={sohSource} />}
           {tab === 'Inbound Stock'    && <InboundTab inbound={inbound} />}
@@ -3796,7 +3983,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
 export async function getServerSideProps() {
   const safe = p => p.catch(e => { console.warn('[uk] fetch partial fail:', e.message); return []; });
 
-  const [tasks, priorities, risks, amazon, catalogue, shopifyProducts, airtableOrders, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, subscribers, rspTracker] = await Promise.all([
+  const [tasks, priorities, risks, amazon, catalogue, shopifyProducts, airtableOrders, discounts, refunds, payouts, soh, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, subscribers, rspTracker, vine] = await Promise.all([
     safe(getUKTasks()), safe(getUKPriorities()), safe(getUKRisks()),
     safe(getUKAmazon()), safe(getUKAmazonCat()),
     safe(getUKShopify()), safe(getUKOrders()), safe(getUKDiscounts()), safe(getUKRefunds()), safe(getUKPayouts()),
@@ -3811,6 +3998,7 @@ export async function getServerSideProps() {
     safe(getAffiliateTraffic()), safe(getAffiliateTasks()), safe(getAffiliateProducts()),
     safe(getUKSubscribers()),
     safe(getUKRSPTracker()),
+    safe(getUKVine()),
   ]);
 
   // Orders — Airtable is source of truth (populated by email capture scheduler)
@@ -3842,5 +4030,5 @@ export async function getServerSideProps() {
   const sohData = soh;
   const sohSource = 'airtable';
 
-  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers: subscribers || [], cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, rspTracker: rspTracker || [], error: null, serverTime: new Date().toISOString() } };
+  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers: subscribers || [], cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, rspTracker: rspTracker || [], vine: vine || [], error: null, serverTime: new Date().toISOString() } };
 }

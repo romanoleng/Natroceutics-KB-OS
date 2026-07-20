@@ -6,7 +6,7 @@ import { useState, useMemo } from 'react';
 import OsLayout from '../components/OsLayout';
 import ProductsSection from '../components/ProductsSection';
 import SortableTable from '../components/SortableTable';
-import { getProducts, getSOPs, getContacts, getPlatforms, getRegulatory, getBrandAssets, getCompanyInfo, getTemplates, getTraining } from '../lib/airtable';
+import { getProducts, getSOPs, getContacts, getPlatforms, getRegulatory, getBrandAssets, getCompanyInfo, getTemplates, getTraining, getDistributionMarkets, getAllItems } from '../lib/airtable';
 import { sc } from '../components/StatusSelect';
 
 function fmt(v){ return (v===null||v===undefined||v==='')?'—':v; }
@@ -365,10 +365,116 @@ function TrainingTab({ items }) {
   );
 }
 
-/* ── Page ──────────────────────────────────────── */
-const TABS = ['Products','SOPs','Contacts','Platforms','Regulatory','Brand Assets','Company Info','Templates','Training Resources'];
+/* ── Distribution Markets ──────────────────────── */
+function DistributionMarketsTab({ items }) {
+  const [srch, setSrch] = useState('');
+  const regions = [...new Set(items.map(i => i.Region).filter(Boolean))];
+  const [reg, setReg] = useState('');
+  const filtered = useMemo(() => {
+    const q = srch.toLowerCase();
+    return items.filter(i => {
+      const mQ = !q
+        || (i.Market||'').toLowerCase().includes(q)
+        || (i['Key Distributor / Partner']||'').toLowerCase().includes(q)
+        || (i['Distribution Model']||'').toLowerCase().includes(q);
+      const mR = !reg || i.Region === reg;
+      return mQ && mR;
+    });
+  }, [items, srch, reg]);
+  if (!items.length) return <div className="os-empty">No distribution markets logged.</div>;
+  return (
+    <>
+      <div className="os-toolbar">
+        <input className="os-search" placeholder="Search markets, distributors…" value={srch} onChange={e=>setSrch(e.target.value)}/>
+        {regions.length>0&&<select className="os-select" value={reg} onChange={e=>setReg(e.target.value)}><option value="">All Regions</option>{regions.map(c=><option key={c} value={c}>{c}</option>)}</select>}
+        <span className="os-count">{filtered.length} markets</span>
+        <button style={csvBtnStyle} onClick={() => downloadCSV(filtered, 'kb-distribution-markets')}>↓ CSV</button>
+      </div>
+      <SortableTable
+        cols={[
+          { label: 'Market', key: 'Market' },
+          { label: 'Region', key: 'Region', w: 110 },
+          { label: 'Status', key: 'Status', w: 110 },
+          { label: 'Model', key: 'Distribution Model', w: 130 },
+          { label: 'Distributor', key: 'Key Distributor / Partner', w: 160 },
+          { label: 'Contact', key: 'Distributor Contact', w: 140 },
+          { label: 'Currency', key: 'Currency', w: 90 },
+          { label: 'Stock Location', key: 'Stock Location', w: 140 },
+          { label: 'Escalate?', key: 'Escalate To Regional Base?', w: 100 },
+        ]}
+        data={filtered}
+        renderRow={r => (
+          <tr key={r.id}>
+            <td><strong>{fmt(r.Market)}</strong></td>
+            <td className="os-muted">{fmt(r.Region)}</td>
+            <td>{r.Status?<span className={`os-pill ${sc(r.Status)}`}>{r.Status}</span>:'—'}</td>
+            <td className="os-muted">{fmt(r['Distribution Model'])}</td>
+            <td>{fmt(r['Key Distributor / Partner'])}</td>
+            <td className="os-muted" style={{fontSize:12}}>{fmt(r['Distributor Email'] || r['Distributor Contact'])}</td>
+            <td className="os-mono">{fmt(r.Currency)}</td>
+            <td className="os-muted" style={{fontSize:12}}>{fmt(r['Stock Location'])}</td>
+            <td className="os-mono">{r['Escalate To Regional Base?'] ? 'Yes' : '—'}</td>
+          </tr>
+        )}
+        emptyMsg="No distribution markets."
+      />
+    </>
+  );
+}
 
-export default function KBPage({ products, sops, contacts, platforms, regulatory, brandAssets = [], companyInfo = [], templates = [], training = [], error }) {
+/* ── Knowledge Items ───────────────────────────── */
+function KnowledgeItemsTab({ items }) {
+  const [srch, setSrch] = useState('');
+  const cats = [...new Set(items.map(i => i.category).filter(Boolean))];
+  const [cat, setCat] = useState('');
+  const filtered = useMemo(() => {
+    const q = srch.toLowerCase();
+    return items.filter(i => {
+      const mQ = !q
+        || (i.title||'').toLowerCase().includes(q)
+        || (i.content||'').toLowerCase().includes(q)
+        || (i.tags||'').toLowerCase().includes(q);
+      const mC = !cat || i.category === cat;
+      return mQ && mC;
+    });
+  }, [items, srch, cat]);
+  if (!items.length) return <div className="os-empty">No knowledge items logged.</div>;
+  return (
+    <>
+      <div className="os-toolbar">
+        <input className="os-search" placeholder="Search knowledge, tags…" value={srch} onChange={e=>setSrch(e.target.value)}/>
+        {cats.length>0&&<select className="os-select" value={cat} onChange={e=>setCat(e.target.value)}><option value="">All Categories</option>{cats.map(c=><option key={c} value={c}>{c}</option>)}</select>}
+        <span className="os-count">{filtered.length} items</span>
+        <button style={csvBtnStyle} onClick={() => downloadCSV(filtered, 'kb-knowledge-items')}>↓ CSV</button>
+      </div>
+      <SortableTable
+        cols={[
+          { label: 'Title', key: 'title' },
+          { label: 'Category', key: 'category', w: 140 },
+          { label: 'Content', key: 'content' },
+          { label: 'Tags', key: 'tags', w: 160 },
+          { label: 'Last Updated', key: 'last_updated', type: 'date', w: 120 },
+        ]}
+        data={filtered}
+        renderRow={r => (
+          <tr key={r.id}>
+            <td><strong>{fmt(r.title)}</strong></td>
+            <td className="os-muted">{fmt(r.category)}</td>
+            <td className="os-muted" style={{fontSize:12}}>{fmt(r.content)}</td>
+            <td className="os-muted" style={{fontSize:11}}>{fmt(r.tags)}</td>
+            <td className="os-mono">{fmt(r.last_updated)}</td>
+          </tr>
+        )}
+        emptyMsg="No knowledge items."
+      />
+    </>
+  );
+}
+
+/* ── Page ──────────────────────────────────────── */
+const TABS = ['Products','SOPs','Contacts','Platforms','Regulatory','Brand Assets','Company Info','Templates','Training Resources','Distribution Markets','Knowledge Items'];
+
+export default function KBPage({ products, sops, contacts, platforms, regulatory, brandAssets = [], companyInfo = [], templates = [], training = [], distMarkets = [], knowledgeItems = [], error }) {
   const [tab, setTab] = useState('Products');
 
   return (
@@ -383,6 +489,8 @@ export default function KBPage({ products, sops, contacts, platforms, regulatory
             <div className="rhs"><span className="rhs-num">{contacts.length}</span><span className="rhs-label">Contacts</span></div>
             <div className="rhs"><span className="rhs-num">{platforms.length}</span><span className="rhs-label">Platforms</span></div>
             <div className="rhs"><span className="rhs-num">{regulatory.length}</span><span className="rhs-label">Regulatory</span></div>
+            <div className="rhs"><span className="rhs-num">{distMarkets.length}</span><span className="rhs-label">Markets</span></div>
+            <div className="rhs"><span className="rhs-num">{knowledgeItems.length}</span><span className="rhs-label">Knowledge</span></div>
           </div>
         </div>
       </section>
@@ -404,6 +512,8 @@ export default function KBPage({ products, sops, contacts, platforms, regulatory
           {tab==='Company Info'      && <CompanyInfoTab items={companyInfo}/>}
           {tab==='Templates'         && <TemplatesTab items={templates}/>}
           {tab==='Training Resources'&& <TrainingTab items={training}/>}
+          {tab==='Distribution Markets' && <DistributionMarketsTab items={distMarkets}/>}
+          {tab==='Knowledge Items'   && <KnowledgeItemsTab items={knowledgeItems}/>}
         </div>
       </div>
     </OsLayout>
@@ -412,12 +522,13 @@ export default function KBPage({ products, sops, contacts, platforms, regulatory
 
 export async function getServerSideProps() {
   try {
-    const [products, sops, contacts, platforms, regulatory, brandAssets, companyInfo, templates, training] = await Promise.all([
+    const [products, sops, contacts, platforms, regulatory, brandAssets, companyInfo, templates, training, distMarkets, knowledgeItems] = await Promise.all([
       getProducts(), getSOPs(), getContacts(), getPlatforms(), getRegulatory(),
       getBrandAssets(), getCompanyInfo(), getTemplates(), getTraining(),
+      getDistributionMarkets(), getAllItems(),
     ]);
-    return { props: { products, sops, contacts, platforms, regulatory, brandAssets, companyInfo, templates, training, error: null } };
+    return { props: { products, sops, contacts, platforms, regulatory, brandAssets, companyInfo, templates, training, distMarkets, knowledgeItems, error: null } };
   } catch(e) {
-    return { props: { products:[], sops:[], contacts:[], platforms:[], regulatory:[], brandAssets:[], companyInfo:[], templates:[], training:[], error: e.message } };
+    return { props: { products:[], sops:[], contacts:[], platforms:[], regulatory:[], brandAssets:[], companyInfo:[], templates:[], training:[], distMarkets:[], knowledgeItems:[], error: e.message } };
   }
 }
