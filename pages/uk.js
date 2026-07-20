@@ -278,7 +278,7 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
   const [pnlLoaded, setPnlLoaded] = useState(false);
 
   useEffect(() => {
-    if (sub === 'Net Profit' && !pnlLoaded && !pnlLoading) {
+    if ((sub === 'Summary' || sub === 'COGS' || sub === 'Fees') && !pnlLoaded && !pnlLoading) {
       setPnlLoading(true);
       fetch('/api/shopify-pnl')
         .then(r => r.json())
@@ -315,6 +315,17 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
       return d >= dateFrom && d <= dateTo;
     });
   }, [orders, dateFrom, dateTo]);
+
+  // Net Profit / COGS / Fees daily P&L — filtered by the same date range as order KPIs above,
+  // so MTD / Last Month / 30 Days / etc. actually move the Net Profit numbers.
+  const filteredPnl = useMemo(() => {
+    if (!dateFrom) return shopifyDailyPnl;
+    return shopifyDailyPnl.filter(r => {
+      if (!r.Date) return false;
+      const d = new Date(r.Date);
+      return d >= dateFrom && d <= dateTo;
+    });
+  }, [shopifyDailyPnl, dateFrom, dateTo]);
 
   const kpis = useMemo(() => {
     const count = filteredOrders.length;
@@ -401,14 +412,111 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
 
       {/* ── Sub-tabs ── */}
       <div className="os-sub-tabs" style={{ marginTop: 24, overflowX: 'auto', display: 'flex', flexWrap: 'nowrap', gap: 4 }}>
-        {['Summary', 'Orders', 'Daily Sales', 'By Product', 'Net Profit', 'Discounts', 'Refunds'].map(s => (
+        {['Summary', 'Orders', 'Daily Sales', 'By Product', 'COGS', 'Fees', 'Discounts', 'Refunds'].map(s => (
           <button key={s} className={`os-sub-tab${sub === s ? ' active' : ''}`} onClick={() => setSub(s)}>{s}</button>
         ))}
       </div>
 
       {/* ── Summary ── */}
       {sub === 'Summary' && (
-        <div className="orders-summary-grid">
+        <>
+        {pnlLoading && !pnlLoaded && <div className="os-empty" style={{ marginTop: 12 }}>Loading Net Profit data…</div>}
+        {pnlLoaded && filteredPnl.length > 0 && (() => {
+          const sortedPnl = [...filteredPnl].sort((a, b) => new Date(b.Date) - new Date(a.Date));
+          const pRevenue   = sortedPnl.reduce((s, r) => s + (Number(r['Revenue £']) || 0), 0);
+          const pDiscounts = sortedPnl.reduce((s, r) => s + (Number(r['Discounts £']) || 0), 0);
+          const pFees      = sortedPnl.reduce((s, r) => s + (Number(r['Shopify Fees £']) || 0), 0);
+          const pCOGS      = sortedPnl.reduce((s, r) => s + (Number(r['COGS £']) || 0), 0);
+          const pNetProfit = sortedPnl.reduce((s, r) => s + (Number(r['Net Profit £']) || 0), 0);
+          const pOrders    = sortedPnl.reduce((s, r) => s + (Number(r.Orders) || 0), 0);
+          const pMargin    = pRevenue > 0 ? ((pNetProfit / pRevenue) * 100).toFixed(1) : '—';
+          const coverageDays = sortedPnl.filter(r => r['COGS Coverage %'] != null && r['COGS Coverage %'] !== '');
+          const avgCoverage = coverageDays.length
+            ? (coverageDays.reduce((s, r) => s + (Number(r['COGS Coverage %']) || 0), 0) / coverageDays.length * 100).toFixed(0)
+            : null;
+          return (
+            <>
+              <div className="wh-banner" style={{ marginTop: 12 }}>
+                <div className="wh-banner-inner">
+                  <span className="wh-banner-label">Shopify UK — Profit &amp; Loss</span>
+                  <span className="wh-banner-sub">📋 Shopify Payments fees (live) · COGS: Amazon-derived proxy · {range}{range === 'Custom' ? '' : ` (${sortedPnl.length} days)`}</span>
+                </div>
+              </div>
+              {avgCoverage !== null && Number(avgCoverage) < 100 && (
+                <div className="wh-banner" style={{ marginTop: 8, borderColor: 'var(--amber, #d97706)' }}>
+                  <div className="wh-banner-inner">
+                    <span className="wh-banner-label" style={{ color: 'var(--amber, #d97706)' }}>⚠ Estimated COGS</span>
+                    <span className="wh-banner-sub">~{avgCoverage}% of units matched to a known cost. Unmatched units are excluded from COGS — Net Profit is likely slightly overstated. See the COGS tab for per-SKU detail.</span>
+                  </div>
+                </div>
+              )}
+              <div className="orders-kpi-row" style={{ marginTop: 12 }}>
+                <div className="orders-kpi-card">
+                  <div className="orders-kpi-num">{gbp0(pRevenue)}</div>
+                  <div className="orders-kpi-label">P&amp;L REVENUE</div>
+                  <div className="orders-kpi-sub">{pOrders} orders</div>
+                </div>
+                <div className="orders-kpi-card" style={{ borderTop: `3px solid ${pNetProfit >= 0 ? 'var(--green-600, #16a34a)' : 'var(--red-500, #ef4444)'}` }}>
+                  <div className="orders-kpi-num" style={{ color: pNetProfit >= 0 ? 'var(--green-600, #16a34a)' : 'var(--red-500, #ef4444)' }}>{gbp(pNetProfit)}</div>
+                  <div className="orders-kpi-label">NET PROFIT</div>
+                </div>
+                <div className="orders-kpi-card">
+                  <div className="orders-kpi-num">{pMargin !== '—' ? `${pMargin}%` : '—'}</div>
+                  <div className="orders-kpi-label">MARGIN</div>
+                </div>
+                <div className="orders-kpi-card">
+                  <div className="orders-kpi-num">{gbp(pFees)}</div>
+                  <div className="orders-kpi-label">SHOPIFY FEES</div>
+                </div>
+                <div className="orders-kpi-card">
+                  <div className="orders-kpi-num">{gbp(pCOGS)}</div>
+                  <div className="orders-kpi-label">COGS</div>
+                  {avgCoverage !== null && <div className="orders-kpi-sub">~{avgCoverage}% coverage</div>}
+                </div>
+                <div className="orders-kpi-card">
+                  <div className="orders-kpi-num">{gbp(pDiscounts)}</div>
+                  <div className="orders-kpi-label">DISCOUNTS</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16, marginBottom: 2 }}>
+                <button className="os-sub-tab" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => downloadCSV(sortedPnl, 'shopify-daily-net-profit')}>↓ CSV</button>
+              </div>
+              <SortableTable
+                data={sortedPnl}
+                cols={[
+                  { label: 'Date', key: 'Date' },
+                  { label: 'Revenue £', key: 'Revenue £', type: 'number', w: 100 },
+                  { label: 'Discounts £', key: 'Discounts £', type: 'number', w: 100 },
+                  { label: 'Orders', key: 'Orders', type: 'number', w: 70 },
+                  { label: 'Units', key: 'Units', type: 'number', w: 70 },
+                  { label: 'Shopify Fees', key: 'Shopify Fees £', type: 'number', w: 100 },
+                  { label: 'COGS', key: 'COGS £', type: 'number', w: 90 },
+                  { label: 'Coverage', key: 'COGS Coverage %', type: 'number', w: 90 },
+                  { label: 'Net Profit £', key: 'Net Profit £', type: 'number', w: 110 },
+                  { label: 'Margin %', key: 'Margin %', type: 'number', w: 90 },
+                ]}
+                renderRow={(r) => (
+                  <tr key={r.id || r.Date}>
+                    <td className="os-mono" style={{ fontSize: 11 }}>{fmt(r.Date)}</td>
+                    <td className="os-mono">{gbp(r['Revenue £'])}</td>
+                    <td className="os-mono">{r['Discounts £'] ? <span style={{ color: 'var(--amber)' }}>-{gbp(r['Discounts £'])}</span> : '—'}</td>
+                    <td className="os-mono">{fmt(r.Orders)}</td>
+                    <td className="os-mono">{fmt(r.Units)}</td>
+                    <td className="os-mono">{gbp(r['Shopify Fees £'])}</td>
+                    <td className="os-mono">{gbp(r['COGS £'])}</td>
+                    <td className="os-mono">{r['COGS Coverage %'] != null && r['COGS Coverage %'] !== '' ? `${(Number(r['COGS Coverage %']) * 100).toFixed(0)}%` : '—'}</td>
+                    <td className="os-mono"><span style={{ color: Number(r['Net Profit £']) >= 0 ? 'var(--green-600, #16a34a)' : 'var(--red-500, #ef4444)', fontWeight: 600 }}>{gbp(r['Net Profit £'])}</span></td>
+                    <td className="os-mono">{r['Margin %'] ? `${r['Margin %']}%` : '—'}</td>
+                  </tr>
+                )}
+              />
+            </>
+          );
+        })()}
+        {pnlLoaded && filteredPnl.length === 0 && (
+          <div className="wh-banner" style={{ marginTop: 12 }}><div className="wh-banner-inner"><span className="wh-banner-label">No Net Profit data for this range</span><span className="wh-banner-sub">Try a wider date range, or run the Shopify Daily P&amp;L sync to populate more days.</span></div></div>
+        )}
+        <div className="orders-summary-grid" style={{ marginTop: 20 }}>
           <div className="orders-summary-card">
             <h4 className="orders-summary-title">BY FINANCIAL STATUS</h4>
             <div style={{ overflowX: 'auto' }}>
@@ -461,6 +569,7 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
             </div>
           </div>
         </div>
+        </>
       )}
 
       {/* ── Orders list ── */}
@@ -665,104 +774,143 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
           )
       )}
 
-      {/* ── Net Profit / COGS / Fees ── */}
-      {sub === 'Net Profit' && (() => {
-        if (pnlLoading && !pnlLoaded) return <div className="os-empty" style={{ marginTop: 12 }}>Loading Net Profit data…</div>;
-        if (!shopifyDailyPnl.length) return <div className="wh-banner" style={{ marginTop: 12 }}><div className="wh-banner-inner"><span className="wh-banner-label">No Net Profit data yet</span><span className="wh-banner-sub">Run the Shopify Daily P&L sync to populate.</span></div></div>;
-
-        const sorted = [...shopifyDailyPnl].sort((a, b) => new Date(b.Date) - new Date(a.Date));
-        const pRevenue   = sorted.reduce((s, r) => s + (Number(r['Revenue £']) || 0), 0);
-        const pDiscounts = sorted.reduce((s, r) => s + (Number(r['Discounts £']) || 0), 0);
-        const pFees      = sorted.reduce((s, r) => s + (Number(r['Shopify Fees £']) || 0), 0);
-        const pCOGS      = sorted.reduce((s, r) => s + (Number(r['COGS £']) || 0), 0);
-        const pNetProfit = sorted.reduce((s, r) => s + (Number(r['Net Profit £']) || 0), 0);
-        const pOrders    = sorted.reduce((s, r) => s + (Number(r.Orders) || 0), 0);
-        const pMargin    = pRevenue > 0 ? ((pNetProfit / pRevenue) * 100).toFixed(1) : '—';
-        // Weighted avg COGS coverage (by revenue) — flags how much of COGS is verified vs proxy/estimated
-        const coverageDays = sorted.filter(r => r['COGS Coverage %'] != null && r['COGS Coverage %'] !== '');
-        const avgCoverage = coverageDays.length
-          ? (coverageDays.reduce((s, r) => s + (Number(r['COGS Coverage %']) || 0), 0) / coverageDays.length * 100).toFixed(0)
-          : null;
-
+      {/* ── COGS ── */}
+      {sub === 'COGS' && (() => {
+        const costs = pnlData.productCosts || [];
+        if (pnlLoading && !pnlLoaded) return <div className="os-empty" style={{ marginTop: 12 }}>Loading COGS data…</div>;
+        if (!costs.length) return <div className="wh-banner" style={{ marginTop: 12 }}><div className="wh-banner-inner"><span className="wh-banner-label">No product cost data yet</span><span className="wh-banner-sub">Seed the Product Costs table in Airtable.</span></div></div>;
+        const confirmed = costs.filter(c => c.Source === 'Shopify Confirmed');
+        const proxy = costs.filter(c => c.Source === 'Amazon-Derived (proxy)');
+        const needsData = costs.filter(c => c.Source === 'Needs Data' || !c.Source);
+        const coveragePct = costs.length ? (((confirmed.length + proxy.length) / costs.length) * 100).toFixed(0) : '0';
+        const sorted = [...costs].sort((a, b) => {
+          const order = { 'Needs Data': 0, 'Amazon-Derived (proxy)': 1, 'Shopify Confirmed': 2 };
+          const av = order[a.Source] ?? 0, bv = order[b.Source] ?? 0;
+          if (av !== bv) return av - bv;
+          return (a['Product Name'] || '').localeCompare(b['Product Name'] || '');
+        });
         return (
           <>
             <div className="wh-banner" style={{ marginTop: 12 }}>
               <div className="wh-banner-inner">
-                <span className="wh-banner-label">Shopify UK — Net Profit</span>
-                <span className="wh-banner-sub">📋 Shopify Payments fees (live) · COGS: Amazon-derived proxy · {sorted.length} days</span>
+                <span className="wh-banner-label">Shopify UK — Product Costs (COGS)</span>
+                <span className="wh-banner-sub">{costs.length} SKUs · {coveragePct}% have a known unit cost</span>
               </div>
             </div>
-
-            {avgCoverage !== null && Number(avgCoverage) < 100 && (
-              <div className="wh-banner" style={{ marginTop: 8, borderColor: 'var(--amber, #d97706)' }}>
+            {needsData.length > 0 && (
+              <div className="wh-banner" style={{ marginTop: 8, borderColor: 'var(--red-500, #ef4444)' }}>
                 <div className="wh-banner-inner">
-                  <span className="wh-banner-label" style={{ color: 'var(--amber, #d97706)' }}>⚠ Estimated COGS</span>
-                  <span className="wh-banner-sub">~{avgCoverage}% of units matched to a known cost (Amazon-derived proxy or Shopify-confirmed). Unmatched units are excluded from COGS — Net Profit is likely slightly overstated. See Product Costs table in Airtable for per-SKU detail.</span>
+                  <span className="wh-banner-label" style={{ color: 'var(--red-500, #ef4444)' }}>⚠ {needsData.length} SKUs need a cost</span>
+                  <span className="wh-banner-sub">These are excluded from COGS entirely, which overstates Net Profit. Add costs manually in Shopify (cost per item) or confirm an Amazon-derived proxy in Airtable.</span>
                 </div>
               </div>
             )}
-
-            {/* KPI cards */}
             <div className="orders-kpi-row" style={{ marginTop: 12 }}>
               <div className="orders-kpi-card">
-                <div className="orders-kpi-num">{gbp0(pRevenue)}</div>
-                <div className="orders-kpi-label">REVENUE</div>
-                <div className="orders-kpi-sub">{pOrders} orders</div>
+                <div className="orders-kpi-num">{costs.length}</div>
+                <div className="orders-kpi-label">TOTAL SKUS</div>
               </div>
-              <div className="orders-kpi-card" style={{ borderTop: `3px solid ${pNetProfit >= 0 ? 'var(--green-600, #16a34a)' : 'var(--red-500, #ef4444)'}` }}>
-                <div className="orders-kpi-num" style={{ color: pNetProfit >= 0 ? 'var(--green-600, #16a34a)' : 'var(--red-500, #ef4444)' }}>{gbp(pNetProfit)}</div>
-                <div className="orders-kpi-label">NET PROFIT</div>
+              <div className="orders-kpi-card" style={{ borderTop: '3px solid var(--green-600, #16a34a)' }}>
+                <div className="orders-kpi-num">{confirmed.length}</div>
+                <div className="orders-kpi-label">SHOPIFY CONFIRMED</div>
               </div>
-              <div className="orders-kpi-card">
-                <div className="orders-kpi-num">{pMargin !== '—' ? `${pMargin}%` : '—'}</div>
-                <div className="orders-kpi-label">MARGIN</div>
+              <div className="orders-kpi-card" style={{ borderTop: '3px solid var(--amber, #d97706)' }}>
+                <div className="orders-kpi-num">{proxy.length}</div>
+                <div className="orders-kpi-label">AMAZON-DERIVED (PROXY)</div>
               </div>
-              <div className="orders-kpi-card">
-                <div className="orders-kpi-num">{gbp(pFees)}</div>
-                <div className="orders-kpi-label">SHOPIFY FEES</div>
-              </div>
-              <div className="orders-kpi-card">
-                <div className="orders-kpi-num">{gbp(pCOGS)}</div>
-                <div className="orders-kpi-label">COGS</div>
-                {avgCoverage !== null && <div className="orders-kpi-sub">~{avgCoverage}% coverage</div>}
-              </div>
-              <div className="orders-kpi-card">
-                <div className="orders-kpi-num">{gbp(pDiscounts)}</div>
-                <div className="orders-kpi-label">DISCOUNTS</div>
+              <div className="orders-kpi-card" style={{ borderTop: '3px solid var(--red-500, #ef4444)' }}>
+                <div className="orders-kpi-num">{needsData.length}</div>
+                <div className="orders-kpi-label">NEEDS DATA</div>
               </div>
             </div>
-
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16, marginBottom: 2 }}>
-              <button className="os-sub-tab" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => downloadCSV(sorted, 'shopify-daily-net-profit')}>↓ CSV</button>
+              <button className="os-sub-tab" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => downloadCSV(sorted, 'shopify-product-costs')}>↓ CSV</button>
             </div>
             <SortableTable
               data={sorted}
               cols={[
+                { label: 'Product', key: 'Product Name' },
+                { label: 'SKU', key: 'SKU', w: 100 },
+                { label: 'Unit Cost', key: 'Unit Cost (£)', type: 'number', w: 90 },
+                { label: 'Source', key: 'Source', w: 170 },
+                { label: 'Last Updated', key: 'Last Updated', type: 'date', w: 100 },
+                { label: 'Notes', key: 'Notes' },
+              ]}
+              renderRow={(c) => (
+                <tr key={c.id || c.SKU}>
+                  <td><strong>{fmt(c['Product Name'])}</strong></td>
+                  <td className="os-mono">{fmt(c.SKU)}</td>
+                  <td className="os-mono">{c['Unit Cost (£)'] ? gbp(c['Unit Cost (£)']) : '—'}</td>
+                  <td>{c.Source ? <span className={`os-pill ${sc(c.Source)}`}>{c.Source}</span> : <span className={`os-pill ${sc('Needs Data')}`}>Needs Data</span>}</td>
+                  <td className="os-mono">{fmt(c['Last Updated'])}</td>
+                  <td className="os-muted" style={{ fontSize: 12 }}>{fmt(c.Notes)}</td>
+                </tr>
+              )}
+              emptyMsg="No product cost data."
+            />
+          </>
+        );
+      })()}
+
+      {/* ── Fees ── */}
+      {sub === 'Fees' && (() => {
+        if (pnlLoading && !pnlLoaded) return <div className="os-empty" style={{ marginTop: 12 }}>Loading Fees data…</div>;
+        if (!filteredPnl.length) return <div className="wh-banner" style={{ marginTop: 12 }}><div className="wh-banner-inner"><span className="wh-banner-label">No fee data for this range</span><span className="wh-banner-sub">Try a wider date range, or run the Shopify Daily P&L sync to populate more days.</span></div></div>;
+        const sorted = [...filteredPnl].sort((a, b) => new Date(b.Date) - new Date(a.Date));
+        const totalFees = sorted.reduce((s, r) => s + (Number(r['Shopify Fees £']) || 0), 0);
+        const totalRevenue = sorted.reduce((s, r) => s + (Number(r['Revenue £']) || 0), 0);
+        const totalOrders = sorted.reduce((s, r) => s + (Number(r.Orders) || 0), 0);
+        const feePctRevenue = totalRevenue > 0 ? ((totalFees / totalRevenue) * 100).toFixed(2) : '—';
+        const avgFeePerOrder = totalOrders > 0 ? totalFees / totalOrders : 0;
+        const withFees = sorted.map(r => ({ ...r, '_feePct': Number(r['Revenue £']) > 0 ? (Number(r['Shopify Fees £']) / Number(r['Revenue £'])) * 100 : 0 }));
+        return (
+          <>
+            <div className="wh-banner" style={{ marginTop: 12 }}>
+              <div className="wh-banner-inner">
+                <span className="wh-banner-label">Shopify UK — Payment Fees</span>
+                <span className="wh-banner-sub">📋 Shopify Payments transaction fees (live) · {range}{range === 'Custom' ? '' : ` (${sorted.length} days)`}</span>
+              </div>
+            </div>
+            <div className="orders-kpi-row" style={{ marginTop: 12 }}>
+              <div className="orders-kpi-card">
+                <div className="orders-kpi-num">{gbp(totalFees)}</div>
+                <div className="orders-kpi-label">TOTAL FEES</div>
+              </div>
+              <div className="orders-kpi-card">
+                <div className="orders-kpi-num">{feePctRevenue !== '—' ? `${feePctRevenue}%` : '—'}</div>
+                <div className="orders-kpi-label">% OF REVENUE</div>
+              </div>
+              <div className="orders-kpi-card">
+                <div className="orders-kpi-num">{gbp(avgFeePerOrder)}</div>
+                <div className="orders-kpi-label">AVG FEE / ORDER</div>
+              </div>
+              <div className="orders-kpi-card">
+                <div className="orders-kpi-num">{totalOrders}</div>
+                <div className="orders-kpi-label">ORDERS</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16, marginBottom: 2 }}>
+              <button className="os-sub-tab" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => downloadCSV(withFees, 'shopify-fees-by-day')}>↓ CSV</button>
+            </div>
+            <SortableTable
+              data={withFees}
+              cols={[
                 { label: 'Date', key: 'Date' },
                 { label: 'Revenue £', key: 'Revenue £', type: 'number', w: 100 },
-                { label: 'Discounts £', key: 'Discounts £', type: 'number', w: 100 },
                 { label: 'Orders', key: 'Orders', type: 'number', w: 70 },
-                { label: 'Units', key: 'Units', type: 'number', w: 70 },
                 { label: 'Shopify Fees', key: 'Shopify Fees £', type: 'number', w: 100 },
-                { label: 'COGS', key: 'COGS £', type: 'number', w: 90 },
-                { label: 'Coverage', key: 'COGS Coverage %', type: 'number', w: 90 },
-                { label: 'Net Profit £', key: 'Net Profit £', type: 'number', w: 110 },
-                { label: 'Margin %', key: 'Margin %', type: 'number', w: 90 },
+                { label: '% of Revenue', key: '_feePct', type: 'number', w: 100 },
               ]}
               renderRow={(r) => (
                 <tr key={r.id || r.Date}>
                   <td className="os-mono" style={{ fontSize: 11 }}>{fmt(r.Date)}</td>
                   <td className="os-mono">{gbp(r['Revenue £'])}</td>
-                  <td className="os-mono">{r['Discounts £'] ? <span style={{ color: 'var(--amber)' }}>-{gbp(r['Discounts £'])}</span> : '—'}</td>
                   <td className="os-mono">{fmt(r.Orders)}</td>
-                  <td className="os-mono">{fmt(r.Units)}</td>
                   <td className="os-mono">{gbp(r['Shopify Fees £'])}</td>
-                  <td className="os-mono">{gbp(r['COGS £'])}</td>
-                  <td className="os-mono">{r['COGS Coverage %'] != null && r['COGS Coverage %'] !== '' ? `${(Number(r['COGS Coverage %']) * 100).toFixed(0)}%` : '—'}</td>
-                  <td className="os-mono"><span style={{ color: Number(r['Net Profit £']) >= 0 ? 'var(--green-600, #16a34a)' : 'var(--red-500, #ef4444)', fontWeight: 600 }}>{gbp(r['Net Profit £'])}</span></td>
-                  <td className="os-mono">{r['Margin %'] ? `${r['Margin %']}%` : '—'}</td>
+                  <td className="os-mono">{r._feePct ? `${r._feePct.toFixed(2)}%` : '—'}</td>
                 </tr>
               )}
+              emptyMsg="No fee data."
             />
           </>
         );
@@ -841,7 +989,6 @@ function ShopifyTab({ products }) {
         <span className="os-count">{filtered.length} products</span>
       </div>
       <SortableTable
-        updatedLabel="Last Sync"
         cols={[
           { label: 'Product', key: 'Product' },
           { label: 'SKU', key: 'SKU', w: 100 },
