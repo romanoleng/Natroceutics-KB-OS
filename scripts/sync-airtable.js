@@ -30,6 +30,7 @@ const {
   BASES,
   listTables,
   normaliseFields,
+  realEnv,
 } = require('../lib/airtable-tables');
 
 /* ── config ──────────────────────────────────────────────── */
@@ -232,9 +233,21 @@ async function main() {
     return 0;
   }
 
-  const apiKey = process.env.AIRTABLE_API_KEY;
+  const apiKey = realEnv('AIRTABLE_API_KEY');
   if (!apiKey) {
-    console.error('Missing AIRTABLE_API_KEY.');
+    if (process.env.AIRTABLE_API_KEY) {
+      console.error(
+        'AIRTABLE_API_KEY is the placeholder "' + process.env.AIRTABLE_API_KEY + '", not a real token.\n' +
+        'That happens when `vercel env pull` copies a variable marked Sensitive in Vercel —\n' +
+        'those values cannot be read back. Put the real personal access token in .env.local by hand.'
+      );
+    } else {
+      console.error('Missing AIRTABLE_API_KEY.');
+    }
+    return 1;
+  }
+  if (!apiKey.startsWith('pat')) {
+    console.error(`AIRTABLE_API_KEY does not look like a personal access token (expected it to start with "pat").`);
     return 1;
   }
 
