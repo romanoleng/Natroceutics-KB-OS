@@ -1,0 +1,263 @@
+#!/usr/bin/env node
+/**
+ * CSV → Postgres mirror import.
+ *
+ * A stopgap for when the Airtable API quota is exhausted. Airtable's web UI
+ * exports are NOT metered against the API allowance, so this restores data to
+ * the dashboards without spending a single API call.
+ *
+ * It is deliberately a fallback, not a replacement for scripts/sync-airtable.js
+ * — see "Known losses" below. Re-running the real sync later overwrites
+ * everything imported here with the authoritative version.
+ *
+ * Usage
+ *   1. In Airtable, open each table and use  ...  →  Download CSV
+ *   2. Save the files as  imports/<BASE>.<TABLE>.csv   e.g. imports/UK.ORDERS.csv
+ *      (run `node scripts/import-csv.js --list` to print every expected filename)
+ *   3. node --env-file-if-exists=.env.local scripts/import-csv.js
+ *
+ *   --dir=imports     directory to read (default "imports")
+ *   --list            print expected filenames for every known table and exit
+ *   --dry-run         parse and report, write nothing
+ *
+ * Known losses versus a real API sync:
+ *   - Airtable CSV exports contain no record IDs, so rows get synthetic ones
+ *     ("csv:<row>"). Opening a record's detail panel or posting a comment will
+ *     not work for imported rows — those need the real Airtable record ID.
+ *   - Everything arrives as text. Purely numeric cells are converted back to
+ *     numbers; anything else stays a string, so a column Airtable treated as a
+ *     number but exported oddly may format differently on screen.
+ *   - Multi-value cells arrive as one comma-joined string rather than an array.
+ *   - createdTime is not exported, so it is null.
+ */
+const fs = require('fs');
+const path = require('path');
+const { Prisma } = require('@prisma/client');
+const { getPrisma, isConfigured } = require('../lib/prisma');
+const { BASES, listTables } = require('../lib/airtable-tables');
+
+const UPSERT_BATCH = 400;
+
+function parseArgs(argv) {
+  const out = { dir: 'imports', list: false, dryRun: false };
+  for (const a of argv) {
+    if (a === '--list') out.list = true;
+    else if (a === '--dry-run') out.dryRun = true;
+    else if (a.startsWith('--dir=')) out.dir = a.slice(6);
+    else if (a === '--help' || a === '-h') out.help = true;
+    else throw new Error(`Unknown argument: ${a}`);
+  }
+  return out;
+}
+
+/**
+ * Airtable exports every cell as text. The real API returns JSON numbers for
+ * number fields, so convert numeric cells back — but never touch anything with
+ * a leading zero, because SKUs and order references like "0012345" must not
+ * become 12345.
+ */
+function coerce(s) {
+  if (s === '') return '';
+  if (!/^-?\d+(\.\d+)?$/.test(s)) return s;
+  // Leading zeros mean it is an identifier, not a quantity.
+  const digits = s.replace(/^-/, '');
+  if (digits.length > 1 && digits[0] === '0' && digits[1] !== '.') return s;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : s;
+}
+
+/**
+ * RFC 4180 CSV parser.
+ *
+ * Deliberately hand-rolled rather than using the xlsx dependency: SheetJS
+ * detects date-shaped strings and reformats them (2026-08-12 came back as
+ * "8/12/26"), which silently corrupts date columns and breaks date sorting.
+ * This returns every cell exactly as Airtable wrote it.
+ */
+function parseCsv(text) {
+  // Strip a UTF-8 BOM — Airtable exports include one.
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }   // escaped quote
+        else inQuotes = false;
+      } else {
+        field += c;
+      }
+      continue;
+    }
+
+    if (c === '"') { inQuotes = true; }
+    else if (c === ',') { row.push(field); field = ''; }
+    else if (c === '\r') { /* handled by the \n branch */ }
+    else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+    else { field += c; }
+  }
+  // Trailing field / row when the file does not end with a newline.
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+
+  return rows;
+}
+
+function readCsv(file) {
+  const rows = parseCsv(fs.readFileSync(file, 'utf8'));
+  if (!rows.length) return [];
+
+  const headers = rows[0].map(h => h.trim());
+  const out = [];
+
+  for (let r = 1; r < rows.length; r++) {
+    const cells = rows[r];
+    // Skip blank trailing lines.
+    if (cells.every(c => c.trim() === '')) continue;
+
+    const rec = {};
+    headers.forEach((h, i) => {
+      if (h) rec[h] = coerce((cells[i] ?? '').trim());
+    });
+    out.push(rec);
+  }
+  return out;
+}
+
+async function upsert(prisma, baseId, tableId, records, syncToken) {
+  for (let i = 0; i < records.length; i += UPSERT_BATCH) {
+    const batch = records.slice(i, i + UPSERT_BATCH);
+    const values = batch.map(r => Prisma.sql`(
+      ${baseId}, ${tableId}, ${r.recordId},
+      ${JSON.stringify(r.fields)}::json,
+      ${null}::text, ${r.position}::int, ${syncToken}, (now() at time zone 'utc')
+    )`);
+    await prisma.$executeRaw`
+      INSERT INTO "AirtableRecord"
+        ("baseId","tableId","recordId","fields","createdTime","position","syncToken","syncedAt")
+      VALUES ${Prisma.join(values)}
+      ON CONFLICT ("baseId","tableId","recordId") DO UPDATE SET
+        "fields"    = EXCLUDED."fields",
+        "position"  = EXCLUDED."position",
+        "syncToken" = EXCLUDED."syncToken",
+        "syncedAt"  = EXCLUDED."syncedAt"
+    `;
+  }
+}
+
+function pad(s, n) { return String(s).padEnd(n); }
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const all = listTables(Object.keys(BASES));
+
+  if (args.help) {
+    console.log(fs.readFileSync(__filename, 'utf8').split('*/')[0]);
+    return 0;
+  }
+
+  if (args.list) {
+    console.log('\nExpected filenames (save Airtable CSV exports under imports/ using these names):\n');
+    for (const t of all) console.log(`  ${t.baseKey}.${t.tableKey}.csv`);
+    console.log(`\n${all.length} tables. You do not need all of them — import whichever you need first.\n`);
+    return 0;
+  }
+
+  if (!isConfigured()) {
+    console.error('Missing DATABASE_URL (or POSTGRES_PRISMA_URL / POSTGRES_URL).');
+    return 1;
+  }
+
+  const dir = path.resolve(args.dir);
+  if (!fs.existsSync(dir)) {
+    console.error(`Directory not found: ${dir}\nCreate it and save your CSV exports there — run --list for the filenames.`);
+    return 1;
+  }
+
+  const files = fs.readdirSync(dir).filter(f => f.toLowerCase().endsWith('.csv'));
+  if (!files.length) {
+    console.error(`No .csv files in ${dir}. Run --list to see the expected filenames.`);
+    return 1;
+  }
+
+  const prisma = getPrisma();
+  console.log(`\nImporting ${files.length} CSV file(s) from ${dir}${args.dryRun ? '  [DRY RUN]' : ''}\n`);
+
+  const results = [];
+  for (const file of files.sort()) {
+    const stem = file.replace(/\.csv$/i, '');
+    const [baseKey, tableKey] = stem.split('.');
+    const target = all.find(t => t.baseKey === baseKey && t.tableKey === tableKey);
+
+    process.stdout.write(pad(stem, 30));
+    if (!target) {
+      console.log('SKIP  unrecognised name — run --list for valid filenames');
+      results.push({ stem, ok: false, error: 'unrecognised filename' });
+      continue;
+    }
+
+    try {
+      const rows = readCsv(path.join(dir, file));
+      const records = rows.map((fields, i) => ({
+        // No record IDs in Airtable CSV exports. Index-based so re-importing the
+        // same export updates rows in place rather than duplicating them.
+        recordId: `csv:${i}`,
+        fields,
+        position: i,
+      }));
+
+      if (!args.dryRun) {
+        const syncToken = `csv-${Date.now()}-${target.tableKey}`;
+        await upsert(prisma, target.baseId, target.tableId, records, syncToken);
+        const { count: deleted } = await prisma.airtableRecord.deleteMany({
+          where: { baseId: target.baseId, tableId: target.tableId, syncToken: { not: syncToken } },
+        });
+        await prisma.syncRun.create({
+          data: {
+            baseKey: target.baseKey, tableKey: target.tableKey,
+            baseId: target.baseId, tableId: target.tableId,
+            status: 'ok', recordCount: records.length, deleted,
+            startedAt: new Date(), finishedAt: new Date(),
+          },
+        });
+        console.log(`ok    ${records.length} rows${deleted ? `  (-${deleted} replaced)` : ''}`);
+      } else {
+        const cols = records.length ? Object.keys(records[0].fields).length : 0;
+        console.log(`ok    ${records.length} rows, ${cols} columns (not written)`);
+      }
+      results.push({ stem, ok: true, count: records.length });
+    } catch (err) {
+      console.log(`FAIL  ${err.message}`);
+      results.push({ stem, ok: false, error: err.message });
+    }
+  }
+
+  const failed = results.filter(r => !r.ok);
+  const rows = results.reduce((n, r) => n + (r.count || 0), 0);
+  console.log(`\n${results.length - failed.length}/${results.length} files imported, ${rows} rows.`);
+  if (failed.length) {
+    console.log('\nFailed:');
+    for (const f of failed) console.log(`  ${f.stem}: ${f.error}`);
+  }
+  console.log(
+    '\nImported rows use synthetic IDs, so record detail panels and comments will not\n' +
+    'work for them. Re-run scripts/sync-airtable.js once API quota is available to\n' +
+    'replace this with the authoritative data.\n'
+  );
+
+  return failed.length ? 1 : 0;
+}
+
+async function disconnect() {
+  const p = globalThis.__natroPrisma;
+  if (p) await p.$disconnect().catch(() => {});
+}
+
+main()
+  .then(async code => { await disconnect(); process.exit(code); })
+  .catch(async err => { console.error(err); await disconnect(); process.exit(1); });
