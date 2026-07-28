@@ -10,7 +10,9 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "sync": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/sync-airtable.js",
-    "sync:stats": "npm run sync -- --stats"
+    "sync:stats": "npm run sync -- --stats",
+    "import": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/import-csv.js",
+    "import:list": "npm run import -- --list"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
