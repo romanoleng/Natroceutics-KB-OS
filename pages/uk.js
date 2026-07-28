@@ -1038,16 +1038,17 @@ function parseAmzNotes(notes) {
 }
 
 function periodToDate(period) {
-  if (!period) return new Date('2026-01-01');
+  const currentYear = new Date(typeof serverTime !== 'undefined' ? serverTime : Date.now()).getFullYear();
+  if (!period) return new Date(currentYear, 0, 1);
   // "2026-W24 (Jun 9–15)" — extract end day from parentheses
   const m = period.match(/\(([A-Za-z]+)\s+\d+[–\-](\d+)\)/);
   if (m) {
     const mo = { Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11 }[m[1].slice(0, 3)];
-    if (mo !== undefined) return new Date(2026, mo, parseInt(m[2]));
+    if (mo !== undefined) return new Date(currentYear, mo, parseInt(m[2]));
   }
-  const fw = period.match(/2026-W(\d+)/);
-  if (fw) { const d = new Date(2026, 0, 1 + (parseInt(fw[1]) - 1) * 7); return d; }
-  return new Date('2026-01-01');
+  const fw = period.match(/(\d{4})-W(\d+)/);
+  if (fw) { const d = new Date(parseInt(fw[1]), 0, 1 + (parseInt(fw[2]) - 1) * 7); return d; }
+  return new Date(currentYear, 0, 1);
 }
 
 /* ── Amazon Reporting & Finance tab ──────────── */
