@@ -57,10 +57,11 @@ const callBudget = {
 
 /* ── args ────────────────────────────────────────────────── */
 function parseArgs(argv) {
-  const out = { bases: null, tables: null, dryRun: false, stats: false, maxCalls: null };
+  const out = { bases: null, tables: null, dryRun: false, stats: false, maxCalls: null, onlyMissing: false };
   for (const arg of argv) {
     if (arg === '--dry-run') out.dryRun = true;
     else if (arg === '--stats') out.stats = true;
+    else if (arg === '--only-missing') out.onlyMissing = true;
     else if (arg.startsWith('--bases=')) out.bases = arg.slice(8);
     else if (arg.startsWith('--tables=')) out.tables = arg.slice(9);
     else if (arg.startsWith('--max-calls=')) out.maxCalls = Number(arg.slice(12));
@@ -224,7 +225,7 @@ async function main() {
   }
 
   const prisma = getPrisma();
-  const tables = selectTables(args);
+  let tables = selectTables(args);
 
   if (args.stats) {
     await printStats(prisma, tables);
@@ -245,6 +246,26 @@ async function main() {
 
   const maxCalls = args.maxCalls || Number(process.env.SYNC_MAX_CALLS) || null;
   if (maxCalls) callBudget.max = maxCalls;
+
+  // --only-missing: skip tables already mirrored successfully. Makes a
+  // budget-limited migration resumable across several runs without re-spending
+  // calls on tables that are already in, which matters when the whole month's
+  // allowance is 1,000.
+  if (args.onlyMissing) {
+    const done = await prisma.syncRun.findMany({
+      where: { status: 'ok' },
+      distinct: ['baseId', 'tableId'],
+      select: { baseId: true, tableId: true },
+    });
+    const doneSet = new Set(done.map(d => `${d.baseId}::${d.tableId}`));
+    const before = tables.length;
+    tables = tables.filter(t => !doneSet.has(`${t.baseId}::${t.tableId}`));
+    console.log(`\n--only-missing: ${before - tables.length} table(s) already mirrored, ${tables.length} remaining.`);
+    if (!tables.length) {
+      console.log('Nothing left to sync.\n');
+      return 0;
+    }
+  }
 
   const baseKeys = [...new Set(tables.map(t => t.baseKey))];
   console.log(
