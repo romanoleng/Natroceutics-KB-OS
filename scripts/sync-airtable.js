@@ -36,16 +36,39 @@ const {
 const UPSERT_BATCH = 400;      // rows per INSERT statement
 const DELAY_BETWEEN_TABLES_MS = 250; // stay well under Airtable's 5 req/s
 
+/* ── API call budget ─────────────────────────────────────────
+ * Airtable meters API calls per workspace per calendar month — 1,000 on Free,
+ * 100,000 on Team, uncapped on Business. Exhausting it takes the whole account
+ * down (website and scheduler alike), which is exactly what happened on
+ * 2026-07-27, so the sync refuses to spend more than it is allowed.
+ *
+ * One call = one page of up to 100 records, so a table costs
+ * ceil(records / 100) calls.
+ *
+ * Set --max-calls=N or SYNC_MAX_CALLS. The run stops cleanly at the ceiling and
+ * reports what it skipped rather than silently eating the month's allowance.
+ * ─────────────────────────────────────────────────────────── */
+const callBudget = {
+  used: 0,
+  max: Infinity,
+  get remaining() { return this.max - this.used; },
+  get exhausted() { return this.used >= this.max; },
+};
+
 /* ── args ────────────────────────────────────────────────── */
 function parseArgs(argv) {
-  const out = { bases: null, tables: null, dryRun: false, stats: false };
+  const out = { bases: null, tables: null, dryRun: false, stats: false, maxCalls: null };
   for (const arg of argv) {
     if (arg === '--dry-run') out.dryRun = true;
     else if (arg === '--stats') out.stats = true;
     else if (arg.startsWith('--bases=')) out.bases = arg.slice(8);
     else if (arg.startsWith('--tables=')) out.tables = arg.slice(9);
+    else if (arg.startsWith('--max-calls=')) out.maxCalls = Number(arg.slice(12));
     else if (arg === '--help' || arg === '-h') out.help = true;
     else throw new Error(`Unknown argument: ${arg}`);
+  }
+  if (out.maxCalls !== null && (!Number.isFinite(out.maxCalls) || out.maxCalls <= 0)) {
+    throw new Error(`--max-calls must be a positive number, got "${out.maxCalls}"`);
   }
   return out;
 }
@@ -81,12 +104,15 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
  * sort field. Sorted/limited reads are applied in SQL at request time instead.
  */
 async function fetchTable(apiKey, baseId, tableId) {
-  const base = new Airtable({ apiKey }).base(baseId);
+  // noRetryIfRateLimited so a 429 surfaces immediately instead of the SDK
+  // retrying forever — same reasoning as lib/airtable.js.
+  const base = new Airtable({ apiKey, noRetryIfRateLimited: true, requestTimeout: 30_000 }).base(baseId);
   const records = [];
 
   await new Promise((resolve, reject) => {
     base(tableId).select({}).eachPage(
       (page, next) => {
+        callBudget.used++; // one page fetched = one Airtable API call
         for (const r of page) {
           records.push({
             recordId: r.id,
@@ -95,6 +121,11 @@ async function fetchTable(apiKey, baseId, tableId) {
             createdTime: (r._rawJson && r._rawJson.createdTime) || r.createdTime || null,
             position: records.length,
           });
+        }
+        if (callBudget.exhausted) {
+          return reject(new Error(
+            `API call budget exhausted mid-table (${callBudget.used}/${callBudget.max}) — table left unchanged`
+          ));
         }
         next();
       },
@@ -212,17 +243,30 @@ async function main() {
     return 1;
   }
 
+  const maxCalls = args.maxCalls || Number(process.env.SYNC_MAX_CALLS) || null;
+  if (maxCalls) callBudget.max = maxCalls;
+
   const baseKeys = [...new Set(tables.map(t => t.baseKey))];
   console.log(
     `\nSyncing ${tables.length} table(s) across ${baseKeys.length} base(s): ${baseKeys.join(', ')}` +
-    (args.dryRun ? '  [DRY RUN — no writes]' : '') + '\n'
+    (args.dryRun ? '  [DRY RUN — no writes]' : '') +
+    (maxCalls ? `  [budget: ${maxCalls} API calls]` : '') + '\n'
   );
 
   const results = [];
+  const skipped = [];
 
   for (const t of tables) {
     const startedAt = new Date();
     const label = `${t.baseKey}.${t.tableKey}`;
+
+    // Stop before spending a call we do not have. Remaining tables keep
+    // whatever the mirror already holds and fall back to live Airtable.
+    if (callBudget.exhausted) {
+      skipped.push(label);
+      continue;
+    }
+
     process.stdout.write(pad(label, 30));
 
     try {
@@ -279,13 +323,22 @@ async function main() {
   const failed = results.filter(r => !r.ok);
   const rows = results.reduce((n, r) => n + (r.count || 0), 0);
   console.log(`\n${results.length - failed.length}/${results.length} tables synced, ${rows} rows total.`);
+  console.log(`Airtable API calls used: ${callBudget.used}${maxCalls ? ` / ${maxCalls}` : ''}`);
+
   if (failed.length) {
     console.log('\nFailed:');
     for (const f of failed) console.log(`  ${f.label}: ${f.error}`);
   }
+
+  // Never let a truncated run look like a complete one.
+  if (skipped.length) {
+    console.log(`\nSKIPPED ${skipped.length} table(s) — API call budget reached:`);
+    console.log(`  ${skipped.join(', ')}`);
+    console.log('  These keep their existing mirrored data, or fall back to live Airtable if never synced.');
+  }
   console.log('');
 
-  return failed.length ? 1 : 0;
+  return failed.length || skipped.length ? 1 : 0;
 }
 
 async function disconnect() {

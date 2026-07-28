@@ -137,12 +137,51 @@ runs far longer than the function timeout. If you want it on Vercel Cron, use
 
 The script exits non-zero if any table failed, so a scheduler can alert on it.
 
+## The API call budget — read this before scheduling
+
+Airtable meters API calls **per workspace, per calendar month**, resetting on the
+1st:
+
+| Plan | Monthly API calls |
+|---|---|
+| Free | 1,000 |
+| Team | 100,000 |
+| Business / Enterprise | no monthly cap (5 req/sec per base still applies) |
+
+One call = one page of up to 100 records, so a table costs `ceil(records / 100)`
+calls. A full sync of all 95 tables measured at **111 calls** with three pages
+per table; expect roughly 150–300 in practice depending on table sizes.
+
+That makes the arithmetic stark:
+
+- **Before the mirror**, `/uk` alone fetched ~37 tables *per page view*. On the
+  Free plan's 1,000 calls, the OS could be opened around 25 times a month before
+  the whole account — website and daily scheduler alike — was cut off. That is
+  exactly what happened on 2026-07-27.
+- **With the mirror**, page views cost nothing and only the sync spends calls.
+  A daily full sync is ~150–300/day ≈ 4,500–9,000/month. That fits comfortably
+  inside Team, but **does not fit inside Free**.
+
+So on the Free plan even the mirror cannot run daily. Either move to Team, or
+sync less often and narrow the scope (`--bases=UK` weekly is ~50–100 calls/week).
+
+The sync will not overspend. Pass a ceiling and it stops cleanly, reporting
+exactly which tables it skipped rather than silently truncating:
+
+```bash
+npm run sync -- --bases=UK --max-calls=500
+```
+
+`SYNC_MAX_CALLS` does the same via the environment. Every run prints the calls
+it used, and exits non-zero if anything was skipped, so a scheduler can alert.
+
 ## Day-to-day
 
 ```bash
 npm run sync -- --bases=UK              # sync one base
 npm run sync -- --tables=UK.ORDERS      # sync one table
 npm run sync -- --bases=UK --dry-run    # fetch and report, write nothing
+npm run sync -- --bases=all --max-calls=2000   # hard ceiling on quota spend
 npm run sync:stats                      # row counts + last sync, no Airtable calls
 ```
 
