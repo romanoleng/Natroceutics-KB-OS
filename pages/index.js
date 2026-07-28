@@ -30,6 +30,13 @@ const MODULES = [
     name: 'Partner Brands',
     desc: 'Third-party brands, therapeutic categories, distributor data, and pricing reference.',
   },
+  {
+    href: '/guide',
+    eyebrow: 'Reference',
+    icon: '📖',
+    name: 'How the OS Works',
+    desc: 'Where the data comes from, how current it is, and what to do when something looks off.',
+  },
 ];
 
 export default function Home() {

@@ -1,0 +1,100 @@
+// Postgres mirror of the Airtable bases.
+//
+// Design note: this is deliberately a generic record mirror rather than one
+// typed model per Airtable table. The pages read arbitrary, frequently-changing
+// Airtable columns (pages/uk.js alone is ~240KB of field access), so a typed
+// schema would need ~95 models that break every time someone adds a column in
+// Airtable. Storing the already-normalised field bag as JSONB means the sync
+// job never needs a schema migration when Airtable changes, and the read layer
+// can hand pages the exact same object shape lib/airtable.js always returned.
+
+// Pinned to Prisma 6 deliberately: the v7 `prisma-client` generator emits
+// TypeScript only, which neither this plain-JS Next app nor the bare-`node`
+// sync script can consume without adding a TS toolchain. The v6
+// `prisma-client-js` generator emits CommonJS JavaScript.
+generator client {
+  provider = "prisma-client-js"
+}
+
+// `directUrl` is deliberately NOT declared here: Prisma treats it as mandatory
+// once present, so an unset DIRECT_URL fails `prisma generate` and therefore the
+// Vercel build. To run `prisma db push` against Neon's unpooled endpoint, point
+// DATABASE_URL at DATABASE_URL_UNPOOLED for that one command instead — see
+// docs/POSTGRES-MIRROR.md.
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// One row per Airtable record, per table, per base.
+model AirtableRecord {
+  /// Airtable base ID, e.g. "appb0pnXsdtALWq80"
+  baseId String @db.VarChar(32)
+  /// Airtable table ID, e.g. "tbl5GXDhdcu6iwCA8"
+  tableId String @db.VarChar(32)
+  /// Airtable record ID, e.g. "rec..."
+  recordId String @db.VarChar(32)
+
+  /// The record's fields after normaliseFields() — single selects flattened to
+  /// their name, multi-value fields to arrays of names. Matches what the pages
+  /// already receive today.
+  ///
+  /// `json`, NOT the Prisma default `jsonb`: jsonb re-orders object keys
+  /// (shortest-first, then bytewise), and nine pages derive their table column
+  /// order from Object.keys(rows[0]) — under jsonb every generic table on the
+  /// site would render its columns scrambled relative to Airtable's field
+  /// order. `json` stores the document verbatim. The only operator used against
+  /// it is `->>` in ORDER BY, which works on `json` too.
+  fields Json @db.Json
+
+  /// Airtable's createdTime, stored verbatim as an ISO string so it round-trips
+  /// exactly (the pages treat it as an opaque string).
+  createdTime String?
+
+  /// Index of the record in the table's default view order at sync time. Used
+  /// to reproduce Airtable's unsorted select() ordering for the getters that
+  /// pass no sort field.
+  position Int
+
+  /// Opaque per-table, per-run marker. Every row written by a run carries that
+  /// run's token; anything left holding an older token no longer exists
+  /// upstream and is deleted.
+  ///
+  /// This is deliberately a string rather than a timestamp comparison. Binding
+  /// a JS Date into a raw INSERT goes through Postgres' local timezone and
+  /// lands the value offset by the server's UTC offset, which made
+  /// timestamp-based staleness silently delete nothing east of UTC (and would
+  /// delete rows it had just written west of it). A token has no clock or
+  /// timezone semantics at all.
+  syncToken String @db.VarChar(64)
+
+  /// Informational only — set server-side with now(), never used for logic.
+  syncedAt DateTime @default(now())
+
+  @@id([baseId, tableId, recordId])
+  @@index([baseId, tableId, position])
+  @@index([baseId, tableId, syncToken])
+}
+
+/// One row per table, per sync attempt. Doubles as the "is this table mirrored
+/// yet?" signal the read layer uses to decide between Postgres and Airtable.
+model SyncRun {
+  id       Int    @id @default(autoincrement())
+  baseKey  String @db.VarChar(16)
+  tableKey String @db.VarChar(64)
+  baseId   String @db.VarChar(32)
+  tableId  String @db.VarChar(32)
+
+  /// "ok" | "error"
+  status      String  @db.VarChar(16)
+  recordCount Int     @default(0)
+  deleted     Int     @default(0)
+  durationMs  Int     @default(0)
+  error       String?
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([baseId, tableId, status, startedAt])
+  @@index([startedAt])
+}

@@ -44,12 +44,23 @@ function IconTasks() {
   );
 }
 
+function IconGuide() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+      <circle cx="7" cy="7" r="5.5"/>
+      <path d="M5.4 5.3a1.7 1.7 0 1 1 1.9 2.3v.9"/>
+      <line x1="7.2" y1="10.3" x2="7.2" y2="10.3" strokeWidth="2"/>
+    </svg>
+  );
+}
+
 const MODULES = [
   { href: '/sa',             code: 'SA',       icon: <span className="os-flag">🇿🇦</span>, label: 'South Africa' },
   { href: '/global',         code: 'GLOBAL',   icon: <IconGlobe />,                         label: 'Global' },
   { href: '/kb',             code: 'KB',        icon: <IconBook />,                          label: 'Knowledge Base' },
   { href: '/partner-brands', code: 'PARTNERS',  icon: <IconPartners />,                      label: 'Partner Brands' },
   { href: '/all-tasks',      code: 'TASKS',     icon: <IconTasks />,                         label: 'All Tasks' },
+  { href: '/guide',          code: 'GUIDE',     icon: <IconGuide />,                         label: 'How the OS Works' },
 ];
 
 function fmtServerTime(iso) {
