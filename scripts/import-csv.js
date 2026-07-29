@@ -152,6 +152,24 @@ async function upsert(prisma, baseId, tableId, records, syncToken) {
 
 function pad(s, n) { return String(s).padEnd(n); }
 
+/*
+ * Airtable CSV exports omit record IDs, which costs the detail panel and
+ * comments. You can get them back by adding a formula field RECORD_ID() to the
+ * table before exporting — if such a column is present we use it, and the
+ * imported rows behave exactly like synced ones.
+ */
+const RECORD_ID_HEADERS = ['record id', 'recordid', '_recordid', 'record_id', 'airtable id', 'airtable record id'];
+
+function findRecordIdHeader(fields) {
+  return Object.keys(fields).find(k => RECORD_ID_HEADERS.includes(k.trim().toLowerCase()));
+}
+
+/** True when the column really holds Airtable record IDs, not something similarly named. */
+function looksLikeRecordIds(rows, header) {
+  const sample = rows.slice(0, 20).map(r => String(r[header] || '').trim()).filter(Boolean);
+  return sample.length > 0 && sample.every(v => /^rec[A-Za-z0-9]{14}$/.test(v));
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const all = listTables(Object.keys(BASES));
@@ -203,13 +221,25 @@ async function main() {
 
     try {
       const rows = readCsv(path.join(dir, file));
-      const records = rows.map((fields, i) => ({
-        // No record IDs in Airtable CSV exports. Index-based so re-importing the
-        // same export updates rows in place rather than duplicating them.
-        recordId: `csv:${i}`,
-        fields,
-        position: i,
-      }));
+
+      // Use real Airtable record IDs when the export includes them.
+      const idHeader = rows.length ? findRecordIdHeader(rows[0]) : null;
+      const realIds = idHeader && looksLikeRecordIds(rows, idHeader);
+
+      const records = rows.map((fields, i) => {
+        let recordId;
+        if (realIds) {
+          recordId = String(fields[idHeader]).trim();
+          // The ID column is plumbing, not data — don't render it as a table column.
+          fields = { ...fields };
+          delete fields[idHeader];
+        } else {
+          // Index-based so re-importing the same export updates rows in place
+          // rather than duplicating them.
+          recordId = `csv:${i}`;
+        }
+        return { recordId, fields, position: i };
+      });
 
       if (!args.dryRun) {
         const syncToken = `csv-${Date.now()}-${target.tableKey}`;
@@ -225,10 +255,10 @@ async function main() {
             startedAt: new Date(), finishedAt: new Date(),
           },
         });
-        console.log(`ok    ${records.length} rows${deleted ? `  (-${deleted} replaced)` : ''}`);
+        console.log(`ok    ${records.length} rows${deleted ? `  (-${deleted} replaced)` : ''}${realIds ? '  [real record IDs]' : '  [synthetic IDs]'}`);
       } else {
         const cols = records.length ? Object.keys(records[0].fields).length : 0;
-        console.log(`ok    ${records.length} rows, ${cols} columns (not written)`);
+        console.log(`ok    ${records.length} rows, ${cols} columns${realIds ? ', real record IDs' : ', synthetic IDs'} (not written)`);
       }
       results.push({ stem, ok: true, count: records.length });
     } catch (err) {
