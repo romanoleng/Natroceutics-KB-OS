@@ -58,6 +58,18 @@ function parseArgs(argv) {
  */
 function coerce(s) {
   if (s === '') return '';
+
+  // Currency and thousands separators: Airtable exports "£138.45" and
+  // "1,234.56" where the API returns 138.45 and 1234.56. Pages do arithmetic on
+  // these, so leaving them as strings yields NaN.
+  const money = s.match(/^(-?)\s*[£$€R]\s?([\d,]+(?:\.\d+)?)$/)
+             || s.match(/^(-?)([\d,]+\.\d+)$/)
+             || s.match(/^(-?)(\d{1,3}(?:,\d{3})+)$/);
+  if (money) {
+    const n = Number(money[1] + money[2].replace(/,/g, ''));
+    if (Number.isFinite(n)) return n;
+  }
+
   if (!/^-?\d+(\.\d+)?$/.test(s)) return s;
   // Leading zeros mean it is an identifier, not a quantity.
   const digits = s.replace(/^-/, '');
@@ -203,19 +215,44 @@ async function main() {
     return 1;
   }
 
+  /*
+   * Airtable names exports after the table and view ("🎯 UK Operational
+   * Tasks-Grid view.csv"), which matches no naming convention we could pick.
+   * Rather than making people rename every file, mapping.json says which file
+   * is which table:
+   *
+   *   { "🎯 UK Operational Tasks-Grid view.csv": "UK.TASKS" }
+   *
+   * Files named BASE.TABLE.csv still work without an entry.
+   */
+  let mapping = {};
+  const mappingPath = path.join(dir, 'mapping.json');
+  if (fs.existsSync(mappingPath)) {
+    try {
+      mapping = JSON.parse(fs.readFileSync(mappingPath, 'utf8'));
+      console.log(`Using ${path.basename(mappingPath)} (${Object.keys(mapping).length} entries)`);
+    } catch (e) {
+      console.error(`mapping.json is not valid JSON: ${e.message}`);
+      return 1;
+    }
+  }
+
   const prisma = getPrisma();
   console.log(`\nImporting ${files.length} CSV file(s) from ${dir}${args.dryRun ? '  [DRY RUN]' : ''}\n`);
 
   const results = [];
   for (const file of files.sort()) {
     const stem = file.replace(/\.csv$/i, '');
-    const [baseKey, tableKey] = stem.split('.');
+    // mapping.json wins; otherwise fall back to the BASE.TABLE.csv convention.
+    const spec = mapping[file] || mapping[stem] || stem;
+    const [baseKey, tableKey] = String(spec).split('.');
     const target = all.find(t => t.baseKey === baseKey && t.tableKey === tableKey);
 
-    process.stdout.write(pad(stem, 30));
+    const label = mapping[file] || mapping[stem] ? `${spec}` : stem;
+    process.stdout.write(pad(label.length > 28 ? label.slice(0, 27) + '…' : label, 30));
     if (!target) {
-      console.log('SKIP  unrecognised name — run --list for valid filenames');
-      results.push({ stem, ok: false, error: 'unrecognised filename' });
+      console.log('SKIP  no mapping — add it to imports/mapping.json (see --list)');
+      results.push({ stem, ok: false, error: 'no mapping' });
       continue;
     }
 
