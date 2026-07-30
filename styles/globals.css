@@ -3001,7 +3001,7 @@ details.qa-root[open] .qa-sheet { animation: qa-pop 0.16s var(--ease-out); }
   padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
   justify-content: space-around;
 }
-@media (max-width: 767px) {
+@media (max-width: 767px), (pointer: coarse) {
   .bottom-nav { display: flex; }
   .os-main--with-tabbar { padding-bottom: 76px; }
   .os-footer { padding-bottom: 84px; }
@@ -3142,9 +3142,13 @@ details.qa-root[open] .qa-sheet { animation: qa-pop 0.16s var(--ease-out); }
    bounce where the browser allows it. */
 html { background: var(--forest-900); overscroll-behavior-y: none; }
 body { overscroll-behavior-y: none; }
+/* Wide tables must scroll in their own wrappers, never widen the page —
+   an inflated iOS layout viewport breaks width media queries and misplaces
+   fixed elements. `clip` avoids creating a scroll container. */
+html, body { overflow-x: clip; max-width: 100vw; }
 
 /* Green continues beneath the bar even while the viewport is mid-bounce. */
-@media (max-width: 767px) {
+@media (max-width: 767px), (pointer: coarse) {
   .bottom-nav::after {
     content: '';
     position: absolute;
