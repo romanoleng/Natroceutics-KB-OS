@@ -2897,3 +2897,33 @@ th.th-sort:hover { background: rgba(29,65,48,0.85); }
 }
 .paste-box-input:focus { outline: none; border-color: var(--forest-600); }
 .paste-box-actions { margin-top: 10px; display: flex; gap: 10px; }
+
+/* ── upload progress + rejected state ── */
+.upload-progress { margin-top: 16px; display: flex; align-items: center; gap: 14px; }
+.upload-progress-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 20px;
+  background: var(--field);
+  border: 1px solid var(--cream-dark);
+  overflow: hidden;
+}
+.upload-progress-fill {
+  height: 100%;
+  border-radius: 20px;
+  background: linear-gradient(90deg, var(--forest-700), var(--forest-500));
+  transition: width 0.35s var(--ease-out);
+}
+.upload-progress-label {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--forest-900);
+  white-space: nowrap;
+}
+.upload-item--rejected .upload-item-icon { background: var(--field); color: var(--charcoal-45); }
+.upload-item--rejected .upload-item-detail { color: var(--charcoal-45); }
+.upload-item--pending .upload-item-icon { animation: upload-spin 1s linear infinite; }
+@keyframes upload-spin { to { transform: rotate(360deg); } }
+.paste-box-actions { flex-wrap: wrap; }
+.paste-box-target { max-width: 340px; }
+@media (max-width: 640px) { .paste-box-target { max-width: 100%; width: 100%; } }
