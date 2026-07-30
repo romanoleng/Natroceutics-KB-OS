@@ -3132,3 +3132,23 @@ details.qa-root[open] .qa-sheet { animation: qa-pop 0.16s var(--ease-out); }
 /* Fixed-position hardening for mobile browsers with collapsing toolbars */
 .bottom-nav { transform: translateZ(0); z-index: 950; }
 .qa-root { z-index: 960; }
+
+/* ═══ iOS overscroll hardening ═══
+   Safari's rubber-band bounce shifts the whole viewport — fixed bars included —
+   exposing the html canvas behind the page. Paint that canvas brand green so
+   the bounce reads as the bar stretching, never a white void, and suppress the
+   bounce where the browser allows it. */
+html { background: var(--forest-900); overscroll-behavior-y: none; }
+body { overscroll-behavior-y: none; }
+
+/* Green continues beneath the bar even while the viewport is mid-bounce. */
+@media (max-width: 767px) {
+  .bottom-nav::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 0; right: 0;
+    height: 140px;
+    background: var(--forest-900);
+  }
+}
