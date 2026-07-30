@@ -3219,3 +3219,8 @@ body { background: transparent; }
     max-width: 100%;
   }
 }
+
+/* A touch more green breathing room under the sticky header on mobile */
+@media (pointer: coarse) {
+  .os-header { padding-bottom: 10px; }
+}
