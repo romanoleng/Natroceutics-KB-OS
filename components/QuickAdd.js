@@ -68,6 +68,13 @@ export default function QuickAdd() {
             <span className="qa-item-sub">Pull latest orders from the store</span>
           </span>
         </button>
+        <div className="qa-item qa-item--soon" role="menuitem" aria-disabled="true">
+          <span className="qa-item-icon">✦</span>
+          <span>
+            <span className="qa-item-title">Natro AI <span className="qa-soon-pill">coming soon</span></span>
+            <span className="qa-item-sub">Ask anything · read screenshots · fetch from email</span>
+          </span>
+        </div>
       </div>
     </details>
   );

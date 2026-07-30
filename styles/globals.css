@@ -2989,3 +2989,120 @@ details.qa-root > summary { list-style: none; display: flex; align-items: center
 details.qa-root > summary::-webkit-details-marker { display: none; }
 details.qa-root { flex-direction: column-reverse; }
 details.qa-root[open] .qa-sheet { animation: qa-pop 0.16s var(--ease-out); }
+
+/* ═══ App-style bottom tab bar (mobile only) ═══ */
+.bottom-nav {
+  display: none;
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 800;
+  background: var(--forest-900);
+  border-top: 1px solid var(--forest-700);
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+  justify-content: space-around;
+}
+@media (max-width: 767px) {
+  .bottom-nav { display: flex; }
+  .os-main--with-tabbar { padding-bottom: 76px; }
+  .os-footer { padding-bottom: 84px; }
+  /* Lift the + above the tab bar */
+  .qa-root { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+}
+.bottom-nav-item {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  flex: 1;
+  padding: 5px 2px 3px;
+  text-decoration: none;
+  color: var(--forest-100);
+  opacity: 0.62;
+  border-radius: var(--radius-sm);
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+.bottom-nav-item--active { opacity: 1; }
+.bottom-nav-icon { width: 23px; height: 23px; display: block; }
+.bottom-nav-icon svg { width: 100%; height: 100%; }
+.bottom-nav-label { font-size: 10px; font-weight: 600; letter-spacing: 0.02em; }
+
+/* header settings gear */
+.os-settings-link {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  color: var(--cream);
+  opacity: 0.85;
+  border: 1px solid rgba(238,235,225,0.35);
+}
+.os-settings-link:hover { opacity: 1; background: rgba(238,235,225,0.1); }
+
+/* ═══ Settings page ═══ */
+.settings-card {
+  background: var(--surface);
+  border: 1.5px solid var(--cream-dark);
+  border-radius: var(--radius-md);
+  padding: 20px 22px;
+  box-shadow: var(--shadow-xs);
+}
+.settings-hint { font-size: 13px; color: var(--charcoal-70); margin: 0 0 14px; line-height: 1.6; }
+.settings-pins { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+.settings-pin {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 14px;
+  border: 1.5px solid var(--cream-dark);
+  border-radius: 20px;
+  background: var(--field);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--charcoal-70);
+  cursor: pointer;
+  user-select: none;
+}
+.settings-pin input { accent-color: var(--forest-700); }
+.settings-pin--on { background: var(--forest-800); color: var(--cream); border-color: var(--forest-800); }
+.settings-pin--full { opacity: 0.45; cursor: default; }
+.settings-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+
+.settings-row {
+  display: grid;
+  grid-template-columns: 190px auto;
+  grid-template-areas: "name pill" "note note";
+  align-items: center;
+  gap: 4px 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--cream-dark);
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-row-name { grid-area: name; font-size: 14px; font-weight: 700; color: var(--forest-900); }
+.settings-row .guide-pill { grid-area: pill; justify-self: start; margin-left: 0; }
+.settings-row-note { grid-area: note; font-size: 12.5px; color: var(--charcoal-70); line-height: 1.55; }
+.settings-row-note code { font-family: var(--mono); font-size: 11.5px; background: var(--field); padding: 1px 5px; border-radius: 4px; }
+
+.settings-card--ai { position: relative; border-top: 3px solid var(--forest-800); }
+.settings-ai-badge {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: var(--forest-800);
+  color: var(--cream);
+  padding: 3px 10px;
+  border-radius: 20px;
+  margin-bottom: 10px;
+}
+
+/* Natro AI placeholder in the quick-add sheet */
+.qa-item--soon { opacity: 0.65; cursor: default; }
+.qa-soon-pill {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: var(--field);
+  border: 1px solid var(--cream-dark);
+  color: var(--charcoal-45);
+  padding: 1px 7px;
+  border-radius: 12px;
+  vertical-align: 2px;
+  margin-left: 4px;
+}
