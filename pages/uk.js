@@ -256,6 +256,42 @@ function RiskList({ items }) {
 }
 
 /* ── Orders (date-filtered, KPI summary) ─────── */
+/* Pull the latest orders straight from the Shopify Admin API into the
+ * database, then reload so the tab shows them. Server-side does the work —
+ * the credentials live on Vercel, not in the browser. */
+function ShopifySyncButton() {
+  const [state, setState] = useState('idle');   // idle | syncing | done | error
+  const [msg, setMsg] = useState('');
+
+  async function sync() {
+    if (state === 'syncing') return;
+    setState('syncing'); setMsg('');
+    try {
+      const res = await fetch('/api/sync-shopify', { method: 'POST' });
+      const d = await res.json();
+      if (res.ok && d.ok) {
+        setState('done');
+        setMsg(`${d.written} orders`);
+        setTimeout(() => window.location.reload(), 900);
+      } else {
+        setState('error');
+        setMsg(d.detail || d.error || `HTTP ${res.status}`);
+      }
+    } catch (e) {
+      setState('error'); setMsg(e.message);
+    }
+  }
+
+  return (
+    <span className="shopify-sync">
+      <button type="button" className="shopify-sync-btn" onClick={sync} disabled={state === 'syncing'}>
+        {state === 'syncing' ? '⟳ Syncing…' : state === 'done' ? '✓ Synced' : '⟳ Sync Shopify'}
+      </button>
+      {msg && <span className={`shopify-sync-msg${state === 'error' ? ' shopify-sync-msg--error' : ''}`}>{msg}</span>}
+    </span>
+  );
+}
+
 function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = [], dailySales = [] }) {
   // Default to the range with data: MTD if current month has orders, else Last Month, else YTD
   const [range, setRange] = useState(() => {
@@ -371,6 +407,7 @@ function OrdersTab({ orders, ordersSource, discounts, refunds, salesByProduct = 
           {ordersSource === 'live'      && <span className="orders-live-badge">🟢 LIVE · Shopify</span>}
           {ordersSource === 'csv'       && <span className="orders-live-badge" style={{ background: 'var(--teal)', color: '#fff' }}>📊 CSV Export</span>}
           {ordersSource === 'airtable'  && <span className="orders-live-badge orders-live-airtable">📋 Airtable</span>}
+          <ShopifySyncButton />
         </div>
         {range === 'Custom' && (
           <div className="orders-custom-dates">

@@ -190,6 +190,46 @@ export default function Guide({ status, serverTime }) {
           </div>
         )}
 
+        {/* ── getting data in ── */}
+        <h2 className="guide-h2">Getting data in — no tools needed</h2>
+        <div className="guide-qa">
+          <div className="guide-qa-item">
+            <h3>Amazon UK — sellerboard files</h3>
+            <p>
+              In sellerboard, export <strong>Dashboard by day</strong>, <strong>Dashboard by
+              product</strong>, <strong>Orders</strong> and <strong>Stock history</strong>, then drop
+              the files on the <a href="/upload">Upload Data</a> page exactly as downloaded. The OS
+              reads the columns, not the filename. Amazon P&amp;L, product performance, orders and
+              stock update immediately.
+            </p>
+          </div>
+          <div className="guide-qa-item">
+            <h3>Shopify UK — one button</h3>
+            <p>
+              UK module → Shopify UK → Orders → <strong>⟳ Sync Shopify</strong>. Pulls the latest
+              orders straight from the store into the database and refreshes the page. New orders are
+              added, existing ones updated; nothing is deleted.
+            </p>
+          </div>
+          <div className="guide-qa-item">
+            <h3>RSP / competitor pricing</h3>
+            <p>
+              Copy the pricing tab from the Amazon team&rsquo;s Excel, save it as
+              <em> tab-separated</em> (.tsv), and drop it on <a href="/upload">Upload Data</a>. It
+              needs the ASIN, Seller/Price columns and RRP; the OS works out which listing is ours.
+            </p>
+          </div>
+          <div className="guide-qa-item">
+            <h3>Where do the files live afterwards?</h3>
+            <p>
+              <strong>The database is the official store</strong> — once a file is uploaded, its data
+              is in the OS and the file itself is no longer needed. Keep the original exports wherever
+              suits (a &ldquo;Natro-OS / raw exports&rdquo; folder in your cloud drive is plenty) as a
+              paper trail, but nothing reads from that folder — the dashboards only read the database.
+            </p>
+          </div>
+        </div>
+
         {/* ── practical ── */}
         <h2 className="guide-h2">Things worth knowing</h2>
         <div className="guide-qa">
