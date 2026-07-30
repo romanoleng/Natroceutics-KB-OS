@@ -54,12 +54,23 @@ function IconGuide() {
   );
 }
 
+function IconUpload() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 9.5V2.5"/>
+      <polyline points="4,5 7,2 10,5"/>
+      <path d="M2 9.5v2A1.5 1.5 0 0 0 3.5 13h7a1.5 1.5 0 0 0 1.5-1.5v-2"/>
+    </svg>
+  );
+}
+
 const MODULES = [
   { href: '/sa',             code: 'SA',       icon: <span className="os-flag">🇿🇦</span>, label: 'South Africa' },
   { href: '/global',         code: 'GLOBAL',   icon: <IconGlobe />,                         label: 'Global' },
   { href: '/kb',             code: 'KB',        icon: <IconBook />,                          label: 'Knowledge Base' },
   { href: '/partner-brands', code: 'PARTNERS',  icon: <IconPartners />,                      label: 'Partner Brands' },
   { href: '/all-tasks',      code: 'TASKS',     icon: <IconTasks />,                         label: 'All Tasks' },
+  { href: '/upload',         code: 'UPLOAD',    icon: <IconUpload />,                        label: 'Upload Data' },
   { href: '/guide',          code: 'GUIDE',     icon: <IconGuide />,                         label: 'How the OS Works' },
 ];
 

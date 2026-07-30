@@ -31,6 +31,13 @@ const MODULES = [
     desc: 'Third-party brands, therapeutic categories, distributor data, and pricing reference.',
   },
   {
+    href: '/upload',
+    eyebrow: 'Data In',
+    icon: '⬆️',
+    name: 'Upload Data',
+    desc: 'Drop sellerboard and pricing exports straight onto the dashboards — no tools needed.',
+  },
+  {
     href: '/guide',
     eyebrow: 'Reference',
     icon: '📖',
