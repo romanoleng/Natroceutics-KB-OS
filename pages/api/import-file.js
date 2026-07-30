@@ -116,12 +116,64 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   if (!isConfigured()) return res.status(500).json({ error: 'No database configured (DATABASE_URL missing)' });
 
-  const { filename, content, target } = req.body || {};
-  if (!content || typeof content !== 'string') {
+  const { filename, content, contentBase64, target } = req.body || {};
+  if ((!content || typeof content !== 'string') && !contentBase64) {
     return res.status(400).json({ error: 'Missing file content' });
   }
 
   const prisma = getPrisma();
+
+  // PDFs arrive base64-encoded. The only supported layout is the warehouse
+  // "Stock Take Report (by Stock Code)" — the authoritative warehouse SOH.
+  if (contentBase64) {
+    try {
+      const pdfParse = require('pdf-parse');
+      const { isStockTakePdf, parseStockTakeText } = require('../../lib/stock-take-pdf');
+      const { text } = await pdfParse(Buffer.from(contentBase64, 'base64'));
+
+      if (!isStockTakePdf(text)) {
+        return res.status(422).json({
+          error: 'PDF not recognised',
+          detail: 'Only the warehouse "Stock Take Report (by Stock Code)" PDF is supported so far. For other PDFs, export the underlying report as CSV.',
+          filename: filename || null,
+        });
+      }
+
+      const { records, reportDate, parsedTotal, reportTotal } = parseStockTakeText(text);
+      if (!records.length) {
+        return res.status(422).json({ error: 'Recognised the stock take report but found no product rows', filename: filename || null });
+      }
+      // Refuse a partial parse rather than silently under-reporting stock.
+      if (reportTotal !== null && parsedTotal !== reportTotal) {
+        return res.status(422).json({
+          error: 'Stock take totals do not reconcile',
+          detail: `Parsed ${parsedTotal} units but the report says ${reportTotal} — layout may have changed; not imported.`,
+        });
+      }
+
+      const { written, deleted } = await commitTable(prisma, {
+        baseKey: 'UK', tableKey: 'STOCK',
+        baseId: BASES.UK.defaultBaseId,
+        tableId: BASES.UK.tables.STOCK,
+        records,
+        replace: true,   // the stock take IS the warehouse inventory
+        source: 'pdf',
+      });
+      return res.status(200).json({
+        ok: true,
+        filename: filename || null,
+        detected: `Warehouse stock take (${reportDate})`,
+        table: 'UK.STOCK',
+        written,
+        replaced: deleted,
+        dateRange: null,
+        preview: `${parsedTotal.toLocaleString('en-GB')} units across ${written} SKUs`,
+      });
+    } catch (err) {
+      console.error('[api/import-file] pdf', err.message);
+      return res.status(500).json({ error: 'PDF import failed', detail: err.message });
+    }
+  }
 
   // Explicit destination: build the record(s) from freeform text, additively.
   if (target && target !== 'auto') {

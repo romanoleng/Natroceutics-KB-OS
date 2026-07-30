@@ -9,7 +9,18 @@ import OsLayout from '../components/OsLayout';
  * Dashboards pick the data up on their next load.
  */
 
-const ACCEPTED = '.csv,.tsv,.txt';
+const ACCEPTED = '.csv,.tsv,.txt,.pdf';
+
+/** File → base64 without blowing the stack on large files. */
+async function fileToBase64(file) {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  let binary = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < buf.length; i += CHUNK) {
+    binary += String.fromCharCode.apply(null, buf.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
 
 const STATUS_META = {
   pending:  { icon: '⟳', cls: 'upload-item--pending' },
@@ -106,7 +117,7 @@ export default function Upload() {
     const files = [];
     const entries = [];
     for (const f of all) {
-      if (/\.(csv|tsv|txt)$/i.test(f.name)) {
+      if (/\.(csv|tsv|txt|pdf)$/i.test(f.name)) {
         files.push(f);
         entries.push({ id: ++counter.current, name: f.name, status: 'pending', detail: 'Waiting…' });
       } else {
@@ -114,8 +125,7 @@ export default function Upload() {
         const ext = (f.name.split('.').pop() || '?').toUpperCase();
         entries.push({
           id: ++counter.current, name: f.name, status: 'rejected',
-          detail: `${ext} files aren't supported — this page reads table data (CSV / TSV). ` +
-                  (ext === 'PDF' ? 'For PDFs, export the underlying report as CSV instead.' : ''),
+          detail: `${ext} files aren't supported — this page reads CSV / TSV, plus the warehouse stock take PDF.`,
         });
       }
     }
@@ -132,17 +142,21 @@ export default function Upload() {
       const id = queued[i].id;
       setItems(prev => prev.map(it => it.id === id ? { ...it, detail: 'Importing…' } : it));
       try {
-        const content = await file.text();
+        const isPdf = /\.pdf$/i.test(file.name);
+        const body = isPdf
+          ? { filename: file.name, contentBase64: await fileToBase64(file) }
+          : { filename: file.name, content: await file.text() };
         const res = await fetch('/api/import-file', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename: file.name, content }),
+          body: JSON.stringify(body),
         });
         const data = await res.json();
         if (res.ok && data.ok) {
           const range = data.dateRange ? ` · ${data.dateRange.from} → ${data.dateRange.to}` : '';
+          const preview = data.preview ? ` · ${data.preview}` : '';
           setItems(prev => prev.map(it => it.id === id
-            ? { ...it, status: 'ok', detail: `${data.detected} — ${data.written} records${range}` }
+            ? { ...it, status: 'ok', detail: `${data.detected} — ${data.written} records${range}${preview}` }
             : it));
         } else {
           setItems(prev => prev.map(it => it.id === id
@@ -189,7 +203,7 @@ export default function Upload() {
         >
           <div className="upload-zone-icon">⬆</div>
           <div className="upload-zone-title">Tap to choose files, or drag them here</div>
-          <div className="upload-zone-sub">CSV / TSV — filenames don&rsquo;t matter, the OS reads the columns</div>
+          <div className="upload-zone-sub">CSV / TSV, or the warehouse stock take PDF — filenames don&rsquo;t matter, the OS reads the contents</div>
           <input
             ref={inputRef}
             type="file"
@@ -242,8 +256,16 @@ export default function Upload() {
             <p>
               <strong>Dashboard by day</strong> → Amazon Daily P&amp;L · <strong>Dashboard by
               product</strong> → ASIN Daily · <strong>Orders</strong> → Amazon Orders ·{' '}
-              <strong>Stock history</strong> → Stock on Hand. Export from sellerboard and drop the
+              <strong>Stock history</strong> → Amazon FBA stock. Export from sellerboard and drop the
               files exactly as downloaded — timestamped names are fine.
+            </p>
+          </div>
+          <div className="guide-qa-item">
+            <h3>Warehouse stock take (PDF)</h3>
+            <p>
+              The Sage &ldquo;Stock Take Report (by Stock Code)&rdquo; PDF drops straight in — it
+              becomes the warehouse Stock on Hand. The import cross-checks the parsed units against
+              the report&rsquo;s own total and refuses to load if they don&rsquo;t reconcile.
             </p>
           </div>
           <div className="guide-qa-item">
