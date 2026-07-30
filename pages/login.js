@@ -37,7 +37,7 @@ export default function Login() {
     <>
       <Head>
         <title>Access · Natroceutics OS</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="robots" content="noindex,nofollow" />
       </Head>
 

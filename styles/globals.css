@@ -3106,3 +3106,29 @@ details.qa-root[open] .qa-sheet { animation: qa-pop 0.16s var(--ease-out); }
   vertical-align: 2px;
   margin-left: 4px;
 }
+
+/* ═══ Menu page tiles ═══ */
+.menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.menu-tile {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface);
+  border: 1.5px solid var(--cream-dark);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  text-decoration: none;
+  color: var(--forest-900);
+  font-weight: 700;
+  font-size: 14.5px;
+  box-shadow: var(--shadow-xs);
+  transition: transform 0.15s var(--ease-out), box-shadow 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.menu-tile:active { transform: scale(0.985); }
+.menu-tile-icon { font-size: 20px; }
+.menu-tile-name { flex: 1; }
+.menu-tile-arrow { color: var(--forest-500); }
+.bottom-nav-flag { font-size: 19px; line-height: 23px; display: block; }
+
+/* Fixed-position hardening for mobile browsers with collapsing toolbars */
+.bottom-nav { transform: translateZ(0); z-index: 950; }
+.qa-root { z-index: 960; }

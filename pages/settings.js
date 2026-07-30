@@ -1,34 +1,10 @@
-import { useEffect, useState } from 'react';
 import OsLayout from '../components/OsLayout';
-import { NAV_MODULES, MAX_PINS, loadPins, savePins } from '../lib/nav-modules';
 
 /**
  * /settings — the app's control room.
- * Navigation pinning (mobile bottom bar), data source overview, and the
- * Natro AI placeholder. Client-side preferences live in localStorage.
+ * Navigation notes, data source overview, and the Natro AI placeholder.
  */
 export default function Settings() {
-  const [pins, setPins] = useState(null);
-  const [saved, setSaved] = useState(false);
-
-  useEffect(() => { setPins(loadPins()); }, []);
-
-  function togglePin(code) {
-    setSaved(false);
-    setPins(prev => {
-      const has = prev.includes(code);
-      if (has) return prev.filter(c => c !== code);
-      if (prev.length >= MAX_PINS) return prev;   // full — ignore
-      return [...prev, code];
-    });
-  }
-
-  function save() {
-    savePins(pins);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  }
-
   return (
     <OsLayout title="Settings">
       <section className="os-hero">
@@ -41,41 +17,14 @@ export default function Settings() {
 
       <div className="os-page-wrap">
 
-        {/* ── navigation pins ── */}
-        <h2 className="guide-h2">Bottom bar (mobile)</h2>
+        {/* ── navigation ── */}
+        <h2 className="guide-h2">Navigation</h2>
         <div className="settings-card">
-          <p className="settings-hint">
-            Home and Settings are always there. Pick up to {MAX_PINS} modules for the slots between them.
+          <p className="settings-hint" style={{ marginBottom: 0 }}>
+            The bottom bar is <strong>Home · UK · ME · SA · Menu</strong> — everything else lives on
+            the Home grid and under <a href="/menu">Menu</a>. Assigning custom links to the top and
+            bottom tabs per module is planned as part of the redesign phase.
           </p>
-          {pins === null ? (
-            <p className="settings-hint">Loading…</p>
-          ) : (
-            <>
-              <div className="settings-pins">
-                {NAV_MODULES.filter(m => m.pinnable).map(m => {
-                  const checked = pins.includes(m.code);
-                  const full = !checked && pins.length >= MAX_PINS;
-                  return (
-                    <label key={m.code} className={`settings-pin${checked ? ' settings-pin--on' : ''}${full ? ' settings-pin--full' : ''}`}>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={full}
-                        onChange={() => togglePin(m.code)}
-                      />
-                      <span>{m.label}</span>
-                    </label>
-                  );
-                })}
-              </div>
-              <div className="settings-actions">
-                <button type="button" className="btn btn-primary" onClick={save} disabled={!pins.length}>
-                  {saved ? 'Saved ✓' : 'Save navigation'}
-                </button>
-                <span className="settings-hint">{pins.length}/{MAX_PINS} selected · saved on this device</span>
-              </div>
-            </>
-          )}
         </div>
 
         {/* ── data sources ── */}
