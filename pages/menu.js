@@ -3,39 +3,72 @@ import OsLayout from '../components/OsLayout';
 
 /**
  * /menu — everything in the OS, one tap away. The bottom bar's fifth tab.
- * Regions the bar doesn't carry, company-wide modules, tools and settings.
+ *
+ * Regions are collapsible (native <details>, same proven pattern as the +
+ * sheet): tap a region to reveal its module link plus deep links into its
+ * sections — UK's ?s= desks, and the ?t= tabs wired into ME/SA/PT.
  */
-const GROUPS = [
-  {
-    title: 'Company-wide',
-    items: [
-      { href: '/kb',             icon: '📋', name: 'Knowledge Base' },
-      { href: '/partner-brands', icon: '🤝', name: 'Partner Brands' },
-      { href: '/all-tasks',      icon: '✅', name: 'All Tasks' },
-    ],
-  },
-  {
-    title: 'Regions',
-    items: [
-      { href: '/uk',      icon: '🇬🇧', name: 'United Kingdom' },
-      { href: '/uk?s=amazon',  icon: '📦', name: 'UK · Amazon',  sub: true },
-      { href: '/uk?s=shopify', icon: '🛒', name: 'UK · Shopify', sub: true },
-      { href: '/uk?s=warehouse', icon: '🏭', name: 'UK · Warehouse', sub: true },
-      { href: '/me',      icon: '🇦🇪', name: 'Middle East' },
-      { href: '/sa',      icon: '🇿🇦', name: 'South Africa' },
-      { href: '/pt',      icon: '🇵🇹', name: 'Portugal' },
-      { href: '/global',  icon: '🌍', name: 'Global Overview' },
-    ],
-  },
-  {
-    title: 'Tools',
-    items: [
-      { href: '/upload',   icon: '⬆️', name: 'Upload Data' },
-      { href: '/guide',    icon: '📖', name: 'How the OS Works' },
-      { href: '/settings', icon: '⚙️', name: 'Settings' },
-    ],
-  },
+const COMPANY = [
+  { href: '/kb',             icon: '📋', name: 'Knowledge Base' },
+  { href: '/partner-brands', icon: '🤝', name: 'Partner Brands' },
+  { href: '/all-tasks',      icon: '✅', name: 'All Tasks' },
 ];
+
+const REGIONS = [
+  {
+    icon: '🇬🇧', name: 'United Kingdom', href: '/uk',
+    subs: [
+      { href: '/uk?s=amazon',    icon: '📦', name: 'Amazon' },
+      { href: '/uk?s=shopify',   icon: '🛒', name: 'Shopify' },
+      { href: '/uk?s=warehouse', icon: '🏭', name: 'Warehouse' },
+    ],
+  },
+  {
+    icon: '🇦🇪', name: 'Middle East', href: '/me',
+    subs: [
+      { href: '/me?t=registrations', icon: '📑', name: 'Registrations' },
+      { href: '/me?t=inventory',     icon: '📦', name: 'Inventory' },
+      { href: '/me?t=finance',       icon: '💷', name: 'Finance' },
+      { href: '/me?t=partners',      icon: '🤝', name: 'Partners' },
+      { href: '/me?t=reporting',     icon: '📊', name: 'Reporting' },
+    ],
+  },
+  {
+    icon: '🇿🇦', name: 'South Africa', href: '/sa',
+    subs: [
+      { href: '/sa?t=inventory', icon: '📦', name: 'Inventory' },
+      { href: '/sa?t=finance',   icon: '💷', name: 'Finance' },
+      { href: '/sa?t=customers', icon: '👥', name: 'Customers' },
+      { href: '/sa?t=reporting', icon: '📊', name: 'Reporting' },
+    ],
+  },
+  {
+    icon: '🇵🇹', name: 'Portugal', href: '/pt',
+    subs: [
+      { href: '/pt?t=inventory', icon: '📦', name: 'Inventory' },
+      { href: '/pt?t=finance',   icon: '💷', name: 'Finance' },
+      { href: '/pt?t=customers', icon: '👥', name: 'Customers' },
+      { href: '/pt?t=reporting', icon: '📊', name: 'Reporting' },
+    ],
+  },
+  { icon: '🌍', name: 'Global Overview', href: '/global', subs: [] },
+];
+
+const TOOLS = [
+  { href: '/upload',   icon: '⬆️', name: 'Upload Data' },
+  { href: '/guide',    icon: '📖', name: 'How the OS Works' },
+  { href: '/settings', icon: '⚙️', name: 'Settings' },
+];
+
+function Tile({ href, icon, name }) {
+  return (
+    <Link href={href} className="menu-tile">
+      <span className="menu-tile-icon">{icon}</span>
+      <span className="menu-tile-name">{name}</span>
+      <span className="menu-tile-arrow">→</span>
+    </Link>
+  );
+}
 
 export default function Menu() {
   return (
@@ -48,20 +81,48 @@ export default function Menu() {
       </section>
 
       <div className="os-page-wrap">
-        {GROUPS.map(g => (
-          <div key={g.title}>
-            <h2 className="guide-h2">{g.title}</h2>
-            <div className="menu-grid">
-              {g.items.map(it => (
-                <Link key={it.href} href={it.href} className={`menu-tile${it.sub ? ' menu-tile--sub' : ''}`}>
-                  <span className="menu-tile-icon">{it.icon}</span>
-                  <span className="menu-tile-name">{it.name}</span>
-                  <span className="menu-tile-arrow">→</span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        ))}
+
+        <h2 className="guide-h2">Company-wide</h2>
+        <div className="menu-grid">
+          {COMPANY.map(it => <Tile key={it.href} {...it} />)}
+        </div>
+
+        <h2 className="guide-h2">Regions</h2>
+        <div className="menu-acc-list">
+          {REGIONS.map(r => (
+            r.subs.length === 0 ? (
+              <Tile key={r.href} href={r.href} icon={r.icon} name={r.name} />
+            ) : (
+              <details key={r.href} className="menu-acc">
+                <summary className="menu-tile menu-acc-summary">
+                  <span className="menu-tile-icon">{r.icon}</span>
+                  <span className="menu-tile-name">{r.name}</span>
+                  <span className="menu-acc-chevron">▾</span>
+                </summary>
+                <div className="menu-acc-body">
+                  <Link href={r.href} className="menu-tile menu-tile--sub">
+                    <span className="menu-tile-icon">{r.icon}</span>
+                    <span className="menu-tile-name">Open {r.name}</span>
+                    <span className="menu-tile-arrow">→</span>
+                  </Link>
+                  {r.subs.map(s => (
+                    <Link key={s.href} href={s.href} className="menu-tile menu-tile--sub">
+                      <span className="menu-tile-icon">{s.icon}</span>
+                      <span className="menu-tile-name">{s.name}</span>
+                      <span className="menu-tile-arrow">→</span>
+                    </Link>
+                  ))}
+                </div>
+              </details>
+            )
+          ))}
+        </div>
+
+        <h2 className="guide-h2">Tools</h2>
+        <div className="menu-grid">
+          {TOOLS.map(it => <Tile key={it.href} {...it} />)}
+        </div>
+
       </div>
     </OsLayout>
   );

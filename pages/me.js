@@ -824,7 +824,17 @@ function KlaviyoMETab({ items }) {
 /* ── Page ─────────────────────────────────────────────────── */
 export default function MEPage({ tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, marketing, cs, customers, reporting, products, subscriptions = [], klaviyo = [], error, serverTime }) {
   const router = useRouter();
+  const routerDeep = useRouter();
   const [tab, setTab] = useState('Tasks');
+
+  // Deep links into tabs: ?t=finance, ?t=inventory, ?t=customerservice —
+  // used by the Menu page's collapsible region sections.
+  useEffect(() => {
+    const q = String(routerDeep.query.t || '').toLowerCase().replace(/[^a-z]/g, '');
+    if (!q) return;
+    const match = TABS.find(x => x.toLowerCase().replace(/[^a-z]/g, '') === q);
+    if (match) setTab(match);
+  }, [routerDeep.query.t]);
   useEffect(() => {
     if (router.query.tab && TABS.includes(router.query.tab)) setTab(router.query.tab);
   }, [router.query.tab]);

@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import OsLayout from '../components/OsLayout';
 import ProductsSection from '../components/ProductsSection';
 import SortableTable from '../components/SortableTable';
@@ -589,7 +590,17 @@ function WebinarTab({ items }) {
 
 /* ── Page ─────────────────────────────────────────────────── */
 export default function SAPage({ tasks, priorities, risks, inventory, finance, b2b, customers, marketing, cs, reporting, products, webinar = [], error, serverTime }) {
+  const routerDeep = useRouter();
   const [tab, setTab] = useState('Tasks');
+
+  // Deep links into tabs: ?t=finance, ?t=inventory, ?t=customerservice —
+  // used by the Menu page's collapsible region sections.
+  useEffect(() => {
+    const q = String(routerDeep.query.t || '').toLowerCase().replace(/[^a-z]/g, '');
+    if (!q) return;
+    const match = TABS.find(x => x.toLowerCase().replace(/[^a-z]/g, '') === q);
+    if (match) setTab(match);
+  }, [routerDeep.query.t]);
   const openRisks = risks.filter(r => !['Resolved','Closed','Done'].includes(r.Status)).length;
   const openTasks = tasks.filter(t => !['Done','Complete','Completed','Approved'].includes(t.Status)).length;
 

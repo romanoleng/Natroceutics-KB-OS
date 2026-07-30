@@ -3272,3 +3272,21 @@ details.qa-root[open] > summary.qa-fab:active { transform: rotate(45deg) scale(0
 .bottom-nav-item + .bottom-nav-item {
   border-left: 1px solid rgba(238, 235, 225, 0.14);
 }
+
+/* ═══ Menu accordions (collapsible regions) ═══ */
+.menu-acc-list { display: flex; flex-direction: column; gap: 12px; }
+.menu-acc > summary { list-style: none; cursor: pointer; }
+.menu-acc > summary::-webkit-details-marker { display: none; }
+.menu-acc-chevron { color: var(--forest-500); font-size: 14px; transition: transform 0.18s var(--ease-out); }
+.menu-acc[open] .menu-acc-chevron { transform: rotate(180deg); }
+.menu-acc[open] > summary.menu-tile { border-color: var(--forest-700); }
+.menu-acc-body {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 8px 0 4px 18px;
+  animation: qa-pop 0.16s var(--ease-out);
+}
+
+/* stronger tab-bar dividers (0.14 was invisible on device OLED) */
+.bottom-nav-item + .bottom-nav-item {
+  border-left: 1px solid rgba(238, 235, 225, 0.28);
+}
