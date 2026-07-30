@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import OsLayout from '../components/OsLayout';
 
 /**
@@ -9,7 +9,7 @@ import OsLayout from '../components/OsLayout';
  * Dashboards pick the data up on their next load.
  */
 
-const ACCEPTED = '.csv,.tsv,.txt,.pdf';
+const ACCEPTED = '.csv,.tsv,.txt,.pdf,.xlsx,.xls';
 
 /** File → base64 without blowing the stack on large files. */
 async function fileToBase64(file) {
@@ -82,6 +82,7 @@ function PasteBox({ onResult }) {
         </span>
       </div>
       <textarea
+        id="paste-input"
         className="paste-box-input"
         rows={5}
         placeholder={'Paste here — a table copied from Excel (first row = column headings),\nor an email you want captured as a task, risk, or order.'}
@@ -110,6 +111,14 @@ export default function Upload() {
   const inputRef = useRef(null);
   const counter = useRef(0);
 
+  // Arriving via the + button's "Paste data": jump straight into the paste box.
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hash === '#paste') {
+      const el = document.getElementById('paste-input');
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.focus({ preventScroll: true }); }
+    }
+  }, []);
+
   const processFiles = useCallback(async fileList => {
     const all = [...fileList];
     if (!all.length) return;
@@ -117,15 +126,20 @@ export default function Upload() {
     const files = [];
     const entries = [];
     for (const f of all) {
-      if (/\.(csv|tsv|txt|pdf)$/i.test(f.name)) {
+      if (/\.(csv|tsv|txt|pdf|xlsx|xls)$/i.test(f.name)) {
         files.push(f);
         entries.push({ id: ++counter.current, name: f.name, status: 'pending', detail: 'Waiting…' });
       } else {
         // Never ignore a dropped file silently — say why it was skipped.
         const ext = (f.name.split('.').pop() || '?').toUpperCase();
+        const isImage = /^(PNG|JPG|JPEG|HEIC|WEBP|GIF)$/.test(ext);
         entries.push({
           id: ++counter.current, name: f.name, status: 'rejected',
-          detail: `${ext} files aren't supported — this page reads CSV / TSV, plus the warehouse stock take PDF.`,
+          detail: isImage
+            ? 'Screenshots can’t be read yet — but the text in them can: open the image, select the ' +
+              'text (Mac highlights it automatically), copy, and use the paste box below with a destination. ' +
+              'AI image reading is on the roadmap.'
+            : `${ext} files aren't supported — this page reads CSV / TSV, the stock take PDF, or an Excel workbook.`,
         });
       }
     }
@@ -142,8 +156,8 @@ export default function Upload() {
       const id = queued[i].id;
       setItems(prev => prev.map(it => it.id === id ? { ...it, detail: 'Importing…' } : it));
       try {
-        const isPdf = /\.pdf$/i.test(file.name);
-        const body = isPdf
+        const isBinary = /\.(pdf|xlsx|xls)$/i.test(file.name);
+        const body = isBinary
           ? { filename: file.name, contentBase64: await fileToBase64(file) }
           : { filename: file.name, content: await file.text() };
         const res = await fetch('/api/import-file', {
@@ -203,7 +217,7 @@ export default function Upload() {
         >
           <div className="upload-zone-icon">⬆</div>
           <div className="upload-zone-title">Tap to choose files, or drag them here</div>
-          <div className="upload-zone-sub">CSV / TSV, or the warehouse stock take PDF — filenames don&rsquo;t matter, the OS reads the contents</div>
+          <div className="upload-zone-sub">CSV / TSV / Excel, or the stock take PDF — filenames don&rsquo;t matter, the OS reads the contents</div>
           <input
             ref={inputRef}
             type="file"

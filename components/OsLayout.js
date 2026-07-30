@@ -1,6 +1,7 @@
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import QuickAdd from './QuickAdd';
 
 /* ── Brand SVG icons — forest green, stroke-based ── */
 function IconGlobe() {
@@ -144,6 +145,8 @@ export default function OsLayout({ children, title = 'Natroceutics OS', airtable
       <main className="os-main">
         {children}
       </main>
+
+      <QuickAdd />
 
       <footer className="os-footer">
         <div className="os-footer-inner">

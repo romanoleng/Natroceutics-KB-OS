@@ -123,12 +123,77 @@ export default async function handler(req, res) {
 
   const prisma = getPrisma();
 
-  // PDFs arrive base64-encoded. The only supported layout is the warehouse
-  // "Stock Take Report (by Stock Code)" — the authoritative warehouse SOH.
+  // Binary files (PDF / XLSX) arrive base64-encoded; sniff the magic bytes.
   if (contentBase64) {
+    const buffer = Buffer.from(contentBase64, 'base64');
+
+    // XLSX (zip container, "PK"): convert each worksheet to TSV and run it
+    // through the same header detection as pasted/dropped table data. Dated
+    // workbooks keep old tabs, so the LAST matching sheet wins (newest tab).
+    if (buffer[0] === 0x50 && buffer[1] === 0x4b) {
+      try {
+        const XLSX = require('xlsx');
+        const { parseSellerboardFile } = require('../../lib/sellerboard');
+        const wb = XLSX.read(buffer, { type: 'buffer' });
+        const asinNames = await loadAsinNames(prisma);
+
+        // Collect every matching sheet, then prefer the newest dated tab
+        // ("27 July" beats "17 July"); fall back to sheet order.
+        const MONTHS = { jan:0, feb:1, mar:2, apr:3, may:4, jun:5, jul:6, aug:7, sep:8, oct:9, nov:10, dec:11 };
+        const tabDate = name => {
+          const m = name.trim().match(/^(\d{1,2})\s+([A-Za-z]{3,9})(?:\s+(\d{4}))?$/);
+          if (!m || !(m[2].slice(0, 3).toLowerCase() in MONTHS)) return null;
+          const year = m[3] ? Number(m[3]) : new Date().getFullYear();
+          return new Date(year, MONTHS[m[2].slice(0, 3).toLowerCase()], Number(m[1])).getTime();
+        };
+
+        const matches = [];
+        for (const sheetName of wb.SheetNames) {
+          const tsv = XLSX.utils.sheet_to_csv(wb.Sheets[sheetName], { FS: '\t', blankrows: false });
+          const parsed = parseSellerboardFile(tsv, { asinNames });
+          if (parsed && parsed.records.length) matches.push({ sheetName, parsed, date: tabDate(sheetName) });
+        }
+        const match = matches.sort((a, b) => (b.date ?? -1) - (a.date ?? -1))[0] || null;
+
+        if (!match) {
+          return res.status(422).json({
+            error: 'No recognisable sheet in this workbook',
+            detail: `Looked at: ${wb.SheetNames.join(', ')}. A sheet needs the column headings of a supported report (e.g. ASIN / Seller 1 (Buy Box) / RRP for the pricing sheet).`,
+            filename: filename || null,
+          });
+        }
+
+        const { type, records } = match.parsed;
+        const { written, deleted } = await commitTable(prisma, {
+          baseKey: 'UK',
+          tableKey: type.tableKey,
+          baseId: BASES.UK.defaultBaseId,
+          tableId: type.tableId,
+          records,
+          replace: true,
+          source: 'xlsx',
+        });
+        const dates = records.map(r => r.fields.Date).filter(Boolean).sort();
+        return res.status(200).json({
+          ok: true,
+          filename: filename || null,
+          detected: `${type.label} (sheet “${match.sheetName}”)`,
+          table: `UK.${type.tableKey}`,
+          written,
+          replaced: deleted,
+          dateRange: dates.length ? { from: dates[0], to: dates[dates.length - 1] } : null,
+        });
+      } catch (err) {
+        console.error('[api/import-file] xlsx', err.message);
+        return res.status(500).json({ error: 'Workbook import failed', detail: err.message });
+      }
+    }
+
+    // PDF: the only supported layout is the warehouse "Stock Take Report
+    // (by Stock Code)" — the authoritative warehouse SOH.
     try {
       const { parseStockTakePdf } = require('../../lib/stock-take-pdf');
-      const parsedPdf = parseStockTakePdf(Buffer.from(contentBase64, 'base64'));
+      const parsedPdf = parseStockTakePdf(buffer);
 
       if (!parsedPdf) {
         return res.status(422).json({
