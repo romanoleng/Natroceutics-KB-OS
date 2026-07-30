@@ -3196,3 +3196,26 @@ body { background: transparent; }
 /* Gentle content fade on arrival — smooth transition without layout jank */
 .os-main { animation: page-in 0.22s var(--ease-out); }
 @keyframes page-in { from { opacity: 0.35; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* ═══ iOS zoom prevention + touch-friendly tables ═══ */
+@media (pointer: coarse) {
+  /* iOS auto-zooms on focusing any input under 16px text and STAYS zoomed
+     after submit — the "logged in and everything is zoomed" bug. 16px on all
+     text entry points on touch devices prevents the zoom entirely. */
+  input, select, textarea,
+  .form-input, .form-select, .form-textarea,
+  .search-input, .dp-comment-input, .dp-date-input, .os-date-input,
+  .paste-box-input {
+    font-size: 16px !important;
+  }
+
+  /* Every data table becomes its own horizontal scroller on touch devices —
+     swipe the table, not the page. Keeps the layout viewport at device width,
+     which is what keeps media queries and fixed bars honest. */
+  .data-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+}
