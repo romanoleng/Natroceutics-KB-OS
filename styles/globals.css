@@ -3142,10 +3142,16 @@ details.qa-root[open] .qa-sheet { animation: qa-pop 0.16s var(--ease-out); }
    bounce where the browser allows it. */
 html { background: var(--forest-900); overscroll-behavior-y: none; }
 body { overscroll-behavior-y: none; }
-/* Wide tables must scroll in their own wrappers, never widen the page —
-   an inflated iOS layout viewport breaks width media queries and misplaces
-   fixed elements. `clip` avoids creating a scroll container. */
-html, body { overflow-x: clip; max-width: 100vw; }
+/* Wide tables must scroll in their own wrappers, never widen the page.
+   NEVER put overflow on html/body — on iOS that detaches position:fixed
+   elements so they scroll away with the page (the vanishing-bar bug).
+   #__next clips instead: fixed elements' containing block is the viewport,
+   so the bar is immune, while wide content still can't inflate the page. */
+#__next { overflow-x: clip; max-width: 100vw; background: var(--page); }
+/* Overscroll bounce reveals BODY's background, not html's — body goes
+   transparent so the bounce shows the forest canvas, and #__next carries the
+   white page behind content instead. */
+body { background: transparent; }
 
 /* Green continues beneath the bar even while the viewport is mid-bounce. */
 @media (max-width: 767px), (pointer: coarse) {
