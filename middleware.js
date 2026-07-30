@@ -7,6 +7,10 @@ export function middleware(request) {
   if (
     pathname.startsWith('/login') ||
     pathname.startsWith('/api/login') ||
+    // Machine-to-machine ingestion (the Natro-OS-Data-Fetch scheduler).
+    // Not cookie-authenticated: the route itself requires a Bearer token
+    // checked against INGEST_TOKEN, and rejects everything without it.
+    pathname.startsWith('/api/ingest') ||
     pathname.startsWith('/_next') ||
     pathname === '/favicon.ico'
   ) {

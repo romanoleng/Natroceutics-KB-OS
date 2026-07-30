@@ -17,6 +17,66 @@ const STATUS_META = {
   error:    { icon: '✕', cls: 'upload-item--error' },
 };
 
+/**
+ * Paste-anything box. Copying cells from Excel/Sheets puts tab-separated text
+ * on the clipboard, so the RSP sheet (or any tabular data) can be pasted here
+ * directly — the server works out what it is from the header row, same as a
+ * dropped file.
+ */
+function PasteBox({ onResult }) {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    const content = text.trim();
+    if (!content || busy) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/import-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: 'pasted data', content }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        const range = data.dateRange ? ` · ${data.dateRange.from} → ${data.dateRange.to}` : '';
+        onResult({ name: 'Pasted data', status: 'ok', detail: `${data.detected} — ${data.written} records${range}` });
+        setText('');
+      } else {
+        onResult({ name: 'Pasted data', status: 'error', detail: data.detail || data.error || `HTTP ${res.status}` });
+      }
+    } catch (e) {
+      onResult({ name: 'Pasted data', status: 'error', detail: e.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="paste-box">
+      <div className="paste-box-head">
+        <span className="paste-box-title">…or paste it</span>
+        <span className="paste-box-sub">Copy cells straight from Excel / Google Sheets and paste here — the OS reads the columns</span>
+      </div>
+      <textarea
+        className="paste-box-input"
+        rows={5}
+        placeholder={'Paste table data here — e.g. the RSP pricing tab copied from Excel.\nThe first row must be the column headings.'}
+        value={text}
+        onChange={e => setText(e.target.value)}
+      />
+      <div className="paste-box-actions">
+        <button type="button" className="btn btn-primary" onClick={submit} disabled={busy || !text.trim()}>
+          {busy ? 'Importing…' : 'Import pasted data'}
+        </button>
+        {text.trim() && !busy && (
+          <button type="button" className="btn btn-outline" onClick={() => setText('')}>Clear</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Upload() {
   const [items, setItems] = useState([]);
   const [dragOver, setDragOver] = useState(false);
@@ -102,6 +162,8 @@ export default function Upload() {
             onChange={e => { processFiles(e.target.files); e.target.value = ''; }}
           />
         </div>
+
+        <PasteBox onResult={item => setItems(prev => [{ ...item, id: ++counter.current }, ...prev])} />
 
         {items.length > 0 && (
           <div className="upload-results">
