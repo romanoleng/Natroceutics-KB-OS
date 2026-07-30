@@ -3129,8 +3129,10 @@ details.qa-root[open] .qa-sheet { animation: qa-pop 0.16s var(--ease-out); }
 .menu-tile-arrow { color: var(--forest-500); }
 .bottom-nav-flag { font-size: 19px; line-height: 23px; display: block; }
 
-/* Fixed-position hardening for mobile browsers with collapsing toolbars */
-.bottom-nav { transform: translateZ(0); z-index: 950; }
+/* NOTE: never add transform/translateZ to these — composited fixed layers
+   glitch on iOS Safari during the dynamic-toolbar resize (bar freezes/vanishes
+   mid-scroll), which is exactly the bug it superstitiously "fixes" elsewhere. */
+.bottom-nav { z-index: 950; }
 .qa-root { z-index: 960; }
 
 /* ═══ iOS overscroll hardening ═══
