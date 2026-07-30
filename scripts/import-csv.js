@@ -50,95 +50,12 @@ function parseArgs(argv) {
   return out;
 }
 
-/**
- * Airtable exports every cell as text. The real API returns JSON numbers for
- * number fields, so convert numeric cells back — but never touch anything with
- * a leading zero, because SKUs and order references like "0012345" must not
- * become 12345.
- */
-function coerce(s) {
-  if (s === '') return '';
-
-  // Currency and thousands separators: Airtable exports "£138.45" and
-  // "1,234.56" where the API returns 138.45 and 1234.56. Pages do arithmetic on
-  // these, so leaving them as strings yields NaN.
-  const money = s.match(/^(-?)\s*[£$€R]\s?([\d,]+(?:\.\d+)?)$/)
-             || s.match(/^(-?)([\d,]+\.\d+)$/)
-             || s.match(/^(-?)(\d{1,3}(?:,\d{3})+)$/);
-  if (money) {
-    const n = Number(money[1] + money[2].replace(/,/g, ''));
-    if (Number.isFinite(n)) return n;
-  }
-
-  if (!/^-?\d+(\.\d+)?$/.test(s)) return s;
-  // Leading zeros mean it is an identifier, not a quantity.
-  const digits = s.replace(/^-/, '');
-  if (digits.length > 1 && digits[0] === '0' && digits[1] !== '.') return s;
-  const n = Number(s);
-  return Number.isFinite(n) ? n : s;
-}
-
-/**
- * RFC 4180 CSV parser.
- *
- * Deliberately hand-rolled rather than using the xlsx dependency: SheetJS
- * detects date-shaped strings and reformats them (2026-08-12 came back as
- * "8/12/26"), which silently corrupts date columns and breaks date sorting.
- * This returns every cell exactly as Airtable wrote it.
- */
-function parseCsv(text) {
-  // Strip a UTF-8 BOM — Airtable exports include one.
-  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
-
-  const rows = [];
-  let row = [];
-  let field = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-
-    if (inQuotes) {
-      if (c === '"') {
-        if (text[i + 1] === '"') { field += '"'; i++; }   // escaped quote
-        else inQuotes = false;
-      } else {
-        field += c;
-      }
-      continue;
-    }
-
-    if (c === '"') { inQuotes = true; }
-    else if (c === ',') { row.push(field); field = ''; }
-    else if (c === '\r') { /* handled by the \n branch */ }
-    else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
-    else { field += c; }
-  }
-  // Trailing field / row when the file does not end with a newline.
-  if (field !== '' || row.length) { row.push(field); rows.push(row); }
-
-  return rows;
-}
+// Parser + numeric coercion shared with import-sellerboard.js — see the
+// comments there for why it is hand-rolled (xlsx reformats date strings).
+const { parseDelimited, toObjects } = require('./lib/csv');
 
 function readCsv(file) {
-  const rows = parseCsv(fs.readFileSync(file, 'utf8'));
-  if (!rows.length) return [];
-
-  const headers = rows[0].map(h => h.trim());
-  const out = [];
-
-  for (let r = 1; r < rows.length; r++) {
-    const cells = rows[r];
-    // Skip blank trailing lines.
-    if (cells.every(c => c.trim() === '')) continue;
-
-    const rec = {};
-    headers.forEach((h, i) => {
-      if (h) rec[h] = coerce((cells[i] ?? '').trim());
-    });
-    out.push(rec);
-  }
-  return out;
+  return toObjects(parseDelimited(fs.readFileSync(file, 'utf8'), ','));
 }
 
 async function upsert(prisma, baseId, tableId, records, syncToken) {
