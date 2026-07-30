@@ -3154,3 +3154,35 @@ body { overscroll-behavior-y: none; }
     background: var(--forest-900);
   }
 }
+
+/* ═══ Route-change progress bar ═══ */
+.route-progress {
+  position: fixed;
+  top: 0; left: 0;
+  height: 3px;
+  z-index: 1200;
+  background: linear-gradient(90deg, var(--forest-500), var(--amber));
+  border-radius: 0 2px 2px 0;
+  box-shadow: 0 0 8px rgba(212,134,10,0.45);
+  pointer-events: none;
+}
+.route-progress--loading {
+  width: 30%;
+  animation: route-crawl 6s cubic-bezier(0.15, 0.6, 0.3, 1) forwards;
+}
+@keyframes route-crawl {
+  0% { width: 0; }
+  12% { width: 38%; }
+  45% { width: 68%; }
+  100% { width: 92%; }
+}
+.route-progress--done {
+  width: 100%;
+  transition: width 0.2s ease-out;
+  animation: route-fade 0.35s ease-out forwards;
+}
+@keyframes route-fade { to { opacity: 0; } }
+
+/* Gentle content fade on arrival — smooth transition without layout jank */
+.os-main { animation: page-in 0.22s var(--ease-out); }
+@keyframes page-in { from { opacity: 0.35; transform: translateY(4px); } to { opacity: 1; transform: none; } }
