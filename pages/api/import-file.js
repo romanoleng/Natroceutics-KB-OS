@@ -127,11 +127,10 @@ export default async function handler(req, res) {
   // "Stock Take Report (by Stock Code)" — the authoritative warehouse SOH.
   if (contentBase64) {
     try {
-      const pdfParse = require('pdf-parse');
-      const { isStockTakePdf, parseStockTakeText } = require('../../lib/stock-take-pdf');
-      const { text } = await pdfParse(Buffer.from(contentBase64, 'base64'));
+      const { parseStockTakePdf } = require('../../lib/stock-take-pdf');
+      const parsedPdf = parseStockTakePdf(Buffer.from(contentBase64, 'base64'));
 
-      if (!isStockTakePdf(text)) {
+      if (!parsedPdf) {
         return res.status(422).json({
           error: 'PDF not recognised',
           detail: 'Only the warehouse "Stock Take Report (by Stock Code)" PDF is supported so far. For other PDFs, export the underlying report as CSV.',
@@ -139,7 +138,7 @@ export default async function handler(req, res) {
         });
       }
 
-      const { records, reportDate, parsedTotal, reportTotal } = parseStockTakeText(text);
+      const { records, reportDate, parsedTotal, reportTotal } = parsedPdf;
       if (!records.length) {
         return res.status(422).json({ error: 'Recognised the stock take report but found no product rows', filename: filename || null });
       }
