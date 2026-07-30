@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import OsLayout from '../components/OsLayout';
+import { IconBook, IconHandshake, IconCheck, IconBox, IconCart, IconWarehouse, IconFileText, IconCoins, IconUsers, IconChart, IconUpload, IconLeaf, IconGear, IconGlobe } from '../components/Icons';
 
 /**
  * /menu — everything in the OS, one tap away. The bottom bar's fifth tab.
@@ -9,55 +10,55 @@ import OsLayout from '../components/OsLayout';
  * sections — UK's ?s= desks, and the ?t= tabs wired into ME/SA/PT.
  */
 const COMPANY = [
-  { href: '/kb',             icon: '📋', name: 'Knowledge Base' },
-  { href: '/partner-brands', icon: '🤝', name: 'Partner Brands' },
-  { href: '/all-tasks',      icon: '✅', name: 'All Tasks' },
+  { href: '/kb',             icon: <IconBook />, name: 'Knowledge Base' },
+  { href: '/partner-brands', icon: <IconHandshake />, name: 'Partner Brands' },
+  { href: '/all-tasks',      icon: <IconCheck />, name: 'All Tasks' },
 ];
 
 const REGIONS = [
   {
     icon: '🇬🇧', name: 'United Kingdom', href: '/uk',
     subs: [
-      { href: '/uk?s=amazon',    icon: '📦', name: 'Amazon' },
-      { href: '/uk?s=shopify',   icon: '🛒', name: 'Shopify' },
-      { href: '/uk?s=warehouse', icon: '🏭', name: 'Warehouse' },
+      { href: '/uk?s=amazon',    icon: <IconBox />, name: 'Amazon' },
+      { href: '/uk?s=shopify',   icon: <IconCart />, name: 'Shopify' },
+      { href: '/uk?s=warehouse', icon: <IconWarehouse />, name: 'Warehouse' },
     ],
   },
   {
     icon: '🇦🇪', name: 'Middle East', href: '/me',
     subs: [
-      { href: '/me?t=registrations', icon: '📑', name: 'Registrations' },
-      { href: '/me?t=inventory',     icon: '📦', name: 'Inventory' },
-      { href: '/me?t=finance',       icon: '💷', name: 'Finance' },
-      { href: '/me?t=partners',      icon: '🤝', name: 'Partners' },
-      { href: '/me?t=reporting',     icon: '📊', name: 'Reporting' },
+      { href: '/me?t=registrations', icon: <IconFileText />, name: 'Registrations' },
+      { href: '/me?t=inventory',     icon: <IconBox />, name: 'Inventory' },
+      { href: '/me?t=finance',       icon: <IconCoins />, name: 'Finance' },
+      { href: '/me?t=partners',      icon: <IconUsers />, name: 'Partners' },
+      { href: '/me?t=reporting',     icon: <IconChart />, name: 'Reporting' },
     ],
   },
   {
     icon: '🇿🇦', name: 'South Africa', href: '/sa',
     subs: [
-      { href: '/sa?t=inventory', icon: '📦', name: 'Inventory' },
-      { href: '/sa?t=finance',   icon: '💷', name: 'Finance' },
-      { href: '/sa?t=customers', icon: '👥', name: 'Customers' },
-      { href: '/sa?t=reporting', icon: '📊', name: 'Reporting' },
+      { href: '/sa?t=inventory', icon: <IconBox />, name: 'Inventory' },
+      { href: '/sa?t=finance',   icon: <IconCoins />, name: 'Finance' },
+      { href: '/sa?t=customers', icon: <IconUsers />, name: 'Customers' },
+      { href: '/sa?t=reporting', icon: <IconChart />, name: 'Reporting' },
     ],
   },
   {
     icon: '🇵🇹', name: 'Portugal', href: '/pt',
     subs: [
-      { href: '/pt?t=inventory', icon: '📦', name: 'Inventory' },
-      { href: '/pt?t=finance',   icon: '💷', name: 'Finance' },
-      { href: '/pt?t=customers', icon: '👥', name: 'Customers' },
-      { href: '/pt?t=reporting', icon: '📊', name: 'Reporting' },
+      { href: '/pt?t=inventory', icon: <IconBox />, name: 'Inventory' },
+      { href: '/pt?t=finance',   icon: <IconCoins />, name: 'Finance' },
+      { href: '/pt?t=customers', icon: <IconUsers />, name: 'Customers' },
+      { href: '/pt?t=reporting', icon: <IconChart />, name: 'Reporting' },
     ],
   },
-  { icon: '🌍', name: 'Global Overview', href: '/global', subs: [] },
+  { icon: <IconGlobe />, name: 'Global Overview', href: '/global', subs: [] },
 ];
 
 const TOOLS = [
-  { href: '/upload',   icon: '⬆️', name: 'Upload Data' },
-  { href: '/guide',    icon: '📖', name: 'How the OS Works' },
-  { href: '/settings', icon: '⚙️', name: 'Settings' },
+  { href: '/upload',   icon: <IconUpload />, name: 'Upload Data' },
+  { href: '/guide',    icon: <IconLeaf />, name: 'How the OS Works' },
+  { href: '/settings', icon: <IconGear />, name: 'Settings' },
 ];
 
 function Tile({ href, icon, name }) {

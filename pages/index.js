@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import OsLayout from '../components/OsLayout';
+import { IconGlobe, IconBook, IconHandshake, IconUpload, IconLeaf } from '../components/Icons';
 
 const MODULES = [
   {
@@ -12,35 +13,35 @@ const MODULES = [
   {
     href: '/global',
     eyebrow: 'Regional Operations',
-    icon: '🌍',
+    icon: <IconGlobe />,
     name: 'Global',
     desc: 'United Kingdom and Middle East operations — Shopify, Amazon, affiliates, launch, registrations.',
   },
   {
     href: '/kb',
     eyebrow: 'Company-Wide',
-    icon: '📋',
+    icon: <IconBook />,
     name: 'Knowledge Base',
     desc: 'Products, SOPs, contacts, platforms, and regulatory reference across all markets.',
   },
   {
     href: '/partner-brands',
     eyebrow: 'Company-Wide',
-    icon: '🤝',
+    icon: <IconHandshake />,
     name: 'Partner Brands',
     desc: 'Third-party brands, therapeutic categories, distributor data, and pricing reference.',
   },
   {
     href: '/upload',
     eyebrow: 'Data In',
-    icon: '⬆️',
+    icon: <IconUpload />,
     name: 'Upload Data',
     desc: 'Drop sellerboard and pricing exports straight onto the dashboards — no tools needed.',
   },
   {
     href: '/guide',
     eyebrow: 'Reference',
-    icon: '📖',
+    icon: <IconLeaf />,
     name: 'How the OS Works',
     desc: 'Where the data comes from, how current it is, and what to do when something looks off.',
   },

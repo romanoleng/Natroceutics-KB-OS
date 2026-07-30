@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { IconFileText, IconClipboard, IconCart, IconSparkle } from './Icons';
 
 /**
  * Floating "+" quick-add button — visible on every page, thumb-reachable on
@@ -43,21 +44,21 @@ export default function QuickAdd() {
       <summary className="qa-fab" aria-label="Add data">+</summary>
       <div className="qa-sheet" role="menu">
         <Link href="/upload" className="qa-item" role="menuitem">
-          <span className="qa-item-icon">📄</span>
+          <span className="qa-item-icon"><IconFileText /></span>
           <span>
             <span className="qa-item-title">Upload files</span>
             <span className="qa-item-sub">Sellerboard CSVs · stock take PDF</span>
           </span>
         </Link>
         <Link href="/upload#paste" className="qa-item" role="menuitem">
-          <span className="qa-item-icon">📋</span>
+          <span className="qa-item-icon"><IconClipboard /></span>
           <span>
             <span className="qa-item-title">Paste data</span>
             <span className="qa-item-sub">Excel cells · emails → task / risk / order</span>
           </span>
         </Link>
         <button type="button" className="qa-item" role="menuitem" onClick={syncShopify} disabled={syncState === 'syncing'}>
-          <span className="qa-item-icon">🛒</span>
+          <span className="qa-item-icon"><IconCart /></span>
           <span>
             <span className="qa-item-title">
               {syncState === 'syncing' ? 'Syncing Shopify…'
@@ -69,7 +70,7 @@ export default function QuickAdd() {
           </span>
         </button>
         <div className="qa-item qa-item--soon" role="menuitem" aria-disabled="true">
-          <span className="qa-item-icon">✦</span>
+          <span className="qa-item-icon"><IconSparkle /></span>
           <span>
             <span className="qa-item-title">Natro AI <span className="qa-soon-pill">coming soon</span></span>
             <span className="qa-item-sub">Ask anything · read screenshots · fetch from email</span>

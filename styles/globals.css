@@ -14,18 +14,28 @@
   --charcoal-70: #5b554d;
   --charcoal-45: #6b7c72;
 
-  --cream:      #eeebe1;
-  --cream-dark: #dedad0;
-  --cream-deep: #d8d2c4;
+  /* "Cream" tokens now hold cool porcelain values — Romano's 30 Jul call:
+     white + green + packaging navy, no beige. Names kept so 200+ usages
+     restyle in one place. */
+  --cream:      #f4f6f5;
+  --cream-dark: #dfe4e8;
+  --cream-deep: #c9d2d9;
   --white:      #ffffff;
+
+  /* Natroceutics packaging navy — sampled from the Omega 3 box photography
+     (site CDN); the 2023 brand manual has no navy, its #2563a8 is status-blue */
+  --navy:      #414f6d;
+  --navy-deep: #32415e;
+  --navy-bg:   #eef1f6;
+  --navy-fg:   #2c3a56;
 
   /* Surface system: white page, cream information surfaces, green accents.
      --page     page background (was cream)
      --surface  cards / panels / tables (was white)
      --field    inputs, selects, inset areas — one step deeper cream */
   --page:    #ffffff;
-  --surface: #f6f3ea;
-  --field:   #edeade;
+  --surface: #ffffff;
+  --field:   var(--navy-bg);
 
   --red:    #c0392b; --red-bg:    #fdecea;
   --amber:  #d4860a; --amber-bg:  #fff8e6; --amber-fg: #8a5c00;
@@ -3171,9 +3181,9 @@ body { background: transparent; }
   top: 0; left: 0;
   height: 3px;
   z-index: 1200;
-  background: linear-gradient(90deg, var(--forest-500), var(--amber));
+  background: linear-gradient(90deg, var(--forest-500), var(--navy));
   border-radius: 0 2px 2px 0;
-  box-shadow: 0 0 8px rgba(212,134,10,0.45);
+  box-shadow: 0 0 8px rgba(65,79,109,0.5);
   pointer-events: none;
 }
 .route-progress--loading {
@@ -3302,3 +3312,21 @@ details.qa-root[open] > summary.qa-fab:active { transform: rotate(45deg) scale(0
   width: 1px;
   background: rgba(238, 235, 225, 0.18);
 }
+
+/* ═══ White / green / navy theme details ═══ */
+.guide-status-body a, .guide-qa-item a, .guide-callout a,
+.settings-row-note a, .settings-hint a, .guide-note a {
+  color: var(--navy-fg);
+  text-decoration-color: var(--navy);
+}
+/* Cards on a white page need their borders to do the separating */
+.menu-tile, .settings-card, .guide-qa-item, .paste-box, .upload-item,
+.module-card, .ghub-card, .guide-flow-step, .guide-split-col, .menu-acc > summary {
+  border-color: var(--cream-dark);
+}
+/* Stroke icons in tiles: mid-green, brand secondary */
+.menu-tile-icon svg, .module-card-icon svg, .qa-item-icon svg, .upload-zone-icon svg {
+  width: 22px; height: 22px; display: block; color: var(--forest-600);
+}
+.qa-item-icon svg { width: 20px; height: 20px; }
+.upload-zone-icon svg { width: 24px; height: 24px; color: var(--cream); }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import OsLayout from '../components/OsLayout';
+import { IconUpload } from '../components/Icons';
 
 /**
  * /upload — drop data exports straight into the OS. No AI, no terminal.
@@ -215,7 +216,7 @@ export default function Upload() {
           tabIndex={0}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') inputRef.current?.click(); }}
         >
-          <div className="upload-zone-icon">⬆</div>
+          <div className="upload-zone-icon"><IconUpload /></div>
           <div className="upload-zone-title">Tap to choose files, or drag them here</div>
           <div className="upload-zone-sub">CSV / TSV / Excel, or the stock take PDF — filenames don&rsquo;t matter, the OS reads the contents</div>
           <input
