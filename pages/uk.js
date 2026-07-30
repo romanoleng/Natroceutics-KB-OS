@@ -4066,6 +4066,15 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
   const [section, setSection] = useState('Overview');
   const [tab, setTab] = useState('Tasks');
 
+  // Deep links into sections: /uk?s=amazon | shopify | warehouse — used by the
+  // Menu quick links and anywhere else that wants to land on a specific desk.
+  const routerQ = useRouter();
+  useEffect(() => {
+    const map = { amazon: 'Amazon UK', shopify: 'Shopify UK', warehouse: 'Warehouse', overview: 'Overview' };
+    const want = map[String(routerQ.query.s || '').toLowerCase()];
+    if (want) setSection(want);
+  }, [routerQ.query.s]);
+
   useEffect(() => {
     if (router.query.tab && TABS.includes(router.query.tab)) {
       const t = router.query.tab;

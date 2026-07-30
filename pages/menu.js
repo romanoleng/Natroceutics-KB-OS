@@ -10,6 +10,9 @@ const GROUPS = [
     title: 'Regions',
     items: [
       { href: '/uk',      icon: '🇬🇧', name: 'United Kingdom' },
+      { href: '/uk?s=amazon',  icon: '📦', name: 'UK · Amazon',  sub: true },
+      { href: '/uk?s=shopify', icon: '🛒', name: 'UK · Shopify', sub: true },
+      { href: '/uk?s=warehouse', icon: '🏭', name: 'UK · Warehouse', sub: true },
       { href: '/me',      icon: '🇦🇪', name: 'Middle East' },
       { href: '/sa',      icon: '🇿🇦', name: 'South Africa' },
       { href: '/pt',      icon: '🇵🇹', name: 'Portugal' },
@@ -50,7 +53,7 @@ export default function Menu() {
             <h2 className="guide-h2">{g.title}</h2>
             <div className="menu-grid">
               {g.items.map(it => (
-                <Link key={it.href} href={it.href} className="menu-tile">
+                <Link key={it.href} href={it.href} className={`menu-tile${it.sub ? ' menu-tile--sub' : ''}`}>
                   <span className="menu-tile-icon">{it.icon}</span>
                   <span className="menu-tile-name">{it.name}</span>
                   <span className="menu-tile-arrow">→</span>
