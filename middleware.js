@@ -12,7 +12,13 @@ export function middleware(request) {
     // checked against INGEST_TOKEN, and rejects everything without it.
     pathname.startsWith('/api/ingest') ||
     pathname.startsWith('/_next') ||
-    pathname === '/favicon.ico'
+    // Install/branding assets: iOS fetches these without cookies, and a
+    // redirected apple-touch-icon breaks Add to Home Screen.
+    pathname === '/favicon.ico' ||
+    pathname === '/manifest.json' ||
+    pathname === '/apple-touch-icon.png' ||
+    pathname === '/icon-192.png' ||
+    pathname === '/icon-512.png'
   ) {
     return NextResponse.next();
   }
