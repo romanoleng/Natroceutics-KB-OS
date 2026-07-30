@@ -3290,3 +3290,15 @@ details.qa-root[open] > summary.qa-fab:active { transform: rotate(45deg) scale(0
 .bottom-nav-item + .bottom-nav-item {
   border-left: 1px solid rgba(238, 235, 225, 0.28);
 }
+
+/* Dividers v3: hairline, vertically inset — reads as a whisper, app style */
+.bottom-nav-item + .bottom-nav-item { border-left: none; position: relative; }
+.bottom-nav-item + .bottom-nav-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 22%;
+  height: 56%;
+  width: 1px;
+  background: rgba(238, 235, 225, 0.18);
+}
