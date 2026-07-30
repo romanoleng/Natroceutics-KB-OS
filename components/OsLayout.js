@@ -49,19 +49,25 @@ export default function OsLayout({ children, title = 'Natroceutics OS', airtable
         </div>
       </header>
 
-      <main className="os-main os-main--with-tabbar">
-        {children}
-      </main>
+      {/* On touch devices the shell is a fixed 100dvh column: header, a
+          scrolling content pane, then a STATIC bottom bar — the document never
+          scrolls, so no Safari scroll behaviour can move or hide the bar. On
+          desktop these wrappers are inert and the page scrolls normally. */}
+      <div className="app-scroll">
+        <main className="os-main os-main--with-tabbar">
+          {children}
+        </main>
+
+        <footer className="os-footer">
+          <div className="os-footer-inner">
+            <span>Natroceutics<sup>®</sup> OS · Internal · Confidential</span>
+            <span className="os-footer-tag">We are efficacy first.</span>
+          </div>
+        </footer>
+      </div>
 
       <QuickAdd />
       <BottomNav />
-
-      <footer className="os-footer">
-        <div className="os-footer-inner">
-          <span>Natroceutics<sup>®</sup> OS · Internal · Confidential</span>
-          <span className="os-footer-tag">We are efficacy first.</span>
-        </div>
-      </footer>
     </>
   );
 }

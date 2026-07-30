@@ -7,6 +7,14 @@ import OsLayout from '../components/OsLayout';
  */
 const GROUPS = [
   {
+    title: 'Company-wide',
+    items: [
+      { href: '/kb',             icon: '📋', name: 'Knowledge Base' },
+      { href: '/partner-brands', icon: '🤝', name: 'Partner Brands' },
+      { href: '/all-tasks',      icon: '✅', name: 'All Tasks' },
+    ],
+  },
+  {
     title: 'Regions',
     items: [
       { href: '/uk',      icon: '🇬🇧', name: 'United Kingdom' },
@@ -17,14 +25,6 @@ const GROUPS = [
       { href: '/sa',      icon: '🇿🇦', name: 'South Africa' },
       { href: '/pt',      icon: '🇵🇹', name: 'Portugal' },
       { href: '/global',  icon: '🌍', name: 'Global Overview' },
-    ],
-  },
-  {
-    title: 'Company-wide',
-    items: [
-      { href: '/kb',             icon: '📋', name: 'Knowledge Base' },
-      { href: '/partner-brands', icon: '🤝', name: 'Partner Brands' },
-      { href: '/all-tasks',      icon: '✅', name: 'All Tasks' },
     ],
   },
   {
