@@ -84,8 +84,9 @@ const FREEFORM_TARGETS = {
       if (!orderNo) throw Object.assign(new Error('No order number (#1234) found in the pasted text — is this a Shopify order email?'), { status: 422 });
       const customer = text.match(/placed by\s+([A-Za-zÀ-ž' .-]+)/i)?.[1]?.trim()
                     || text.match(/^([A-Za-zÀ-ž' .-]+)\s+placed order/mi)?.[1]?.trim() || '';
+      // Line-anchored so "Total" cannot match the "Subtotal" line.
       const money = label => {
-        const m = text.match(new RegExp(label + String.raw`[^\d£$-]*£?\s*(-?[\d,]+\.\d{2})`, 'i'));
+        const m = text.match(new RegExp(String.raw`^\s*` + label + String.raw`\b[^\d£$-]*£?\s*(-?[\d,]+\.\d{2})`, 'im'));
         return m ? Number(m[1].replace(/,/g, '')) : null;
       };
       const gross = money('Subtotal') ?? money('Total');
