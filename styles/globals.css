@@ -3260,3 +3260,10 @@ body { background: transparent; }
   /* FAB floats over the scroll pane, resting just above the static bar */
   .qa-root { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
 }
+
+/* + rotates into an ✕ while the quick-add sheet is open */
+details.qa-root[open] > summary.qa-fab {
+  transform: rotate(45deg);
+  background: var(--forest-700);
+}
+details.qa-root[open] > summary.qa-fab:active { transform: rotate(45deg) scale(0.93); }
