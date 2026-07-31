@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import OsLayout from '../components/OsLayout';
-import { IconBook, IconHandshake, IconCheck, IconBox, IconCart, IconWarehouse, IconFileText, IconCoins, IconUsers, IconChart, IconUpload, IconLeaf, IconGear, IconGlobe } from '../components/Icons';
+import { COMPANY, REGIONS, TOOLS } from '../components/nav-tree';
 
 /**
  * /menu — everything in the OS, one tap away. The bottom bar's fifth tab.
@@ -8,59 +8,10 @@ import { IconBook, IconHandshake, IconCheck, IconBox, IconCart, IconWarehouse, I
  * Regions are collapsible (native <details>, same proven pattern as the +
  * sheet): tap a region to reveal its module link plus deep links into its
  * sections — UK's ?s= desks, and the ?t= tabs wired into ME/SA/PT.
+ *
+ * The tree itself lives in components/nav-tree.js, shared with the desktop
+ * sidebar so the two surfaces cannot drift.
  */
-const COMPANY = [
-  { href: '/kb',             icon: <IconBook />, name: 'Knowledge Base' },
-  { href: '/partner-brands', icon: <IconHandshake />, name: 'Partner Brands' },
-  { href: '/all-tasks',      icon: <IconCheck />, name: 'All Tasks' },
-];
-
-const REGIONS = [
-  {
-    icon: '🇬🇧', name: 'United Kingdom', href: '/uk',
-    subs: [
-      { href: '/uk?s=amazon',    icon: <IconBox />, name: 'Amazon' },
-      { href: '/uk?s=shopify',   icon: <IconCart />, name: 'Shopify' },
-      { href: '/uk?s=warehouse', icon: <IconWarehouse />, name: 'Warehouse' },
-      { href: '/report/shopify-uk', icon: <IconChart />, name: 'Shopify Report' },
-    ],
-  },
-  {
-    icon: '🇦🇪', name: 'Middle East', href: '/me',
-    subs: [
-      { href: '/me?t=registrations', icon: <IconFileText />, name: 'Registrations' },
-      { href: '/me?t=inventory',     icon: <IconBox />, name: 'Inventory' },
-      { href: '/me?t=finance',       icon: <IconCoins />, name: 'Finance' },
-      { href: '/me?t=partners',      icon: <IconUsers />, name: 'Partners' },
-      { href: '/me?t=reporting',     icon: <IconChart />, name: 'Reporting' },
-    ],
-  },
-  {
-    icon: '🇿🇦', name: 'South Africa', href: '/sa',
-    subs: [
-      { href: '/sa?t=inventory', icon: <IconBox />, name: 'Inventory' },
-      { href: '/sa?t=finance',   icon: <IconCoins />, name: 'Finance' },
-      { href: '/sa?t=customers', icon: <IconUsers />, name: 'Customers' },
-      { href: '/sa?t=reporting', icon: <IconChart />, name: 'Reporting' },
-    ],
-  },
-  {
-    icon: '🇵🇹', name: 'Portugal', href: '/pt',
-    subs: [
-      { href: '/pt?t=inventory', icon: <IconBox />, name: 'Inventory' },
-      { href: '/pt?t=finance',   icon: <IconCoins />, name: 'Finance' },
-      { href: '/pt?t=customers', icon: <IconUsers />, name: 'Customers' },
-      { href: '/pt?t=reporting', icon: <IconChart />, name: 'Reporting' },
-    ],
-  },
-  { icon: <IconGlobe />, name: 'Global Overview', href: '/global', subs: [] },
-];
-
-const TOOLS = [
-  { href: '/capture',  icon: <IconUpload />, name: 'Capture' },
-  { href: '/guide',    icon: <IconLeaf />, name: 'How the OS Works' },
-  { href: '/settings', icon: <IconGear />, name: 'Settings' },
-];
 
 function Tile({ href, icon, name }) {
   return (

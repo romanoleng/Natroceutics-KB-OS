@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import QuickAdd from './QuickAdd';
 import BottomNav from './BottomNav';
+import Sidebar from './Sidebar';
 
 function fmtServerTime(iso) {
   if (!iso) return null;
@@ -68,6 +69,11 @@ export default function OsLayout({ children, title = 'Natroceutics OS', airtable
 
       <QuickAdd />
       <BottomNav />
+      {/* Desktop-only left rail (CSS-gated at ≥1024px + fine pointer).
+          Rendered LAST and position:fixed, so it sits outside the mobile
+          app-shell flow entirely — it cannot re-trigger the Safari
+          bottom-bar saga. */}
+      <Sidebar />
     </>
   );
 }
