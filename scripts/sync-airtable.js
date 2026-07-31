@@ -319,6 +319,7 @@ async function main() {
             baseKey: t.baseKey, tableKey: t.tableKey,
             baseId: t.baseId, tableId: t.tableId,
             status: 'ok',
+            source: 'airtable',
             recordCount: records.length,
             deleted,
             durationMs: Date.now() - startedAt.getTime(),

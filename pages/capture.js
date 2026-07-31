@@ -105,10 +105,66 @@ function PasteBox({ onResult }) {
   );
 }
 
+function timeAgo(iso) {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 2) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 48) return `${hrs} hr ago`;
+  return `${Math.round(hrs / 24)} days ago`;
+}
+
+/**
+ * The evidence trail — every capture/sync, where it landed, what changed vs
+ * the run before, and a link to see the data. Kills the "did it actually
+ * work?" doubt with a persistent record instead of a flash of green text.
+ */
+function RecentCaptures({ refreshKey }) {
+  const [recent, setRecent] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/activity').then(r => r.json()).then(d => setRecent(d.recent || [])).catch(() => setRecent([]));
+  }, [refreshKey]);
+
+  if (!recent || !recent.length) return null;
+  return (
+    <>
+      <h2 className="guide-h2">Recent captures</h2>
+      <div className="receipts">
+        {recent.map((r, i) => {
+          const delta = r.prevRecords === null ? null : r.records - r.prevRecords;
+          return (
+            <a key={i} href={r.href} className="receipt">
+              <span className="receipt-main">
+                <span className="receipt-label">{r.label}</span>
+                <span className="receipt-detail">
+                  {r.records.toLocaleString('en-GB')} records
+                  {delta !== null && delta !== 0 && (
+                    <span className={delta > 0 ? 'receipt-delta receipt-delta--up' : 'receipt-delta'}>
+                      {' '}{delta > 0 ? `+${delta}` : delta} vs previous
+                    </span>
+                  )}
+                  {delta === 0 && <span className="receipt-delta"> refreshed, same count</span>}
+                  {' · '}{r.source}
+                </span>
+              </span>
+              <span className="receipt-side">
+                <span className="receipt-time">{timeAgo(r.at)}</span>
+                <span className="receipt-view">view →</span>
+              </span>
+            </a>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 export default function Capture() {
   const [items, setItems] = useState([]);
   const [dragOver, setDragOver] = useState(false);
   const [progress, setProgress] = useState(null);   // { done, total } while a batch runs
+  const [refreshKey, setRefreshKey] = useState(0);
   const inputRef = useRef(null);
   const counter = useRef(0);
 
@@ -186,6 +242,7 @@ export default function Capture() {
       setProgress({ done: i + 1, total: files.length });
     }
     setTimeout(() => setProgress(null), 1200);
+    setRefreshKey(k => k + 1);
   }, []);
 
   const onDrop = useCallback(e => {
@@ -245,7 +302,7 @@ export default function Capture() {
           </div>
         )}
 
-        <PasteBox onResult={item => setItems(prev => [{ ...item, id: ++counter.current }, ...prev])} />
+        <PasteBox onResult={item => { setItems(prev => [{ ...item, id: ++counter.current }, ...prev]); setRefreshKey(k => k + 1); }} />
 
         {items.length > 0 && (
           <div className="upload-results">
@@ -263,6 +320,8 @@ export default function Capture() {
             })}
           </div>
         )}
+
+        <RecentCaptures refreshKey={refreshKey} />
 
         <h2 className="guide-h2">What can I capture?</h2>
         <div className="guide-qa">

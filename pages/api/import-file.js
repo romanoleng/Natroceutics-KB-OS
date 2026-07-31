@@ -170,7 +170,7 @@ export default async function handler(req, res) {
           baseId: BASES.UK.defaultBaseId,
           tableId: type.tableId,
           records,
-          replace: true,
+          replace: type.replace !== false,
           source: 'xlsx',
         });
         const dates = records.map(r => r.fields.Date).filter(Boolean).sort();
@@ -295,7 +295,8 @@ export default async function handler(req, res) {
       baseId: BASES.UK.defaultBaseId,
       tableId: type.tableId,
       records,
-      replace: true,
+      // Time-series types merge; snapshots replace — see lib/sellerboard.js.
+      replace: type.replace !== false,
       source: 'upload',
     });
 

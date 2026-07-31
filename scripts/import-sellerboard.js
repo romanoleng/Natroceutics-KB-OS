@@ -83,6 +83,7 @@ async function main() {
 
   const jobs = [...byType.values()].map(p => ({
     tableKey: p.type.tableKey, tableId: p.type.tableId, records: p.records,
+    replace: p.type.replace !== false,
   }));
 
   if (args.rsp) {
@@ -107,7 +108,7 @@ async function main() {
     const { deleted } = await commitTable(prisma, {
       baseKey: 'UK', tableKey: job.tableKey,
       baseId: BASES.UK.defaultBaseId, tableId: job.tableId,
-      records: job.records, replace: true, source: 'sb',
+      records: job.records, replace: job.replace !== false, source: 'sb',
     });
     console.log(`ok    ${job.records.length} records${deleted ? `  (-${deleted} replaced)` : ''}`);
     written++;

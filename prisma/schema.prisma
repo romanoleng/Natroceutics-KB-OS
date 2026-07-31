@@ -87,6 +87,8 @@ model SyncRun {
 
   /// "ok" | "error"
   status      String  @db.VarChar(16)
+  /// How the data arrived: airtable | sb | upload | xlsx | pdf | paste | shopify | ingest
+  source      String? @db.VarChar(24)
   recordCount Int     @default(0)
   deleted     Int     @default(0)
   durationMs  Int     @default(0)

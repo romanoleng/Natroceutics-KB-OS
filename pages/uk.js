@@ -4066,6 +4066,20 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
   const [section, setSection] = useState('Overview');
   const [tab, setTab] = useState('Tasks');
 
+  // Freshness dots: which sections had data captured in the last 24h.
+  const [freshSections, setFreshSections] = useState({});
+  useEffect(() => {
+    fetch('/api/activity').then(r => r.json()).then(d => {
+      const map = {};
+      const names = { amazon: 'Amazon UK', shopify: 'Shopify UK', warehouse: 'Warehouse' };
+      for (const [k, iso] of Object.entries(d.ukSections || {})) {
+        const hrs = (Date.now() - new Date(iso).getTime()) / 3600000;
+        if (hrs < 24 && names[k]) map[names[k]] = hrs < 1 ? 'in the last hour' : `${Math.round(hrs)}h ago`;
+      }
+      setFreshSections(map);
+    }).catch(() => {});
+  }, []);
+
   // Deep links into sections: /uk?s=amazon | shopify | warehouse — used by the
   // Menu quick links and anywhere else that wants to land on a specific desk.
   const routerQ = useRouter();
@@ -4133,6 +4147,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
           {SECTIONS.map(s => (
             <button key={s} className={`uk-section-btn${section === s ? ' active' : ''}`} onClick={() => switchSection(s)}>
               {SECTION_ICON[s]} {s}
+              {freshSections[s] && <span className="fresh-dot" title={`Updated ${freshSections[s]}`} />}
             </button>
           ))}
         </div>

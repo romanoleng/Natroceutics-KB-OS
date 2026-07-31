@@ -3330,3 +3330,34 @@ details.qa-root[open] > summary.qa-fab:active { transform: rotate(45deg) scale(0
 }
 .qa-item-icon svg { width: 20px; height: 20px; }
 .upload-zone-icon svg { width: 24px; height: 24px; color: var(--cream); }
+
+/* ═══ Capture receipts + freshness dots ═══ */
+.receipts { display: flex; flex-direction: column; gap: 8px; }
+.receipt {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: var(--surface);
+  border: 1.5px solid var(--cream-dark);
+  border-left: 3px solid var(--navy);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  text-decoration: none;
+  box-shadow: var(--shadow-xs);
+}
+.receipt-label { display: block; font-size: 13.5px; font-weight: 700; color: var(--forest-900); }
+.receipt-detail { display: block; font-size: 12px; color: var(--charcoal-70); margin-top: 2px; }
+.receipt-delta { font-family: var(--mono); font-size: 11px; color: var(--charcoal-45); }
+.receipt-delta--up { color: var(--ok-fg); font-weight: 700; }
+.receipt-side { text-align: right; flex-shrink: 0; }
+.receipt-time { display: block; font-family: var(--mono); font-size: 11px; color: var(--charcoal-45); }
+.receipt-view { display: block; font-size: 11.5px; font-weight: 700; color: var(--navy-fg); margin-top: 2px; }
+
+.fresh-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--navy);
+  margin-left: 6px;
+  vertical-align: 2px;
+  box-shadow: 0 0 0 2.5px var(--navy-bg);
+}
+.uk-section-btn.active .fresh-dot { background: var(--cream); box-shadow: 0 0 0 2.5px rgba(238,235,225,0.25); }
