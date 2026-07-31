@@ -1,4 +1,4 @@
-import { IconBook, IconHandshake, IconCheck, IconBox, IconCart, IconWarehouse, IconFileText, IconCoins, IconUsers, IconChart, IconUpload, IconLeaf, IconGear, IconGlobe } from './Icons';
+import { IconBook, IconHandshake, IconCheck, IconBox, IconCart, IconWarehouse, IconFileText, IconCoins, IconUsers, IconChart, IconUpload, IconLeaf, IconGear, IconGlobe, IconSparkle } from './Icons';
 
 /**
  * The OS navigation tree — ONE source of truth.
@@ -59,10 +59,13 @@ export const REGIONS = [
   {
     icon: '🇿🇦', name: 'South Africa', href: '/sa', overview: '/sa?t=tasks',
     subs: [
-      { href: '/sa?t=inventory', icon: <IconBox />,   name: 'Inventory' },
-      { href: '/sa?t=finance',   icon: <IconCoins />, name: 'Finance' },
-      { href: '/sa?t=customers', icon: <IconUsers />, name: 'Customers' },
-      { href: '/sa?t=reporting', icon: <IconChart />, name: 'Reporting' },
+      { href: '/sa?t=inventory', icon: <IconBox />,     name: 'Inventory' },
+      { href: '/sa?t=finance',   icon: <IconCoins />,   name: 'Finance' },
+      { href: '/sa?t=customers', icon: <IconUsers />,   name: 'Customers' },
+      { href: '/sa?t=reporting', icon: <IconChart />,   name: 'Reporting' },
+      // "Events" is the human name; the page tab (and Airtable table) is
+      // Webinar — the ?t= normaliser maps webinar → the Webinar tab.
+      { href: '/sa?t=webinar',   icon: <IconSparkle />, name: 'Events' },
     ],
   },
   {
