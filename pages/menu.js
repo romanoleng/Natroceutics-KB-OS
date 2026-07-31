@@ -22,6 +22,7 @@ const REGIONS = [
       { href: '/uk?s=amazon',    icon: <IconBox />, name: 'Amazon' },
       { href: '/uk?s=shopify',   icon: <IconCart />, name: 'Shopify' },
       { href: '/uk?s=warehouse', icon: <IconWarehouse />, name: 'Warehouse' },
+      { href: '/report/shopify-uk', icon: <IconChart />, name: 'Shopify Report' },
     ],
   },
   {
