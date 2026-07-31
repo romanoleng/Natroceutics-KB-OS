@@ -56,7 +56,7 @@ const REGIONS = [
 ];
 
 const TOOLS = [
-  { href: '/upload',   icon: <IconUpload />, name: 'Upload Data' },
+  { href: '/capture',  icon: <IconUpload />, name: 'Capture' },
   { href: '/guide',    icon: <IconLeaf />, name: 'How the OS Works' },
   { href: '/settings', icon: <IconGear />, name: 'Settings' },
 ];

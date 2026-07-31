@@ -36,9 +36,9 @@ export default function Settings() {
             <span className="settings-row-note">Neon Postgres — what every dashboard reads. See <a href="/guide">How the OS Works</a> for per-module freshness.</span>
           </div>
           <div className="settings-row">
-            <span className="settings-row-name">Uploads &amp; paste</span>
+            <span className="settings-row-name">Capture</span>
             <span className="guide-pill" style={{ background: 'var(--ok-bg)', color: 'var(--ok-fg)', border: '1px solid var(--ok-bg)' }}>Live</span>
-            <span className="settings-row-note">Sellerboard CSVs, Excel workbooks, the stock take PDF, copied emails — <a href="/upload">Upload Data</a>.</span>
+            <span className="settings-row-note">Sellerboard CSVs, Excel workbooks, the stock take PDF, copied emails — <a href="/capture">Capture</a>.</span>
           </div>
           <div className="settings-row">
             <span className="settings-row-name">Shopify sync</span>

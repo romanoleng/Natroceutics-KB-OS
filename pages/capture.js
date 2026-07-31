@@ -105,7 +105,7 @@ function PasteBox({ onResult }) {
   );
 }
 
-export default function Upload() {
+export default function Capture() {
   const [items, setItems] = useState([]);
   const [dragOver, setDragOver] = useState(false);
   const [progress, setProgress] = useState(null);   // { done, total } while a batch runs
@@ -195,12 +195,12 @@ export default function Upload() {
   }, [processFiles]);
 
   return (
-    <OsLayout title="Upload Data">
+    <OsLayout title="Capture">
       <section className="os-hero">
         <div className="os-hero-inner">
-          <p className="os-eyebrow">Data In</p>
-          <h1 className="os-hero-title">Upload Data</h1>
-          <p className="os-hero-sub">Drop export files here — they land on the dashboards straight away.</p>
+          <p className="os-eyebrow">Capture</p>
+          <h1 className="os-hero-title">Capture</h1>
+          <p className="os-hero-sub">Files, pastes, emails — everything lands in the OS from here.</p>
         </div>
       </section>
 
@@ -264,7 +264,7 @@ export default function Upload() {
           </div>
         )}
 
-        <h2 className="guide-h2">What can I upload?</h2>
+        <h2 className="guide-h2">What can I capture?</h2>
         <div className="guide-qa">
           <div className="guide-qa-item">
             <h3>Sellerboard exports (Amazon UK)</h3>

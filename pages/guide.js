@@ -198,7 +198,7 @@ export default function Guide({ status, serverTime }) {
             <p>
               In sellerboard, export <strong>Dashboard by day</strong>, <strong>Dashboard by
               product</strong>, <strong>Orders</strong> and <strong>Stock history</strong>, then drop
-              the files on the <a href="/upload">Upload Data</a> page exactly as downloaded. The OS
+              the files on the <a href="/capture">Capture</a> page exactly as downloaded. The OS
               reads the columns, not the filename. Amazon P&amp;L, product performance, orders and
               stock update immediately.
             </p>
@@ -215,7 +215,7 @@ export default function Guide({ status, serverTime }) {
             <h3>RSP / competitor pricing</h3>
             <p>
               Copy the pricing tab from the Amazon team&rsquo;s Excel, save it as
-              <em> tab-separated</em> (.tsv), and drop it on <a href="/upload">Upload Data</a>. It
+              <em> tab-separated</em> (.tsv), and drop it on <a href="/capture">Capture</a>. It
               needs the ASIN, Seller/Price columns and RRP; the OS works out which listing is ours.
             </p>
           </div>

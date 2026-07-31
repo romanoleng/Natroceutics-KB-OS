@@ -37,20 +37,20 @@ export default function QuickAdd() {
   }
 
   // No point floating an upload button on top of the upload page itself.
-  if (router.pathname === '/upload' || router.pathname === '/login') return null;
+  if (router.pathname === '/capture' || router.pathname === '/login') return null;
 
   return (
     <details className="qa-root">
       <summary className="qa-fab" aria-label="Add data">+</summary>
       <div className="qa-sheet" role="menu">
-        <Link href="/upload" className="qa-item" role="menuitem">
+        <Link href="/capture" className="qa-item" role="menuitem">
           <span className="qa-item-icon"><IconFileText /></span>
           <span>
-            <span className="qa-item-title">Upload files</span>
+            <span className="qa-item-title">Capture files</span>
             <span className="qa-item-sub">Sellerboard CSVs · stock take PDF</span>
           </span>
         </Link>
-        <Link href="/upload#paste" className="qa-item" role="menuitem">
+        <Link href="/capture#paste" className="qa-item" role="menuitem">
           <span className="qa-item-icon"><IconClipboard /></span>
           <span>
             <span className="qa-item-title">Paste data</span>

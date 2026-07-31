@@ -32,11 +32,11 @@ const MODULES = [
     desc: 'Third-party brands, therapeutic categories, distributor data, and pricing reference.',
   },
   {
-    href: '/upload',
-    eyebrow: 'Data In',
+    href: '/capture',
+    eyebrow: 'Capture',
     icon: <IconUpload />,
-    name: 'Upload Data',
-    desc: 'Drop sellerboard and pricing exports straight onto the dashboards — no tools needed.',
+    name: 'Capture',
+    desc: 'Files, pastes and emails into the OS — sellerboard, stock takes, pricing, tasks.',
   },
   {
     href: '/guide',
