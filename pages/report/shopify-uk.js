@@ -20,7 +20,12 @@ import { BASES, resolveBaseId } from '../../lib/airtable-tables';
 const CUR = '2026-07', PRV = '2026-06';
 const MONTH_LABEL = { '2026-06': 'June 2026', '2026-07': 'July 2026' };
 
-const money = v => (v == null || v === '' ? '—' : `£${Number(v).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+const money = v => {
+  if (v == null || v === '') return '—';
+  const n = Number(v);
+  const abs = Math.abs(n).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${n < 0 ? '−' : ''}£${abs}`;   // sign outside the symbol, not "£-170.54"
+};
 const int = v => (v == null || v === '' ? '—' : Number(v).toLocaleString('en-GB'));
 const pct = v => (v == null || v === '' ? '—' : `${Number(v).toFixed(1)}%`);
 const signed = v => (v == null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(1)}%`);
@@ -38,14 +43,15 @@ export default function ShopifyUkReport({ fin, amazon, generatedAt }) {
   const vatQuery = fin.queries.find(q => q.Key === 'vat_rate_pct');
   const vatExposure = shopTotal / 6; // 20% VAT inside a VAT-inclusive price
 
+  // label, field, isTotalRow, showAsNegative, basis note
   const pnlRows = [
-    ['Gross sales', 'Gross Sales (£)', false],
-    ['Discounts', 'Discounts (£)', false],
-    ['Returns', 'Returns (£)', false],
-    ['Net sales', 'Net Sales (£)', true],
-    ['Cost of goods', 'COGS (£)', false, true],
-    ['Payment processing', 'Payment Fees (£)', false, true],
-    ['Contribution', 'Contribution (£)', true],
+    ['Gross sales', 'Gross Sales (£)', false, false, 'Actual'],
+    ['Discounts', 'Discounts (£)', false, false, 'Actual'],
+    ['Returns', 'Returns (£)', false, false, 'Actual'],
+    ['Net sales', 'Net Sales (£)', true, false, 'Actual'],
+    ['Cost of goods', 'COGS (£)', false, true, 'Partial, see coverage'],
+    ['Payment processing', 'Payment Fees (£)', false, true, 'Actual, per transaction'],
+    ['Contribution', 'Contribution (£)', true, false, 'Before shipping, platform, apps'],
   ];
 
   return (
@@ -119,7 +125,7 @@ export default function ShopifyUkReport({ fin, amazon, generatedAt }) {
               <tr><th>Line</th><th className="r">July 2026</th><th className="r">June 2026</th><th className="r">Basis</th></tr>
             </thead>
             <tbody>
-              {pnlRows.map(([label, key, total, negate]) => {
+              {pnlRows.map(([label, key, total, negate, basis]) => {
                 const a = num(cur[key]), b = num(prv[key]);
                 const fmt = v => (v == null ? '—' : money(negate && v > 0 ? -v : v));
                 return (
@@ -127,10 +133,16 @@ export default function ShopifyUkReport({ fin, amazon, generatedAt }) {
                     <td>{label}</td>
                     <td className={`num r ${negate ? 'neg' : ''}`}>{fmt(a)}</td>
                     <td className={`num r ${negate ? 'neg' : ''}`}>{fmt(b)}</td>
-                    <td className="r basis">{key === 'COGS (£)' ? `${pct(cur['COGS Coverage %'])} of revenue` : 'Actual'}</td>
+                    <td className="r basis">{basis}</td>
                   </tr>
                 );
               })}
+              <tr>
+                <td>Cost of goods coverage</td>
+                <td className="num r">{pct(cur['COGS Coverage %'])}</td>
+                <td className="num r">{pct(prv['COGS Coverage %'])}</td>
+                <td className="r basis">Share of revenue with a unit cost</td>
+              </tr>
               <tr>
                 <td>Contribution margin</td>
                 <td className="num r">{pct(cur['Contribution Margin %'])}</td>
