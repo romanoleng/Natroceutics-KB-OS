@@ -43,6 +43,22 @@ function parseDelimited(text, delimiter = ',') {
 }
 
 /**
+ * UK-format dates (D/M/YYYY) → ISO. Pages filter and sort with `new Date(v)`,
+ * which reads "7/3/2026" as 3 July rather than 7 March and "16/6/2026" as
+ * Invalid Date — that silently scattered 319 records across wrong months
+ * before it was caught on 2026-07-31. Both upstream sources (Airtable CSV
+ * exports, sellerboard) are day-first, so normalise on the way in.
+ */
+const UK_DATE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+function ukDateToISO(s) {
+  const m = s.match(UK_DATE);
+  if (!m) return null;
+  const [, d, mo, y] = m;
+  if (Number(d) < 1 || Number(d) > 31 || Number(mo) < 1 || Number(mo) > 12) return null;
+  return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
+}
+
+/**
  * Numeric coercion matching what the Airtable API returns: currency and
  * thousands separators become numbers ("£138.45" → 138.45, "1,234.56" →
  * 1234.56), plain numerics become numbers — but never anything with a leading
@@ -50,6 +66,9 @@ function parseDelimited(text, delimiter = ',') {
  */
 function coerce(s) {
   if (s === '') return '';
+
+  const iso = ukDateToISO(s);
+  if (iso) return iso;
 
   const money = s.match(/^(-?)\s*[£$€R]\s?([\d,]+(?:\.\d+)?)$/)
              || s.match(/^(-?)([\d,]+\.\d+)$/)
@@ -84,4 +103,4 @@ function toObjects(rows) {
   return out;
 }
 
-module.exports = { parseDelimited, coerce, toObjects };
+module.exports = { parseDelimited, coerce, toObjects, ukDateToISO };
