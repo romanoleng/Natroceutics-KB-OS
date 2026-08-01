@@ -76,6 +76,9 @@ export default function ShopifyPerformance({ pnl = [], products = [], traffic = 
   const noCost = curProducts.filter(p => p['COGS (£)'] === '' || p['COGS (£)'] == null);
   const pending = costModel.filter(c => c.Status === 'PENDING');
   const queries = costModel.filter(c => c.Status === 'QUERY');
+  // Lines we DO have a source for. STALE counts as sourced but flags that the
+  // upstream stopped updating, which is different from a cost being zero.
+  const sourced = costModel.filter(c => c.Status === 'ACTUAL' || c.Status === 'STALE');
 
   if (!months.length) {
     return (
@@ -172,8 +175,24 @@ export default function ShopifyPerformance({ pnl = [], products = [], traffic = 
             </div>
             <div className="sp-card">
               <div className="sp-card-label">Not yet in that figure</div>
+              {sourced.length > 0 && (
+                <table className="sp-mini" style={{ marginBottom: 12 }}>
+                  <tbody>
+                    {sourced.map(c => (
+                      <tr key={c.Key}>
+                        <td>{c.Label}<span className="sp-src">{c.Source}</span></td>
+                        <td className="sp-num sp-neg">
+                          {c.Value === '' || c.Value == null
+                            ? <span className="sp-pending">{c.Status}</span>
+                            : money(-Math.abs(Number(c.Value)))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
               {pending.length === 0
-                ? <p className="sp-note">Every cost line is sourced. Contribution is complete.</p>
+                ? <p className="sp-note">Every remaining cost line is sourced.</p>
                 : (
                   <table className="sp-mini">
                     <tbody>
