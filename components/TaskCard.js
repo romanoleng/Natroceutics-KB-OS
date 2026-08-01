@@ -27,7 +27,7 @@ const STATUS_TONE = {
   'In Progress': 'progress', 'Under Review': 'review',
 };
 
-export default function TaskCard({ task, onStatus, onSnooze, busy }) {
+export default function TaskCard({ task, onStatus, onSnooze, onDelete, busy }) {
   const [dx, setDx] = useState(0);
   const [sheet, setSheet] = useState(false);
   const start = useRef(null);
@@ -136,6 +136,14 @@ export default function TaskCard({ task, onStatus, onSnooze, busy }) {
             <button className="tc-sheet-btn" onClick={() => { onSnooze?.(task, 7); setSheet(false); }}>
               Snooze 7 days
             </button>
+            {onDelete && (
+              <button
+                className="tc-sheet-btn tc-sheet-btn--danger"
+                onClick={() => { onDelete(task); setSheet(false); }}
+              >
+                Delete
+              </button>
+            )}
             <button className="tc-sheet-btn tc-sheet-btn--close" onClick={() => setSheet(false)}>Close</button>
           </div>
         )}

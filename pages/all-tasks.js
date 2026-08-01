@@ -3,7 +3,7 @@ import OsLayout from '../components/OsLayout';
 import TaskCard from '../components/TaskCard';
 import { fetchFromMirror } from '../lib/mirror';
 import { BASES, resolveBaseId } from '../lib/airtable-tables';
-import { normaliseTask, buildToday, waitingBy } from '../lib/tasks';
+import { normaliseTask, buildToday, waitingBy, ownerLoad } from '../lib/tasks';
 
 /**
  * /all-tasks — "Today", the OS's starting point.
@@ -28,7 +28,7 @@ const REGIONS = [
   ['AFF', 'Affiliate Ops', '🤝'],
 ];
 
-function Group({ title, hint, tasks, tone, onStatus, onSnooze, busyId, open = true }) {
+function Group({ title, hint, tasks, tone, onStatus, onSnooze, onDelete, busyId, open = true }) {
   const [show, setShow] = useState(open);
   if (!tasks.length) return null;
   return (
@@ -42,7 +42,7 @@ function Group({ title, hint, tasks, tone, onStatus, onSnooze, busyId, open = tr
       {show && (
         <div className="tg-body">
           {tasks.map(t => (
-            <TaskCard key={t.id} task={t} onStatus={onStatus} onSnooze={onSnooze} busy={busyId === t.id} />
+            <TaskCard key={t.id} task={t} onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} busy={busyId === t.id} />
           ))}
         </div>
       )}
@@ -69,6 +69,7 @@ export default function TodayPage({ initialTasks, error, serverTime }) {
 
   const view = useMemo(() => buildToday(filtered), [filtered]);
   const blockers = useMemo(() => waitingBy(filtered), [filtered]);
+  const owners = useMemo(() => ownerLoad(filtered), [filtered]);
   const people = useMemo(
     () => [...new Set(tasks.flatMap(t => [t.owner, t.waitingOn]).filter(Boolean))].sort(),
     [tasks]
@@ -108,10 +109,38 @@ export default function TodayPage({ initialTasks, error, serverTime }) {
     return write(task, { 'Snoozed Until': until }, { snoozedUntil: until });
   }, [write]);
 
+  const onDelete = useCallback(async (task) => {
+    const before = tasks.find(t => t.id === task.id);
+    setTasks(ts => ts.filter(t => t.id !== task.id));
+    try {
+      const res = await fetch('/api/delete-record', {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseId: task.baseId, tableId: task.tableId, recordId: task.id }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Delete failed');
+      // Keep the raw row so Undo restores it exactly, not a reconstruction.
+      setUndo({ task: before, deleted: d.record, label: 'Deleted' });
+      setTimeout(() => setUndo(u => (u && u.task.id === before.id ? null : u)), 12000);
+    } catch (e) {
+      setTasks(ts => [...ts, before]);
+      alert(`Could not delete: ${e.message}`);
+    }
+  }, [tasks]);
+
   const revert = useCallback(async () => {
     if (!undo) return;
     const t = undo.task;
+    const wasDeleted = undo.deleted;
     setUndo(null);
+    if (wasDeleted) {
+      await fetch('/api/delete-record', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseId: t.baseId, tableId: t.tableId, recordId: t.id, restore: wasDeleted }),
+      }).catch(() => {});
+      setTasks(ts => (ts.some(x => x.id === t.id) ? ts : [...ts, t]));
+      return;
+    }
     await write(t, { Status: t.rawStatus || t.status }, { status: t.status, overdue: t.overdue });
   }, [undo, write]);
 
@@ -132,12 +161,33 @@ export default function TodayPage({ initialTasks, error, serverTime }) {
       <div className="os-page-wrap">
         {error && <div className="os-alert-error">{error}</div>}
 
+        {/* Owner load answers "where are the other 60?". The waiting-on row
+            below it only ever showed delegated work, which is a small slice,
+            so its counts never added up to the overdue total and read as if
+            tasks were missing. */}
+        {owners.length > 0 && (
+          <div className="today-chiprow">
+            <span className="today-chiplabel">Owned by</span>
+            {owners.slice(0, 8).map(o => (
+              <button
+                key={o.who}
+                className={`today-blocker${who === o.who ? ' active' : ''}`}
+                onClick={() => setWho(w => (w === o.who ? '' : o.who))}
+                title={`${o.open} open, ${o.overdue} overdue`}
+              >
+                {o.who}<span>{o.open}</span>
+                {o.overdue > 0 && <em>{o.overdue}</em>}
+              </button>
+            ))}
+          </div>
+        )}
         {blockers.length > 0 && (
-          <div className="today-blockers">
+          <div className="today-chiprow">
+            <span className="today-chiplabel">Waiting on</span>
             {blockers.slice(0, 6).map(b => (
               <button
                 key={b.who}
-                className={`today-blocker${who === b.who ? ' active' : ''}`}
+                className={`today-blocker today-blocker--wait${who === b.who ? ' active' : ''}`}
                 onClick={() => setWho(w => (w === b.who ? '' : b.who))}
               >
                 {b.who}<span>{b.n}</span>
@@ -164,15 +214,15 @@ export default function TodayPage({ initialTasks, error, serverTime }) {
         </div>
 
         <Group title="Overdue" hint="past their due date" tone="overdue" tasks={view.overdue}
-               onStatus={onStatus} onSnooze={onSnooze} busyId={busyId} />
+               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} busyId={busyId} />
         <Group title="Today" hint="in progress, due, or high priority" tone="now" tasks={view.today}
-               onStatus={onStatus} onSnooze={onSnooze} busyId={busyId} />
+               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} busyId={busyId} />
         <Group title="Waiting on others" hint="blocked or delegated" tone="waiting" tasks={view.waiting}
-               onStatus={onStatus} onSnooze={onSnooze} busyId={busyId} />
+               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} busyId={busyId} />
         <Group title="Backlog" hint="nothing due, nothing blocking" tone="backlog" tasks={view.backlog}
-               onStatus={onStatus} onSnooze={onSnooze} busyId={busyId} open={false} />
+               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} busyId={busyId} open={false} />
         <Group title="Snoozed" hint="hidden until their date" tone="backlog" tasks={view.snoozed}
-               onStatus={onStatus} onSnooze={onSnooze} busyId={busyId} open={false} />
+               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} busyId={busyId} open={false} />
 
         {view.counts.live === 0 && (
           <div className="os-empty">Nothing open. Either a very good day, or a filter is on.</div>

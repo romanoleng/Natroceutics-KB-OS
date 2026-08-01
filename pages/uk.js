@@ -3974,8 +3974,14 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
   useEffect(() => {
     const map = { amazon: 'Amazon UK', shopify: 'Shopify UK', warehouse: 'Warehouse', overview: 'Overview' };
     const want = map[String(routerQ.query.s || '').toLowerCase()];
-    if (want) setSection(want);
-  }, [routerQ.query.s]);
+    if (!want) return;
+    setSection(want);
+    // Also move to that section's FIRST tab unless the URL named one. Without
+    // this the tab kept whatever the previous section had selected, and since
+    // Amazon has no "Performance" tab the desk rendered completely blank —
+    // sub-nav highlighted, content area empty.
+    if (!routerQ.query.tab) setTab(SECTION_TABS[want][0]);
+  }, [routerQ.query.s, routerQ.query.tab]);
 
   useEffect(() => {
     if (router.query.tab && TABS.includes(router.query.tab)) {

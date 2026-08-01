@@ -81,10 +81,38 @@ export default function TaskDeck({ tasks = [], region, regionLabel, flag, baseId
     return write(task, { 'Snoozed Until': until }, { snoozedUntil: until });
   }, [write]);
 
+  const onDelete = useCallback(async (task) => {
+    const before = rows.find(t => t.id === task.id);
+    setRows(ts => ts.filter(t => t.id !== task.id));
+    try {
+      const res = await fetch('/api/delete-record', {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseId: task.baseId, tableId: task.tableId, recordId: task.id }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Delete failed');
+      // Keep the raw row so Undo restores it exactly, not a reconstruction.
+      setUndo({ task: before, deleted: d.record, label: 'Deleted' });
+      setTimeout(() => setUndo(u => (u && u.task.id === before.id ? null : u)), 12000);
+    } catch (e) {
+      setRows(ts => [...ts, before]);
+      alert(`Could not delete: ${e.message}`);
+    }
+  }, [rows]);
+
   const revert = useCallback(async () => {
     if (!undo) return;
     const t = undo.task;
+    const wasDeleted = undo.deleted;
     setUndo(null);
+    if (wasDeleted) {
+      await fetch('/api/delete-record', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseId: t.baseId, tableId: t.tableId, recordId: t.id, restore: wasDeleted }),
+      }).catch(() => {});
+      setRows(ts => (ts.some(x => x.id === t.id) ? ts : [...ts, t]));
+      return;
+    }
     await write(t, { Status: t.rawStatus || t.status }, { status: t.status, overdue: t.overdue });
   }, [undo, write]);
 
@@ -114,7 +142,7 @@ export default function TaskDeck({ tasks = [], region, regionLabel, flag, baseId
       {view === 'cards' ? (
         <div className="tg-body">
           {visible.map(t => (
-            <TaskCard key={t.id} task={t} onStatus={onStatus} onSnooze={onSnooze} busy={busyId === t.id} />
+            <TaskCard key={t.id} task={t} onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} busy={busyId === t.id} />
           ))}
         </div>
       ) : (

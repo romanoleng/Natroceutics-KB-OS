@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { normaliseProduct, hasMarketData, searchText } from '../lib/product-fields';
 import Layout from '../components/Layout';
 import { getProducts } from '../lib/airtable';
 
@@ -7,29 +8,23 @@ export default function ProductsPage({ products, error }) {
   const [cat, setCat] = useState('');
   const [mkt, setMkt] = useState('');
 
-  const categories = useMemo(() => {
-    return [...new Set(products.map(p => p['Category']).filter(Boolean))].sort();
-  }, [products]);
+  // Field names are resolved rather than hardcoded: this table's schema
+  // changed under the UI and every product rendered as "Unnamed".
+  const rows = useMemo(() => products.map(normaliseProduct), [products]);
+  const showMarkets = useMemo(() => hasMarketData(products), [products]);
+
+  const categories = useMemo(
+    () => [...new Set(rows.map(p => p.category).filter(Boolean))].sort(), [rows]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return products.filter(p => {
-      const matchQ =
-        !q ||
-        (p['Product Name'] || '').toLowerCase().includes(q) ||
-        (p['Short Description'] || '').toLowerCase().includes(q) ||
-        (p['Indication'] || '').toLowerCase().includes(q) ||
-        (p['Key Ingredients'] || '').toLowerCase().includes(q);
-      const matchCat = !cat || p['Category'] === cat;
-      const matchMkt =
-        !mkt ||
-        (mkt === 'UK'   && p['UK Shopify']) ||
-        (mkt === 'AMZN' && p['Amazon UK']) ||
-        (mkt === 'SA'   && p['SA Available']) ||
-        (mkt === 'ME'   && p['Middle East']);
+    return rows.filter(p => {
+      const matchQ = !q || searchText(p).includes(q);
+      const matchCat = !cat || p.category === cat;
+      const matchMkt = !mkt || p.markets.includes(mkt);
       return matchQ && matchCat && matchMkt;
     });
-  }, [products, search, cat, mkt]);
+  }, [rows, search, cat, mkt]);
 
   return (
     <Layout title="Products">
@@ -83,35 +78,31 @@ export default function ProductsPage({ products, error }) {
               <div key={p.id} className="product-card">
                 <div className="product-card-img">
                   <span className="product-card-img-placeholder">Product Image</span>
-                  {p['Category'] && (
+                  {p.category && (
                     <span className="badge badge-cat" style={{ position: 'absolute', top: 10, left: 10 }}>
-                      {p['Category']}
+                      {p.category}
                     </span>
                   )}
                 </div>
                 <div className="product-card-body">
-                  <p className="product-name">{p['Product Name'] || 'Unnamed'}</p>
-                  {p['Short Description'] && (
-                    <p className="product-desc">{p['Short Description']}</p>
-                  )}
-                  {p['Indication'] && (
-                    <p className="product-indic">Indication: {p['Indication']}</p>
-                  )}
-                  {p['Mechanisms of Action'] && (
-                    <p style={{ fontSize: 11, color: 'var(--charcoal-45)', lineHeight: 1.45 }}>
-                      <strong style={{ fontWeight: 600, color: 'var(--charcoal-70)' }}>MoA: </strong>
-                      {p['Mechanisms of Action'].length > 100
-                        ? p['Mechanisms of Action'].substring(0, 100) + '…'
-                        : p['Mechanisms of Action']}
+                  <p className="product-name">{p.name}</p>
+                  {p.brand && <p className="product-desc">{p.brand}</p>}
+                  {p.description && <p className="product-desc">{p.description}</p>}
+                  {p.indication && <p className="product-indic">Indication: {p.indication}</p>}
+                  {p.prices.length > 0 && (
+                    <p style={{ fontSize: 11.5, color: 'var(--charcoal-70)', lineHeight: 1.5 }}>
+                      {p.prices.map(pr => (
+                        <span key={pr.label} style={{ marginRight: 10 }}>
+                          <strong style={{ fontWeight: 600 }}>{pr.label}:</strong> {pr.sym}{pr.value.toLocaleString('en-GB')}
+                        </span>
+                      ))}
                     </p>
                   )}
                   <div className="product-footer">
-                    <span className="product-pack">{p['Pack Size'] || ''}</span>
+                    <span className="product-pack">{p.spec}</span>
                     <div className="mkt-flags">
-                      {p['UK Shopify']  && <span className="mkt-flag mkt-uk">UK</span>}
-                      {p['Amazon UK']   && <span className="mkt-flag mkt-amz">AMZN</span>}
-                      {p['SA Available'] && <span className="mkt-flag mkt-sa">SA</span>}
-                      {p['Middle East'] && <span className="mkt-flag mkt-me">ME</span>}
+                      {p.channel && <span className="mkt-flag">{p.channel}</span>}
+                      {p.markets.map(m => <span key={m} className={`mkt-flag mkt-${m.toLowerCase()}`}>{m}</span>)}
                     </div>
                   </div>
                 </div>

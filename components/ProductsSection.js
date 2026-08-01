@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { normaliseProduct, hasMarketData, searchText } from '../lib/product-fields';
 import RecordDetailPanel from './RecordDetailPanel';
 
 const ALL_MARKETS = [
@@ -19,20 +20,23 @@ export default function ProductsSection({ products = [], markets }) {
   // markets prop limits which market filter pills are shown (defaults to all 4)
   const visibleMarkets = markets || ALL_MARKETS;
 
-  const categories = useMemo(() => [...new Set(products.map(p => p['Category']).filter(Boolean))].sort(), [products]);
+  // Resolve field names once: the table's schema has changed under the UI
+  // before, and hardcoding names is what made every product read "Unnamed".
+  const rows = useMemo(() => products.map(normaliseProduct), [products]);
+  const showMarkets = useMemo(() => hasMarketData(products), [products]);
+
+  const categories = useMemo(
+    () => [...new Set(rows.map(p => p.category).filter(Boolean))].sort(), [rows]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return products.filter(p => {
-      const matchQ = !q || (p['Product Name'] || '').toLowerCase().includes(q) ||
-        (p['Short Description'] || '').toLowerCase().includes(q) ||
-        (p['Indication'] || '').toLowerCase().includes(q) ||
-        (p['Key Ingredients'] || '').toLowerCase().includes(q);
-      const matchCat = !cat || p['Category'] === cat;
-      const matchMkt = !mkt || !!p[MARKET_FIELD[mkt]];
+    return rows.filter(p => {
+      const matchQ = !q || searchText(p).includes(q);
+      const matchCat = !cat || p.category === cat;
+      const matchMkt = !mkt || p.markets.includes(mkt);
       return matchQ && matchCat && matchMkt;
     });
-  }, [products, search, cat, mkt]);
+  }, [rows, search, cat, mkt]);
 
   return (
     <>
@@ -55,12 +59,14 @@ export default function ProductsSection({ products = [], markets }) {
           ))}
         </div>
 
-        <div className="os-filter-row">
-          <button className={`os-fpill${!mkt ? ' active' : ''}`} onClick={() => setMkt('')}>All Markets</button>
-          {visibleMarkets.map(([code, label]) => (
-            <button key={code} className={`os-fpill${mkt === code ? ' active' : ''}`} onClick={() => setMkt(code)}>{label}</button>
-          ))}
-        </div>
+        {showMarkets && (
+          <div className="os-filter-row">
+            <button className={`os-fpill${!mkt ? ' active' : ''}`} onClick={() => setMkt('')}>All Markets</button>
+            {visibleMarkets.map(([code, label]) => (
+              <button key={code} className={`os-fpill${mkt === code ? ' active' : ''}`} onClick={() => setMkt(code)}>{label}</button>
+            ))}
+          </div>
+        )}
 
         {filtered.length === 0 ? (
           <div className="os-empty">No products found — try adjusting your search or filters.</div>
@@ -71,28 +77,31 @@ export default function ProductsSection({ products = [], markets }) {
                 key={p.id}
                 className="os-product-card"
                 style={{ cursor: 'pointer' }}
-                onClick={() => setDetail(p)}
+                onClick={() => setDetail(p.raw)}
               >
                 <div className="os-product-header">
-                  <span className="os-product-name">{p['Product Name'] || 'Unnamed'}</span>
-                  {p['Category'] && <span className="os-pill pill-default">{p['Category']}</span>}
+                  <span className="os-product-name">{p.name}</span>
+                  {p.category && <span className="os-pill pill-default">{p.category}</span>}
                 </div>
-                {p['Short Description'] && <p className="os-product-desc">{p['Short Description']}</p>}
-                {p['Indication'] && (
-                  <p className="os-product-field"><strong>Indication:</strong> {p['Indication']}</p>
+                {p.brand && <p className="os-product-desc">{p.brand}</p>}
+                {p.description && <p className="os-product-desc">{p.description}</p>}
+                {p.indication && (
+                  <p className="os-product-field"><strong>Indication:</strong> {p.indication}</p>
                 )}
-                {p['Mechanisms of Action'] && (
+                {p.prices.length > 0 && (
                   <p className="os-product-field">
-                    <strong>MoA:</strong> {p['Mechanisms of Action'].length > 120 ? p['Mechanisms of Action'].substring(0, 120) + '…' : p['Mechanisms of Action']}
+                    {p.prices.map(pr => (
+                      <span key={pr.label} style={{ marginRight: 12 }}>
+                        <strong>{pr.label}:</strong> {pr.sym}{pr.value.toLocaleString('en-GB')}
+                      </span>
+                    ))}
                   </p>
                 )}
                 <div className="os-product-footer">
-                  <span className="os-muted">{p['Pack Size'] || ''}</span>
+                  <span className="os-muted">{p.spec}</span>
                   <div className="os-mkt-flags">
-                    {p['UK Shopify']   && <span className="os-mkt-flag mkt-uk">UK</span>}
-                    {p['Amazon UK']    && <span className="os-mkt-flag mkt-amz">AMZN</span>}
-                    {p['SA Available'] && <span className="os-mkt-flag mkt-sa">SA</span>}
-                    {p['Middle East']  && <span className="os-mkt-flag mkt-me">ME</span>}
+                    {p.channel && <span className="os-mkt-flag">{p.channel}</span>}
+                    {p.markets.map(m => <span key={m} className={`os-mkt-flag mkt-${m.toLowerCase()}`}>{m}</span>)}
                   </div>
                 </div>
               </div>

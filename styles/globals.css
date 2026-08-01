@@ -3954,3 +3954,21 @@ tr.sp-total td, tr.sp-total td.sp-num { color: var(--forest-800); }
 /* Sub-tab rows: scroll sideways rather than wrap into a ragged block. */
 .os-sub-tabs { display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; padding-bottom: 2px; }
 .os-sub-tabs .os-sub-tab { flex-shrink: 0; }
+.tc-sheet-btn--danger { color: #8c4a3a; border-color: #e0c8bf; background: #fdf6f4; }
+
+/* Today chip rows. Two distinct questions, so two labelled rows: who OWNS the
+   work (which accounts for all of it) and who we are WAITING ON (a slice).
+   Unlabelled, the second row read as if most tasks had gone missing. */
+.today-chiprow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.today-chiplabel {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9px; font-weight: 600; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--charcoal-45); margin-right: 2px;
+}
+.today-blocker em {
+  font-style: normal; font-family: var(--mono, ui-monospace, monospace);
+  font-size: 10px; font-weight: 700; color: #8c4a3a;
+  background: #f7ece8; border-radius: 999px; padding: 1px 6px; margin-left: 4px;
+}
+.today-blocker.active em { background: #a8614f; color: #fff; }
+.today-blocker--wait span { background: #fdf3e7; color: #8a6415; }
