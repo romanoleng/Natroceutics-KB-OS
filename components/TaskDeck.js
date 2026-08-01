@@ -162,7 +162,10 @@ export default function TaskDeck({ tasks = [], region, regionLabel, flag, baseId
             <tbody>
               {visible.map(t => (
                 <tr key={t.id} className={t.overdue ? 'td-row--od' : ''}>
-                  <td>{t.title}</td>
+                  <td>
+                    {t.title}
+                    {t.comments > 0 && <span className="td-comments" title={`${t.comments} comments`}>{t.comments}</span>}
+                  </td>
                   <td><span className="tc-status">{t.status}</span></td>
                   <td>{t.priority || '—'}</td>
                   <td>{t.owner || '—'}{t.waitingOn && <span className="td-wait"> → {t.waitingOn}</span>}</td>

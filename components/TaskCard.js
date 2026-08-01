@@ -121,6 +121,14 @@ export default function TaskCard({ task, onStatus, onSnooze, onDelete, onField, 
               {task.dueToday ? 'today' : task.due.slice(5)}
             </span>
           )}
+          {task.comments > 0 && (
+            <span className="tc-comments" title={`${task.comments} comment${task.comments === 1 ? '' : 's'}`}>
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 9.5a2 2 0 0 1-2 2H5l-3 2.5v-10a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2Z"/>
+              </svg>
+              {task.comments}
+            </span>
+          )}
           {task.priority && (
             <span className={`tc-prio tc-prio--${task.priority.toLowerCase()}`}>{task.priority}</span>
           )}

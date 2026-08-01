@@ -5,9 +5,13 @@ import SortableTable from './SortableTable';
  * Email / Mailchimp — SA's owned channel.
  *
  * Same discipline as the Klaviyo panel: lead with whether the channel is
- * actually running, and never let "not tracked" render as zero. Campaign
- * revenue only exists when Mailchimp's ecommerce tracking is connected to the
- * store, so an untracked campaign shows NOT TRACKED rather than £0.
+ * actually running, and never let "not tracked" render as zero.
+ *
+ * Verified 1 Aug 2026: this account has NO connected store (ecommerce/stores
+ * returns zero), and Romano confirmed there is no SA store to connect yet. So
+ * revenue reads NOT TRACKED and the panel says that is expected rather than
+ * flagging it as a fault to fix. Engagement is the measure here until a later
+ * phase.
  */
 
 const int = v => (v === '' || v == null ? '—' : Number(v).toLocaleString('en-GB'));
@@ -79,18 +83,12 @@ export default function MailchimpPanel({ audiences = [], campaigns = [], automat
         </div>
       )}
       {untracked && (
-        <div className="sp-flag sp-flag--warn">
-          <div className="sp-flag-title">Ecommerce tracking is not connected</div>
-          <p>
-            Verified against the Mailchimp API: <strong>zero stores are connected</strong> to this
-            account, so campaign revenue can only ever report 0. All {campaigns.length} campaigns
-            therefore read <strong>NOT TRACKED</strong>, never R0. With open rates around 45%,
-            treating it as &ldquo;these campaigns earned nothing&rdquo; would be plainly wrong.
-          </p>
-          <p>
-            Mailchimp → Integrations → connect the SA store. That is what turns 50 sends of real
-            engagement into a revenue figure you can put beside the UK channel.
-          </p>
+        <div className="sp-caveat">
+          <strong>Revenue is not tracked on this channel, by design for now.</strong> There is no SA
+          store connected to Mailchimp, so campaign revenue can only ever report 0 and all
+          {' '}{campaigns.length} campaigns read <strong>NOT TRACKED</strong> rather than R0. Judge this
+          channel on reach and engagement until a store is connected in a later phase: open rates
+          here run around 45%, roughly double a typical retail benchmark.
         </div>
       )}
 

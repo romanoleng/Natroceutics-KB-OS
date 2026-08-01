@@ -584,7 +584,7 @@ export default function BoardReport({ r }) {
               ['GOAFFPRO', 'Referred orders and commission, read live. This replaced a hand-maintained record that had stopped being updated in June and understated commission.'],
               ['AMAZON', 'Sellerboard profit and loss held in the OS, used for the channel comparison in section 02.'],
               ['EXCLUSIONS', `Shipping cost, platform fee, app subscriptions and any agency share are not included in contribution because they are not yet sourced. They are listed individually in section 04 rather than netted to zero.`],
-              ['CURRENCY AND VAT', 'All figures GBP. Own-store sales are stated before VAT pending the confirmation in section 04; Amazon figures are after VAT. The two are not directly comparable until that is resolved.'],
+              ['CURRENCY AND VAT', 'All figures GBP. The own store correctly charges no VAT, confirmed with Grant on 1 August 2026. Amazon figures are stated after VAT, so the two channels are still not directly comparable on the revenue line and the channel-mix comparison should be read with that in mind.'],
             ].map(([k, v]) => (
               <div key={k} className="br-source"><span>{k}</span><p>{v}</p></div>
             ))}
