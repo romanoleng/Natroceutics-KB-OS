@@ -251,7 +251,7 @@ export default function ShopifyPerformance({ pnl = [], products = [], traffic = 
 
       {/* ── P&L ──────────────────────────────────────── */}
       {sub === 'Profit & Loss' && (
-        <div className="sp-scroll">
+        <div className="sp-scroll sp-scroll--freeze">
           <table className="sp-table">
             <thead>
               <tr>
@@ -386,7 +386,7 @@ export default function ShopifyPerformance({ pnl = [], products = [], traffic = 
                   payouts never equals a month of sales. The fee comparison is the meaningful one.
                 </p>
               </div>
-              <div className="sp-scroll">
+              <div className="sp-scroll sp-scroll--freeze">
                 <table className="sp-table">
                   <thead>
                     <tr>

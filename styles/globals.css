@@ -3882,3 +3882,25 @@ tr.sp-total td { background: var(--cream); font-weight: 700; color: var(--forest
   .tc-btn { flex: 1; padding: 11px 12px; font-size: 13px; text-align: center; }
   .tc-sheet-btn { padding: 10px 14px; font-size: 13px; }
 }
+
+/* ═══ Frozen first column ═══════════════════════════════════
+   Romano's instinct was right to hesitate: freezing everything by default
+   fights the card layout he preferred. So this is opt-in per table via
+   .sp-scroll--freeze, for the wide finance tables where you scroll sideways
+   to compare and need to keep sight of which row you are on. */
+.sp-scroll--freeze table { position: relative; }
+.sp-scroll--freeze thead th:first-child,
+.sp-scroll--freeze tbody td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--white);
+  /* A hairline rather than a shadow: the shadow reads as a seam on cream. */
+  box-shadow: 1px 0 0 var(--cream-dark);
+}
+.sp-scroll--freeze thead th:first-child { z-index: 3; background: var(--cream); }
+.sp-scroll--freeze tbody tr.sp-total td:first-child { background: var(--cream); }
+
+/* Sticky header for long tables — you lose the column meanings otherwise. */
+.sp-scroll--freeze thead th { position: sticky; top: 0; z-index: 2; }
+.sp-scroll--freeze { max-height: 70vh; overflow: auto; }

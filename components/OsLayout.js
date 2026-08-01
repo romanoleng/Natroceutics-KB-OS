@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import QuickAdd from './QuickAdd';
 import BottomNav from './BottomNav';
 import Sidebar from './Sidebar';
+import TimeTracker from './TimeTracker';
 
 function fmtServerTime(iso) {
   if (!iso) return null;
@@ -74,6 +75,8 @@ export default function OsLayout({ children, title = 'Natroceutics OS', airtable
           app-shell flow entirely — it cannot re-trigger the Safari
           bottom-bar saga. */}
       <Sidebar />
+      {/* Renders nothing. Records time in the OS without a start button. */}
+      <TimeTracker />
     </>
   );
 }
