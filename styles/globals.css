@@ -4304,3 +4304,87 @@ tr.sp-total td, tr.sp-total td.sp-num { color: var(--forest-800); }
   }
   .st-card-foot:empty { display: none; }
 }
+
+/* The detail panel is a modal and must cover the bottom bar. At z-index 300
+   against the bar's 950 it did not: the bar sat on top and hid the last ~84px
+   of the panel, which is exactly where the Close button lives. That is why the
+   close control read as "cut off" rather than missing. */
+@media (max-width: 767px), (pointer: coarse) {
+  .dp-overlay { z-index: 1000; }
+  /* Clear of the home indicator on a notched phone. */
+  .dp-close-bar { padding-bottom: calc(15px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* Controls inside a card keep the size they have in a table. `.status-select`
+   sets font-size:inherit, so dropped into a card's larger body text it grew
+   with it. Pin them instead of letting them inherit. */
+@media (max-width: 767px), (pointer: coarse) {
+  .st-card-field dd .os-pill,
+  .st-card-field dd .status-select,
+  .st-card-field dd select {
+    font-size: 10px;
+    line-height: 1.5;
+    max-width: 100%;
+  }
+  .st-card-field dd .os-date-cell { font-size: 11.5px; }
+}
+
+/* ═══ Site-wide search ═══ */
+.osr { margin-bottom: 18px; }
+.osr-box {
+  display: flex; align-items: center; gap: 9px;
+  background: var(--surface); border: 1px solid var(--cream-dark);
+  border-radius: var(--radius-md); padding: 0 12px;
+  transition: border-color 0.15s var(--ease);
+}
+.osr-box:focus-within { border-color: var(--forest-600); }
+.osr-icon { font-size: 16px; color: var(--charcoal-45); flex-shrink: 0; }
+.osr-input {
+  flex: 1; border: 0; outline: 0; background: none;
+  font-family: var(--sans); color: var(--charcoal);
+  /* 16px so iOS does not zoom the page on focus. */
+  font-size: 16px; padding: 13px 0;
+}
+.osr-input::-webkit-search-cancel-button { display: none; }
+.osr-clear {
+  border: 0; background: none; cursor: pointer; flex-shrink: 0;
+  color: var(--charcoal-45); font-size: 14px; padding: 6px;
+}
+.osr-hint { font-size: 12px; font-weight: 300; color: var(--charcoal-45); margin: 9px 2px 0; }
+.osr-hint--bad { color: #b4453a; }
+
+.osr-results {
+  margin-top: 10px; background: var(--surface);
+  border: 1px solid var(--cream-dark); border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.osr-group {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--charcoal-45); padding: 11px 14px 6px; margin: 0;
+  border-top: 1px solid var(--cream-dark);
+}
+.osr-group:first-child { border-top: 0; }
+.osr-results .osr-hint { padding: 0 14px 12px; margin: 0; }
+
+.osr-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 11px 14px; text-decoration: none;
+  border-top: 1px solid var(--cream-dark);
+  transition: background 0.12s var(--ease);
+}
+.osr-row:hover { background: var(--cream); }
+.osr-row--flat { cursor: default; }
+.osr-row-icon { flex-shrink: 0; width: 18px; text-align: center; }
+.osr-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.osr-row-title { font-size: 13.5px; font-weight: 600; color: var(--charcoal); word-break: break-word; }
+.osr-row-sub {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--charcoal-45);
+}
+.osr-row-snip {
+  font-size: 11.5px; font-weight: 300; color: var(--charcoal-70);
+  line-height: 1.45; margin-top: 3px; word-break: break-word;
+}
+.osr-row-snip b { font-weight: 600; color: var(--forest-600); }
+.osr-row-go { color: var(--forest-600); font-size: 14px; flex-shrink: 0; }

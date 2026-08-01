@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import OsLayout from '../components/OsLayout';
+import OsSearch from '../components/OsSearch';
 import { COMPANY, REGIONS, TOOLS } from '../components/nav-tree';
 
 /**
@@ -34,6 +35,10 @@ export default function Menu() {
       </section>
 
       <div className="os-page-wrap">
+
+        {/* Search before the tree. Knowing the thing is not the same as
+            knowing which of a hundred tables holds it. */}
+        <OsSearch />
 
         <h2 className="guide-h2">Company-wide</h2>
         <div className="menu-grid">
