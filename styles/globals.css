@@ -3832,3 +3832,25 @@ tr.sp-total td { background: var(--cream); font-weight: 700; color: var(--forest
   background: var(--forest-050); border: 1px solid var(--forest-100);
   font-size: 13.5px; color: var(--forest-800);
 }
+
+/* Section task deck — same cards as Today, flatter container. */
+.td-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+.td-counts { display: flex; gap: 6px; }
+.td-count {
+  font-family: var(--mono, ui-monospace, monospace); font-size: 10.5px; font-weight: 600;
+  padding: 4px 9px; border-radius: 999px; background: var(--cream); color: var(--forest-600);
+}
+.td-count--od { background: #f7ece8; color: #8c4a3a; }
+.td-search {
+  flex: 1 1 160px; font-family: inherit; font-size: 16px; padding: 8px 11px;
+  border: 1px solid var(--cream-dark); border-radius: 8px; background: var(--white);
+}
+.td-toggle { display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--charcoal-70); }
+.td-view { display: flex; border: 1px solid var(--cream-dark); border-radius: 8px; overflow: hidden; }
+.td-view button {
+  font-family: inherit; font-size: 11.5px; font-weight: 600; text-transform: capitalize;
+  padding: 7px 12px; border: 0; background: var(--white); color: var(--charcoal-45); cursor: pointer;
+}
+.td-view button.on { background: var(--forest-800); color: var(--white); }
+.td-row--od td { background: #fdf6f4; }
+.td-wait { color: #8a6415; font-size: 11.5px; }

@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import OsLayout from '../components/OsLayout';
+import TaskDeck from '../components/TaskDeck';
+import { BASES } from '../lib/airtable-tables';
 import ProductsSection from '../components/ProductsSection';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 import SortableTable from '../components/SortableTable';
@@ -870,7 +872,7 @@ export default function MEPage({ tasks, priorities, risks, registrations, invent
         </div>
 
         <div className="os-tab-content">
-          {tab === 'Tasks' && <TaskTable tasks={tasks} />}
+          {tab === 'Tasks' && <TaskDeck tasks={tasks} region="ME" regionLabel="Middle East" flag="🇦🇪" baseId={BASES.ME.defaultBaseId} tableId={BASES.ME.tables.TASKS} />}
           {tab === 'Priorities' && <PriorityList items={priorities} />}
           {tab === 'Risks' && <RiskList items={risks} />}
           {tab === 'Registrations' && <RegistrationsTab items={registrations} />}

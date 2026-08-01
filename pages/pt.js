@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import OsLayout from '../components/OsLayout';
+import TaskDeck from '../components/TaskDeck';
+import { BASES } from '../lib/airtable-tables';
 import ProductsSection from '../components/ProductsSection';
 import SortableTable from '../components/SortableTable';
 import TaskDetailPanel from '../components/TaskDetailPanel';
@@ -752,7 +754,7 @@ export default function PTPage({ tasks, priorities, risks, inventory, finance, b
         </div>
 
         <div className="os-tab-content">
-          {tab === 'Tasks'            && <TaskTable tasks={tasks} />}
+          {tab === 'Tasks'            && <TaskDeck tasks={tasks} region="PT" regionLabel="Portugal" flag="🇵🇹" baseId={BASES.PT.defaultBaseId} tableId={BASES.PT.tables.TASKS} />}
           {tab === 'Priorities'       && <PriorityList items={priorities} />}
           {tab === 'Risks'            && <RiskList items={risks} />}
           {tab === 'Inventory'        && <InventoryTab items={inventory} />}

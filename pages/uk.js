@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect, Fragment } from 'react';
 import { useRouter } from 'next/router';
 import OsLayout from '../components/OsLayout';
+import TaskDeck from '../components/TaskDeck';
+import { BASES } from '../lib/airtable-tables';
 import ProductsSection from '../components/ProductsSection';
 import ShopifyPerformance from '../components/ShopifyPerformance';
 import SubscriptionsPanel from '../components/SubscriptionsPanel';
@@ -4166,8 +4168,8 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
 
         {/* ── Tab content ── */}
         <div className="os-tab-content">
-          {tab === 'Tasks'            && section === 'Overview'   && <TaskTable tasks={overviewTasks} />}
-          {tab === 'Tasks'            && section === 'Shopify UK' && <TaskTable tasks={shopifyTasks} />}
+          {tab === 'Tasks'            && section === 'Overview'   && <TaskDeck tasks={overviewTasks} region="UK" regionLabel="United Kingdom" flag="🇬🇧" baseId={BASES.UK.defaultBaseId} tableId={BASES.UK.tables.TASKS} />}
+          {tab === 'Tasks'            && section === 'Shopify UK' && <TaskDeck tasks={shopifyTasks} region="UK" regionLabel="United Kingdom" flag="🇬🇧" baseId={BASES.UK.defaultBaseId} tableId={BASES.UK.tables.TASKS} />}
           {tab === 'Priorities'       && <PriorityList items={priorities} />}
           {tab === 'Risks'            && <RiskList items={risks} />}
           {tab === 'Reporting'        && <ReportingTab items={reporting} />}
