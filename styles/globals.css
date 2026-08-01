@@ -3873,3 +3873,12 @@ tr.sp-total td { background: var(--cream); font-weight: 700; color: var(--forest
   background: var(--white); color: var(--charcoal);
 }
 .sp-monthbar-note { font-size: 11.5px; font-weight: 300; color: var(--charcoal-45); }
+
+@media (max-width: 767px), (pointer: coarse) {
+  /* Buttons are the primary way to act on a card. The swipe stays as a
+     shortcut, but it must never be the only discoverable path — Romano tried
+     it on a phone and it fought the scroll. Bigger targets, full width. */
+  .tc-actions { gap: 8px; }
+  .tc-btn { flex: 1; padding: 11px 12px; font-size: 13px; text-align: center; }
+  .tc-sheet-btn { padding: 10px 14px; font-size: 13px; }
+}

@@ -15,7 +15,10 @@ import { useState, useRef } from 'react';
  */
 
 const SWIPE_TRIGGER = 88;    // px of travel before an action commits
-const CLAIM_AXIS = 12;       // px before we decide horizontal vs vertical
+// Raised from 12px after testing on a phone: at 12 a slightly diagonal scroll
+// got claimed as a swipe, so the list felt like it was fighting back. The
+// buttons are the primary path; the swipe is a shortcut for people who find it.
+const CLAIM_AXIS = 24;
 
 const FLAG = { UK: '🇬🇧', ME: '🇦🇪', SA: '🇿🇦', PT: '🇵🇹', AFF: '🤝', GLOBAL: '🌐' };
 
@@ -44,8 +47,11 @@ export default function TaskCard({ task, onStatus, onSnooze, busy }) {
 
     if (!axis.current) {
       if (Math.abs(mx) < CLAIM_AXIS && Math.abs(my) < CLAIM_AXIS) return;
-      // Vertical wins ties: scrolling the list must always beat swiping a card.
-      axis.current = Math.abs(mx) > Math.abs(my) ? 'x' : 'y';
+      // Vertical wins decisively, not just on ties: a horizontal claim needs to
+      // be clearly horizontal (twice the vertical movement). Anything else is
+      // someone scrolling, and stealing that gesture is what made the list feel
+      // broken on a phone.
+      axis.current = Math.abs(mx) > Math.abs(my) * 2 ? 'x' : 'y';
       if (axis.current === 'x') e.currentTarget.setPointerCapture?.(e.pointerId);
     }
     if (axis.current !== 'x') return;

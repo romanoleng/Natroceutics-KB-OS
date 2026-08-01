@@ -7,6 +7,7 @@ import ProductsSection from '../components/ProductsSection';
 import ShopifyPerformance from '../components/ShopifyPerformance';
 import SubscriptionsPanel from '../components/SubscriptionsPanel';
 import KlaviyoPanel from '../components/KlaviyoPanel';
+import AffiliatesPanel from '../components/AffiliatesPanel';
 import SortableTable from '../components/SortableTable';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 import RecordDetailPanel from '../components/RecordDetailPanel';
@@ -3246,9 +3247,9 @@ function AffTasksInnerTab({ items }) {
 }
 
 /* Outer wrapper — manages inner sub-tabs */
-function AffiliatesTab({ items = [], affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [] }) {
+function AffiliatesTab({ items = [], affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [], live = {} }) {
   const affCounts = {
-    Performance: affPerformance.length, Sales: affSales.length, Traffic: affTraffic.length,
+    Performance: (live.affiliates || []).length || affPerformance.length, Sales: affSales.length, Traffic: affTraffic.length,
     Products: affProducts.length, Payouts: affPayouts.length, Tasks: affTasks.length, Programme: items.length,
   };
   const [sub, setSub] = useState(() => AFF_SUBS.find(s => affCounts[s] > 0) || AFF_SUBS[0]);
@@ -3260,7 +3261,11 @@ function AffiliatesTab({ items = [], affPerformance = [], affSales = [], affPayo
         ))}
       </div>
       {sub === 'Programme'   && <AffProgrammeTab items={items} />}
-      {sub === 'Performance' && <AffPerformanceTab items={affPerformance} />}
+      {/* Live GoAffPro when connected; the Airtable table it replaces was
+          hand-maintained and had stopped being updated in June. */}
+      {sub === 'Performance' && ((live.affiliates || []).length
+        ? <AffiliatesPanel affiliates={live.affiliates} monthly={live.monthly} />
+        : <AffPerformanceTab items={affPerformance} />)}
       {sub === 'Sales'       && <AffSalesTab items={affSales} />}
       {sub === 'Payouts'     && <AffPayoutsTab items={affPayouts} />}
       {sub === 'Traffic'     && <AffTrafficTab items={affTraffic} />}
@@ -4055,7 +4060,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
           {tab === 'Shopify'          && <ShopifyTab products={shopifyProducts} />}
           {tab === 'Customers'        && <CustomersTab items={customers} />}
           {tab === 'B2B'              && <B2BTab items={b2b} />}
-          {tab === 'Affiliates'       && <AffiliatesTab items={affiliates} affPerformance={affPerformance} affSales={affSales} affPayouts={affPayouts} affTraffic={affTraffic} affTasks={affTasks} affProducts={affProducts} />}
+          {tab === 'Affiliates'       && <AffiliatesTab items={affiliates} affPerformance={affPerformance} affSales={affSales} affPayouts={affPayouts} affTraffic={affTraffic} affTasks={affTasks} affProducts={affProducts} live={affiliatesLive} />}
           {tab === 'Email / Klaviyo'  && <KlaviyoPanel {...klaviyo} emailSessions={shopifyPerf?.traffic?.[shopifyPerf.traffic.length-1]?.['Sessions: email']} />}
           {tab === 'Marketing'        && <MarketingTab items={marketing} />}
           {tab === 'Subscriptions'    && <SubscriptionsPanel {...subs} />}
