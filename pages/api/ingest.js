@@ -32,9 +32,18 @@ export const config = {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const expected = realEnv('INGEST_TOKEN');
-  const got = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  if (!expected || !got || got !== expected) {
+  // More than one token, so each caller can be revoked on its own.
+  //
+  // The scheduled Outlook and Granola pulls run outside this codebase and hold
+  // their credential in someone else's config. Handing them the same token the
+  // Capture page uses would mean a leak there costs every ingest path at once.
+  // A second variable costs nothing and makes revocation a one-line change.
+  const accepted = [
+    realEnv('INGEST_TOKEN'),
+    realEnv('INGEST_TOKEN_SCHEDULER'),
+  ].filter(Boolean).map(t => t.trim());
+  const got = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  if (!accepted.length || !got || !accepted.includes(got)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
