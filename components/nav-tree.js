@@ -14,9 +14,10 @@ import { IconBook, IconHandshake, IconCheck, IconBox, IconCart, IconWarehouse, I
  * inside the page, not in the nav.
  */
 export const COMPANY = [
+  // Today leads: the first item in the rail should be the first thing you do.
+  { href: '/all-tasks',      icon: <IconCheck />,     name: 'Today' },
   { href: '/kb',             icon: <IconBook />,      name: 'Knowledge Base' },
   { href: '/partner-brands', icon: <IconHandshake />, name: 'Partner Brands' },
-  { href: '/all-tasks',      icon: <IconCheck />,     name: 'All Tasks' },
 ];
 
 /**
