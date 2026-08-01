@@ -1,24 +1,30 @@
 /**
- * PATCH /api/update-record
- * Updates a single Airtable record's fields.
- * Only accepts writes to known/allowed base IDs.
+ * PATCH /api/update-record — update one record's fields.
+ *
+ * Writes to POSTGRES, not Airtable. The mirror stopped being a cache on
+ * 1 Aug 2026 and became the source of truth: Airtable Free allows 1,000 API
+ * calls per month for the whole workspace, and a dashboard that spends them on
+ * status edits is a dashboard that stops working mid-month.
+ *
+ * Rows are stored as a JSON blob per record, so an update is read-merge-write
+ * rather than a column update. Merging (not replacing) matters: the caller
+ * sends only the fields it changed.
+ *
+ * Airtable remains the upstream for a full re-sync, so a record edited here
+ * would be overwritten by the next `npm run sync` of that table. That is
+ * accepted and deliberate — post-migration the sync is a rescue tool, not a
+ * routine, and `--only-missing` skips tables that already have data.
  */
-import Airtable from 'airtable';
+import { getPrisma, isConfigured } from '../../lib/prisma';
+import { invalidateMirrorCache } from '../../lib/mirror';
+import { BASES, resolveBaseId } from '../../lib/airtable-tables';
 
-// Base IDs are not secrets (the API key grants access, not the base ID).
-// Hardcode known bases so writes don't depend on env var naming alignment.
-const ALLOWED_BASES = new Set([
-  'appb0pnXsdtALWq80', // UK Operations
-  'appz7wLo78sxzLhjV', // SA Operations
-  'appdN9dWxVcB2KFZ6', // ME Operations
-  'appbbbPs9ngSR6fIK', // Global KB
-  'appKTwqP6KywdcIrp', // Affiliate Ops
-  // Also accept whatever env vars are set (future regions)
-  process.env.AIRTABLE_UK_BASE_ID,
-  process.env.AIRTABLE_SA_BASE_ID,
-  process.env.AIRTABLE_ME_BASE_ID,
-  process.env.AIRTABLE_BASE_ID,
-].filter(Boolean));
+/** Base IDs we accept writes for — every registered base, env override included. */
+const ALLOWED_BASES = new Set(
+  Object.values(BASES)
+    .flatMap(b => [b.defaultBaseId, resolveBaseId(b.envVar)])
+    .filter(Boolean)
+);
 
 export default async function handler(req, res) {
   if (req.method !== 'PATCH') {
@@ -30,47 +36,60 @@ export default async function handler(req, res) {
   if (!baseId || !tableId || !recordId || !fields) {
     return res.status(400).json({ error: 'Missing required fields: baseId, tableId, recordId, fields' });
   }
-
+  if (typeof fields !== 'object' || Array.isArray(fields)) {
+    return res.status(400).json({ error: 'fields must be an object' });
+  }
   if (!ALLOWED_BASES.has(baseId)) {
     console.error('[update-record] Rejected base:', baseId, '— not in allowed list');
     return res.status(403).json({ error: 'Base not permitted' });
   }
-
-  if (!process.env.AIRTABLE_API_KEY) {
-    return res.status(500).json({ error: 'Missing AIRTABLE_API_KEY' });
+  if (!isConfigured()) {
+    return res.status(500).json({ error: 'No database configured (DATABASE_URL missing)' });
   }
 
+  const prisma = getPrisma();
+
   try {
-    const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(baseId);
-    await new Promise((resolve, reject) => {
-      base(tableId).update(recordId, fields, { typecast: true }, (err, record) => {
-        if (err) return reject(err);
-        resolve(record);
-      });
-    });
-    // Auto-log activity comment whenever Status changes (fire-and-forget, never fails main response)
-    if (fields.Status) {
-      try {
-        const now = new Date().toLocaleString('en-GB', {
-          day: 'numeric', month: 'short', year: '2-digit',
-          hour: '2-digit', minute: '2-digit',
-        });
-        const commentUrl = `https://api.airtable.com/v0/${encodeURIComponent(baseId)}/${encodeURIComponent(tableId)}/${encodeURIComponent(recordId)}/comments`;
-        fetch(commentUrl, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ text: `Status → ${fields.Status} · ${now}` }),
-        }).catch(err => console.warn('[update-record] activity log failed:', err.message));
-      } catch (commentErr) {
-        // Never let comment logging break the main update
-        console.warn('[update-record] activity log setup error:', commentErr.message);
-      }
+    const existing = await prisma.$queryRaw`
+      SELECT "fields"::text AS raw
+      FROM "AirtableRecord"
+      WHERE "baseId" = ${baseId} AND "tableId" = ${tableId} AND "recordId" = ${recordId}
+      LIMIT 1`;
+
+    if (!existing.length) {
+      return res.status(404).json({ error: 'Record not found' });
     }
 
-    return res.status(200).json({ success: true });
+    let current;
+    try {
+      current = JSON.parse(existing[0].raw);
+    } catch {
+      return res.status(500).json({ error: 'Stored record is not valid JSON' });
+    }
+
+    // Merge, never replace — callers send only what changed.
+    const merged = { ...current, ...fields };
+
+    // Status changes used to post an Airtable comment. Keep the audit trail
+    // in the row itself, where it costs nothing and survives the migration.
+    if (fields.Status && fields.Status !== current.Status) {
+      const stamp = new Date().toISOString();
+      merged['Last Note At'] = stamp;
+      const entry = `Status → ${fields.Status} · ${stamp.slice(0, 16).replace('T', ' ')}`;
+      merged['Activity Log'] = current['Activity Log']
+        ? `${current['Activity Log']}\n${entry}`
+        : entry;
+    }
+
+    await prisma.$executeRaw`
+      UPDATE "AirtableRecord"
+      SET "fields" = ${JSON.stringify(merged)}::json,
+          "syncedAt" = (now() at time zone 'utc')
+      WHERE "baseId" = ${baseId} AND "tableId" = ${tableId} AND "recordId" = ${recordId}`;
+
+    invalidateMirrorCache();
+
+    return res.status(200).json({ success: true, fields: merged });
   } catch (e) {
     console.error('[update-record]', e.message);
     return res.status(500).json({ error: e.message });
