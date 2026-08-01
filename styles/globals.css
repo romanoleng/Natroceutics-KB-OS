@@ -4043,10 +4043,18 @@ tr.sp-total td, tr.sp-total td.sp-num { color: var(--forest-800); }
 }
 
 /* Detail panel on touch: the close button was 30px, below the 44px minimum for
-   a thumb, and a full-width panel leaves no backdrop to tap. */
+   a thumb, and a full-width panel leaves no backdrop to tap.
+   The `display: none` base rule MUST come before the media query. It used to
+   sit after it, and at equal specificity the later rule won, so the mobile
+   close bar never rendered once in the weeks it was supposedly there. */
+.dp-close-bar { display: none; }
+
 @media (max-width: 767px), (pointer: coarse) {
   .dp-close { width: 44px; height: 44px; font-size: 18px; }
   .dp-panel { padding-bottom: 0; }
+  /* The header scrolls away on a long task, taking the ✕ with it. Pinning it
+     means there is always a way out on screen. */
+  .dp-header { position: sticky; top: 0; z-index: 3; }
   /* A second, unmissable way out at the end of the content. */
   .dp-close-bar {
     position: sticky; bottom: 0; z-index: 2;
@@ -4056,7 +4064,6 @@ tr.sp-total td, tr.sp-total td.sp-num { color: var(--forest-800); }
     font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
   }
 }
-.dp-close-bar { display: none; }
 
 /* Rename in place. Double-click on desktop, and a Rename entry in the More
    sheet because double-click is not a gesture that exists on a phone. */
@@ -4245,4 +4252,55 @@ tr.sp-total td, tr.sp-total td.sp-num { color: var(--forest-800); }
 @media (max-width: 520px) {
   .st-row { flex-wrap: wrap; }
   .st-meta { text-align: left; flex-direction: row; align-items: center; gap: 8px; width: 100%; padding-left: 17px; }
+}
+
+/* ═══ SortableTable as cards on phones ═══
+   A table on a 390px screen is a sideways drag. Every list in the OS reads as
+   cards there instead, matching what tasks already do. The table markup still
+   renders and CSS chooses between them, so sort state is shared. */
+.st-cards { display: none; }
+
+@media (max-width: 767px), (pointer: coarse) {
+  .st-cards { display: flex; flex-direction: column; gap: 10px; }
+  .st-cards + .table-scroll { display: none; }
+
+  .st-card {
+    background: var(--surface);
+    border: 1px solid var(--cream-dark);
+    border-left: 3px solid var(--forest-600);
+    border-radius: var(--radius-md);
+    padding: 13px 14px;
+    box-shadow: 0 1px 3px rgba(45,42,38,0.04);
+  }
+  .st-card--tap { cursor: pointer; }
+  .st-card--tap:active { background: var(--cream); }
+
+  .st-card-title {
+    font-size: 14px; font-weight: 600; color: var(--charcoal);
+    line-height: 1.35; margin-bottom: 9px; word-break: break-word;
+  }
+
+  .st-card-fields { display: flex; flex-direction: column; gap: 5px; margin: 0; }
+  .st-card-field {
+    display: grid; grid-template-columns: 96px 1fr; gap: 10px; align-items: baseline;
+  }
+  .st-card-field dt {
+    font-family: var(--mono, ui-monospace, monospace);
+    font-size: 9px; font-weight: 600; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--charcoal-45);
+  }
+  .st-card-field dd {
+    margin: 0; font-size: 12.5px; color: var(--charcoal); min-width: 0;
+    word-break: break-word;
+  }
+  /* Badges and pills keep their own look inside a card. */
+  .st-card-field dd .os-badge,
+  .st-card-field dd .os-pill { display: inline-block; }
+
+  .st-card-foot {
+    margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--cream-dark);
+    font-family: var(--mono, ui-monospace, monospace);
+    font-size: 9.5px; letter-spacing: .06em; color: var(--charcoal-45);
+  }
+  .st-card-foot:empty { display: none; }
 }

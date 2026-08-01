@@ -326,6 +326,11 @@ export default function TaskDetailPanel({
           )}
         </div>
 
+        {/* On a phone the panel is full width, so there is no backdrop to tap
+            and the ✕ can be a long scroll away. This is the way out that does
+            not require finding anything. Hidden on desktop by CSS. */}
+        <button className="dp-close-bar" onClick={onClose} type="button">Close</button>
+
         {/* ── Footer ── */}
         <div className="dp-footer">
           <span className="dp-footer-note">We are efficacy first.</span>

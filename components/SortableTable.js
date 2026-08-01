@@ -125,8 +125,74 @@ export default function SortableTable({
 
   if (!data.length) return <div className="os-empty">{emptyMsg}</div>;
 
+  /**
+   * The same rows as cards, for phones.
+   *
+   * A table on a 390px screen is a horizontal scroll with a frozen column, and
+   * you cannot see a record without dragging sideways. Every list in the OS now
+   * reads as cards there instead: priorities, risks, stock, campaigns, the lot,
+   * matching what tasks already do.
+   *
+   * Rather than ask fifty call sites to supply a second renderer, this reuses
+   * the <tr> the caller already returns: each <td> is paired with its column
+   * label, the first becomes the card title, and empty cells are dropped. Both
+   * views therefore stay in step by construction, and no page needed changing.
+   */
+  function renderCards() {
+    return sorted.map((row, i) => {
+      const el = renderRow(row, i);
+      const cells = React.Children.toArray(el.props.children);
+      const own = el.props.onClick;
+      const open = own || (noExpand ? undefined : () => setDetail(row));
+
+      // A row rendered with colSpan is a spacer or a message, not a record.
+      if (cells.length === 1 && cells[0]?.props?.colSpan) return null;
+
+      const title = cells[0];
+      const rest = cells.slice(1)
+        .map((cell, n) => ({ cell, label: allCols[n + 1]?.label }))
+        // An empty cell on a card is a blank line, not information.
+        .filter(({ cell }) => {
+          const v = cell?.props?.children;
+          return v !== null && v !== undefined && v !== '' && v !== '—';
+        });
+
+      return (
+        <div
+          key={i}
+          className={`st-card${open ? ' st-card--tap' : ''}`}
+          onClick={open}
+          role={open ? 'button' : undefined}
+          tabIndex={open ? 0 : undefined}
+          onKeyDown={open ? e => { if (e.key === 'Enter') open(e); } : undefined}
+        >
+          <div className="st-card-title">{title?.props?.children ?? title}</div>
+          <dl className="st-card-fields">
+            {rest.map(({ cell, label }, n) => (
+              <div className="st-card-field" key={n}>
+                <dt>{label || ''}</dt>
+                <dd>{cell?.props?.children ?? cell}</dd>
+              </div>
+            ))}
+          </dl>
+          {!hideDates && (
+            <div className="st-card-foot">
+              {row._updatedAt || row.createdTime
+                ? `Updated ${relativeDate(row._updatedAt || row.createdTime)}`
+                : ''}
+            </div>
+          )}
+        </div>
+      );
+    }).filter(Boolean);
+  }
+
   return (
     <>
+      {/* Cards on phones, the table on everything else. Both render; CSS picks
+          one, so sorting state is shared and there is no layout flash. */}
+      <div className="st-cards">{renderCards()}</div>
+
       <div className="table-scroll">
         <table className="os-table">
           <thead>
