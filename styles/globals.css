@@ -3854,3 +3854,22 @@ tr.sp-total td { background: var(--cream); font-weight: 700; color: var(--forest
 .td-view button.on { background: var(--forest-800); color: var(--white); }
 .td-row--od td { background: #fdf6f4; }
 .td-wait { color: #8a6415; font-size: 11.5px; }
+
+/* Month selector on the Performance tab. The newest row is usually the month
+   we are IN, which is partial — the picker defaults to the last complete one. */
+.sp-monthbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  margin: 12px 0 4px;
+}
+.sp-monthbar label { display: flex; align-items: center; gap: 8px; }
+.sp-monthbar label > span {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9.5px; font-weight: 600; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--forest-600);
+}
+.sp-monthbar select {
+  font-family: inherit; font-size: 14px; padding: 7px 11px;
+  border: 1px solid var(--cream-dark); border-radius: 8px;
+  background: var(--white); color: var(--charcoal);
+}
+.sp-monthbar-note { font-size: 11.5px; font-weight: 300; color: var(--charcoal-45); }

@@ -57,13 +57,24 @@ function Delta({ prev, cur, invert }) {
 export default function ShopifyPerformance({ pnl = [], products = [], traffic = [], costs = [], costModel = [] }) {
   const [sub, setSub] = useState('Summary');
 
-  // Newest month last, so `cur` is the latest we hold and `prev` the one before.
   const months = useMemo(
     () => [...pnl].sort((a, b) => String(a.Month).localeCompare(String(b.Month))),
     [pnl]
   );
-  const cur = months[months.length - 1] || {};
-  const prev = months[months.length - 2] || {};
+
+  // The newest row is usually the month we are IN, which is partial: on 1 Aug
+  // it held 3 orders and made the whole tab look like the channel had
+  // collapsed. Default to the last COMPLETE month and label the current one.
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const complete = months.filter(m => m.Month < thisMonth);
+  const [picked, setPicked] = useState(
+    (complete[complete.length - 1] || months[months.length - 1] || {}).Month || ''
+  );
+
+  const idx = Math.max(0, months.findIndex(m => m.Month === picked));
+  const cur = months[idx] || {};
+  const prev = months[idx - 1] || {};
+  const isPartial = cur.Month === thisMonth;
   const curTraffic = traffic.find(t => t.Month === cur.Month) || {};
   const prevTraffic = traffic.find(t => t.Month === prev.Month) || {};
 
@@ -113,6 +124,29 @@ export default function ShopifyPerformance({ pnl = [], products = [], traffic = 
           </div>
         </div>
       </div>
+
+      <div className="sp-monthbar">
+        <label>
+          <span>Month</span>
+          <select value={picked} onChange={e => setPicked(e.target.value)}>
+            {[...months].reverse().map(m => (
+              <option key={m.Month} value={m.Month}>
+                {monthLabel(m.Month)}{m.Month === thisMonth ? ' (in progress)' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="sp-monthbar-note">
+          {months.length} months held, {monthLabel(months[0]?.Month)} to {monthLabel(months[months.length - 1]?.Month)}
+        </span>
+      </div>
+
+      {isPartial && (
+        <div className="sp-caveat">
+          <strong>{monthLabel(cur.Month)} is still in progress.</strong> These figures cover part of
+          the month only and will keep moving. Compare complete months for anything that matters.
+        </div>
+      )}
 
       {/* Never let the headline stand alone without its caveat. */}
       <div className="sp-caveat">

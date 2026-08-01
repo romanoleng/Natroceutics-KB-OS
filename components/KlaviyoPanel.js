@@ -44,6 +44,10 @@ export default function KlaviyoPanel({
   const latestOrders = Number(latest['Orders Recorded']) || 0;
   const hadOrders = months.some(m => Number(m['Orders Recorded']) > 0);
   const integrationStalled = hadOrders && latestOrders === 0;
+  // Attributed revenue, unlike the Placed Order metric: these come from the
+  // flow/campaign value reports, which credit the message that drove the sale.
+  const flowRevenue = flows.reduce((s, f) => s + (Number(f['Revenue (£)']) || 0), 0);
+  const campaignRevenue = campaigns.reduce((s, c) => s + (Number(c['Revenue (£)']) || 0), 0);
   const draft = flows.filter(f => String(f.Status).toLowerCase() !== 'live' && f.Archived !== 'Yes');
   const profiles = lists.reduce((s, l) => s + (Number(l.Profiles) || 0), 0);
 
@@ -130,9 +134,10 @@ export default function KlaviyoPanel({
         </div>
       ) : (
         <div className="sp-caveat">
-          <strong>{live.length} flows are live.</strong> The automated side of email is running.
-          What is dormant is broadcast: {campaigns.filter(c => String(c.Status).toLowerCase() === 'sent').length} campaigns
-          ever sent, the last on {(campaigns.filter(c => c.Sent).map(c => c.Sent).sort().pop()) || 'an unknown date'}.
+          <strong>{live.length} flows are live and earned {money(flowRevenue)}</strong> in the last
+          twelve months, against {money(campaignRevenue)} from broadcast. The automated side is
+          doing the work: {campaigns.filter(c => String(c.Status).toLowerCase() === 'sent').length} campaigns
+          have ever been sent, the last on {(campaigns.filter(c => c.Sent).map(c => c.Sent).sort().pop()) || 'an unknown date'}.
         </div>
       )}
 
@@ -162,19 +167,24 @@ export default function KlaviyoPanel({
         <SortableTable
           cols={[
             { label: 'Flow', key: 'Flow' }, { label: 'Status', key: 'Status' },
-            { label: 'Trigger', key: 'Trigger' }, { label: 'Updated', key: 'Updated', type: 'date' },
+            { label: 'Recipients', key: 'Recipients', type: 'number' },
+            { label: 'Open rate', key: 'Open Rate %', type: 'number' },
+            { label: 'Conversions', key: 'Conversions', type: 'number' },
+            { label: 'Revenue', key: 'Revenue (£)', type: 'number' },
           ]}
           data={flows} hideDates emptyMsg="No flows."
           renderRow={f => (
             <tr key={f.id || f.Flow}>
-              <td>{f.Flow}</td>
+              <td>{f.Flow}<div className="sp-note-inline">{f.Trigger || ''}</div></td>
               <td>
                 <span className={`sp-status sp-status--${String(f.Status).toLowerCase() === 'live' ? 'actual' : 'pending'}`}>
                   {f.Status}
                 </span>
               </td>
-              <td>{f.Trigger || '—'}</td>
-              <td className="sp-num">{f.Updated || '—'}</td>
+              <td className="sp-num">{int(f.Recipients)}</td>
+              <td className="sp-num">{f['Open Rate %'] === '' ? '—' : `${Number(f['Open Rate %']).toFixed(1)}%`}</td>
+              <td className="sp-num">{int(f.Conversions)}</td>
+              <td className="sp-num">{f['Revenue (£)'] === '' ? '—' : money(f['Revenue (£)'])}</td>
             </tr>
           )}
         />
@@ -183,15 +193,21 @@ export default function KlaviyoPanel({
       {sub === 'Campaigns' && (
         <SortableTable
           cols={[
-            { label: 'Campaign', key: 'Campaign' }, { label: 'Status', key: 'Status' },
-            { label: 'Sent', key: 'Sent', type: 'date' },
+            { label: 'Campaign', key: 'Campaign' }, { label: 'Sent', key: 'Sent', type: 'date' },
+            { label: 'Recipients', key: 'Recipients', type: 'number' },
+            { label: 'Open rate', key: 'Open Rate %', type: 'number' },
+            { label: 'Conversions', key: 'Conversions', type: 'number' },
+            { label: 'Revenue', key: 'Revenue (£)', type: 'number' },
           ]}
           data={campaigns} hideDates emptyMsg="No campaigns sent."
           renderRow={c => (
             <tr key={c.id || c.Campaign}>
-              <td>{c.Campaign}</td>
-              <td>{c.Status || '—'}</td>
+              <td>{c.Campaign}<div className="sp-note-inline">{c.Status}</div></td>
               <td className="sp-num">{c.Sent || '—'}</td>
+              <td className="sp-num">{int(c.Recipients)}</td>
+              <td className="sp-num">{c['Open Rate %'] === '' ? '—' : `${Number(c['Open Rate %']).toFixed(1)}%`}</td>
+              <td className="sp-num">{int(c.Conversions)}</td>
+              <td className="sp-num">{c['Revenue (£)'] === '' ? '—' : money(c['Revenue (£)'])}</td>
             </tr>
           )}
         />

@@ -45,11 +45,24 @@ async function main() {
 
   console.log(`Pulling Klaviyo for ${region}…\n`);
 
-  const [lists, flows, campaigns] = await Promise.all([
+  const [lists, flows, campaigns, flowPerf, campPerf] = await Promise.all([
     klaviyo.getLists().catch(e => { console.warn('lists:', e.message); return []; }),
     klaviyo.getFlows().catch(e => { console.warn('flows:', e.message); return []; }),
     klaviyo.getCampaigns().catch(e => { console.warn('campaigns:', e.message); return []; }),
+    klaviyo.getValueReport('flow').catch(e => { console.warn('flow perf:', e.message); return []; }),
+    klaviyo.getValueReport('campaign').catch(e => { console.warn('campaign perf:', e.message); return []; }),
   ]);
+
+  // Attach measured performance to the flow/campaign records by id, so the
+  // panel shows what each one EARNED rather than only that it exists.
+  const perfBy = rows => new Map(rows.map(r => [r.id, r]));
+  const fp = perfBy(flowPerf), cp = perfBy(campPerf);
+  const r2 = n => Math.round((Number(n) || 0) * 100) / 100;
+  const pctOf = v => (v == null ? '' : Math.round(Number(v) * 1000) / 10);
+  const flowRevenue = flowPerf.reduce((s, f) => s + (Number(f.revenue) || 0), 0);
+  const campRevenue = campPerf.reduce((s, c) => s + (Number(c.revenue) || 0), 0);
+  console.log(`flow revenue (12mo):     £${r2(flowRevenue)} across ${flowPerf.length} flows`);
+  console.log(`campaign revenue (12mo): £${r2(campRevenue)} across ${campPerf.length} campaigns`);
 
   const since = `${new Date().getFullYear()}-01-01T00:00:00`;
   const until = `${today()}T00:00:00`;
@@ -76,6 +89,11 @@ async function main() {
         Flow: f.name, Status: f.status || '', Trigger: f.trigger || '',
         Archived: f.archived ? 'Yes' : '',
         Updated: f.updated ? String(f.updated).slice(0, 10) : '',
+        Recipients: fp.get(f.id)?.recipients ?? '',
+        'Open Rate %': pctOf(fp.get(f.id)?.openRate),
+        'Click Rate %': pctOf(fp.get(f.id)?.clickRate),
+        Conversions: fp.get(f.id)?.conversions ?? '',
+        'Revenue (£)': fp.has(f.id) ? r2(fp.get(f.id).revenue) : '',
         Source: 'Klaviyo API', 'Last Updated': today(),
       },
     }))],
@@ -85,6 +103,11 @@ async function main() {
         Campaign: c.name, Status: c.status || '',
         Sent: c.sent ? String(c.sent).slice(0, 10) : '',
         Created: c.created ? String(c.created).slice(0, 10) : '',
+        Recipients: cp.get(c.id)?.recipients ?? '',
+        'Open Rate %': pctOf(cp.get(c.id)?.openRate),
+        'Click Rate %': pctOf(cp.get(c.id)?.clickRate),
+        Conversions: cp.get(c.id)?.conversions ?? '',
+        'Revenue (£)': cp.has(c.id) ? r2(cp.get(c.id).revenue) : '',
         Source: 'Klaviyo API', 'Last Updated': today(),
       },
     }))],

@@ -101,99 +101,6 @@ async function patchRecord(baseId, tableId, recordId, fields) {
 }
 
 /* ── Tasks ────────────────────────────────────── */
-function TaskTable({ tasks }) {
-  const [search, setSearch] = useState('');
-  const [sf, setSF] = useState('');
-  const [doneAt, setDoneAt] = useState({});
-  const [selectedTask, setSelectedTask] = useState(null);
-
-  // useStatusEditor handles optimistic updates + sessionStorage persistence across tab switches
-  const editor = useStatusEditor(tasks);
-
-  const allStatuses = useMemo(() =>
-    [...new Set([...BASE_STATUSES, ...tasks.map(t => t.Status).filter(Boolean)])],
-    [tasks]
-  );
-
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return editor.dataWithStatus.filter(t => {
-      const mQ = !q || (t.Task || '').toLowerCase().includes(q) || (t.Owner || '').toLowerCase().includes(q);
-      const mS = !sf || t.Status === sf;
-      return mQ && mS;
-    });
-  }, [editor.dataWithStatus, search, sf]);
-
-  async function handleStatusChange(recordId, newStatus) {
-    if (DONE_VALS.has(newStatus)) {
-      setDoneAt(prev => ({ ...prev, [recordId]: new Date().toISOString() }));
-    }
-    setSelectedTask(prev => prev?.id === recordId ? { ...prev, Status: newStatus } : prev);
-    const record = editor.dataWithStatus.find(t => t.id === recordId);
-    if (record) await editor.handleStatusChange(recordId, newStatus, record);
-  }
-
-  return (
-    <>
-      {editor.updateError && (
-        <div className="os-alert-error" style={{ marginBottom: 8 }}>{editor.updateError}</div>
-      )}
-      <div className="os-toolbar">
-        <input className="os-search" placeholder="Search tasks…" value={search} onChange={e => setSearch(e.target.value)} />
-        {allStatuses.length > 0 && (
-          <select className="os-select" value={sf} onChange={e => setSF(e.target.value)}>
-            <option value="">All Statuses</option>
-            {allStatuses.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        )}
-        <span className="os-count">{filtered.length} tasks</span>
-      </div>
-      <SortableTable
-        cols={[
-          { label: 'Task', key: 'Task' },
-          { label: 'Status', key: 'Status', w: 120 },
-          { label: 'Owner', key: 'Owner', w: 100 },
-          { label: 'Created', key: 'Date of Entry', type: 'date', w: 90 },
-        ]}
-        data={filtered}
-        sinkCompleted="Status"
-        renderRow={t => {
-          const isDone = DONE_VALS.has(t.Status);
-          return (
-            <tr key={t.id} className={isDone ? 'row-done' : ''} onClick={() => setSelectedTask(t)} style={{ cursor: 'pointer' }}>
-              <td>
-                <strong>{fmt(t.Task)}</strong>
-                {isDone && doneAt[t.id] && (
-                  <span className="done-stamp"> ✓ {new Date(doneAt[t.id]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
-                )}
-              </td>
-              <td onClick={e => e.stopPropagation()}>
-                <select
-                  className={`os-pill status-select ${sc(t.Status)}`}
-                  value={t.Status || ''}
-                  onChange={e => handleStatusChange(t.id, e.target.value)}
-                  disabled={!!editor.saving[t.id]}
-                >
-                  {allStatuses.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </td>
-              <td className="os-muted">{fmt(t.Owner)}</td>
-              <td className="os-mono" style={{ fontSize: 11, color: 'var(--charcoal-45)', whiteSpace: 'nowrap' }}>{fmtEntryDate(t['Date of Entry'], t.createdTime)}</td>
-            </tr>
-          );
-        }}
-        emptyMsg="No tasks found."
-      />
-      <TaskDetailPanel
-        task={selectedTask}
-        onClose={() => setSelectedTask(null)}
-        allStatuses={allStatuses}
-        onStatusChange={handleStatusChange}
-        saving={selectedTask ? editor.saving[selectedTask.id] : false}
-      />
-    </>
-  );
-}
 
 /* ── Priorities ───────────────────────────────── */
 function PriorityList({ items }) {
@@ -1625,44 +1532,12 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
 
       {/* ── Tasks ── */}
       {sub === 'Tasks' && (
-        <>
-          <div className="os-toolbar" style={{ marginTop: 8 }}>
-            <input className="os-search" placeholder="Search tasks, owners…" value={taskSearch} onChange={e => setTaskSearch(e.target.value)} />
-            {taskStatuses.length > 0 && (
-              <select className="os-select" value={taskStatus} onChange={e => setTaskStatus(e.target.value)}>
-                <option value="">All Statuses</option>
-                {taskStatuses.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            )}
-            <span className="os-count">{filteredTasks.length} tasks</span>
-          </div>
-          <SortableTable
-            cols={[
-              { label: 'Task', key: 'Task' },
-              { label: 'Area', key: 'Business Area', w: 140 },
-              { label: 'Status', key: 'Status', w: 120 },
-              { label: 'Priority', key: 'Priority', w: 100 },
-              { label: 'Owner', key: 'Owner', w: 110 },
-            ]}
-            data={filteredTasks}
-            sinkCompleted="Status"
-            renderRow={t => {
-              const isDone = DONE_VALS_SHARED.has(t.Status);
-              return (
-              <tr key={t.id} className={isDone ? 'row-done' : ''}>
-                <td><strong>{fmt(t.Task)}</strong>{t.Notes && <p className="os-table-note">{t.Notes}</p>}</td>
-                <td className="os-muted">{fmt(t['Business Area'])}</td>
-                <td onClick={e => e.stopPropagation()}>
-                  <StatusSelect record={t} allStatuses={taskStatuses} handleStatusChange={tasksEditor.handleStatusChange} saving={tasksEditor.saving} />
-                </td>
-                <td>{t.Priority ? <span className="os-pill pill-default">{t.Priority}</span> : '—'}</td>
-                <td className="os-muted">{fmt(t.Owner)}</td>
-              </tr>
-              );
-            }}
-            emptyMsg="No Amazon tasks found."
-          />
-        </>
+        <TaskDeck
+          tasks={amazonTasks}
+          region="UK" regionLabel="United Kingdom" flag="🇬🇧"
+          baseId={BASES.UK.defaultBaseId} tableId={BASES.UK.tables.TASKS}
+          emptyMsg="No Amazon tasks found."
+        />
       )}
 
       {/* ── Priorities ── */}
@@ -3390,7 +3265,7 @@ function AffiliatesTab({ items = [], affPerformance = [], affSales = [], affPayo
       {sub === 'Payouts'     && <AffPayoutsTab items={affPayouts} />}
       {sub === 'Traffic'     && <AffTrafficTab items={affTraffic} />}
       {sub === 'Products'    && <AffProductsInnerTab items={affProducts} />}
-      {sub === 'Tasks'       && <AffTasksInnerTab items={affTasks} />}
+      {sub === 'Tasks'       && <TaskDeck tasks={affTasks} region="AFF" regionLabel="Affiliate Ops" flag="🤝" baseId={BASES.AFF.defaultBaseId} tableId={BASES.AFF.tables.TASKS} emptyMsg="No affiliate tasks." />}
     </>
   );
 }
