@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, Fragment } from 'react';
 import { useRouter } from 'next/router';
 import OsLayout from '../components/OsLayout';
 import ProductsSection from '../components/ProductsSection';
+import ShopifyPerformance from '../components/ShopifyPerformance';
 import SortableTable from '../components/SortableTable';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 import RecordDetailPanel from '../components/RecordDetailPanel';
@@ -20,12 +21,15 @@ import {
   getProducts,
 } from '../lib/airtable';
 import { getLocalDailySales, getLocalSalesByProduct, getLocalPayouts } from '../lib/shopify';
+import { getShopifyFinance } from '../lib/shopify-finance';
 
 /* ── Section / Tab structure ──────────────────── */
 const SECTIONS = ['Overview', 'Shopify UK', 'Amazon UK', 'Warehouse'];
 const SECTION_TABS = {
   'Overview':   ['Tasks', 'Priorities', 'Risks', 'Reporting', 'Products'],
-  'Shopify UK': ['Tasks', 'Priorities', 'Risks', 'Orders', 'Shopify', 'Customers', 'B2B', 'Affiliates', 'Email / Klaviyo', 'Marketing', 'Subscriptions', 'Customer Service', 'Finance', 'Google'],
+  // Performance leads the desk: it is the only tab that answers "did this
+  // channel make money", which is the question the others are evidence for.
+  'Shopify UK': ['Performance', 'Tasks', 'Priorities', 'Risks', 'Orders', 'Shopify', 'Customers', 'B2B', 'Affiliates', 'Email / Klaviyo', 'Marketing', 'Subscriptions', 'Customer Service', 'Finance', 'Google'],
   'Amazon UK':  ['Amazon UK', 'Finance', 'Google'],
   'Warehouse':  ['Stock on Hand', 'Inbound Stock', 'Bionature Batch'],
 };
@@ -4061,7 +4065,7 @@ function ReportingTab({ items }) {
 }
 
 /* ── Page ─────────────────────────────────────── */
-export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers = [], cs, reconcile, software, reporting, products, ppc = [], disbursements = [], reviews = [], bionature = [], billing = [], atSalesByProduct = [], affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [], rspTracker = [], vine = [], error, serverTime }) {
+export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers = [], cs, reconcile, software, reporting, products, ppc = [], disbursements = [], reviews = [], bionature = [], billing = [], atSalesByProduct = [], affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [], rspTracker = [], vine = [], shopifyPerf = {}, error, serverTime }) {
   const router = useRouter();
   const [section, setSection] = useState('Overview');
   const [tab, setTab] = useState('Tasks');
@@ -4168,6 +4172,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
           {tab === 'Reporting'        && <ReportingTab items={reporting} />}
           {tab === 'Products'         && <ProductsSection products={products} markets={[['UK','Shopify UK'],['AMZN','Amazon UK']]} />}
           {tab === 'Orders'           && <OrdersTab orders={orders} ordersSource={ordersSource} discounts={discounts} refunds={refunds} salesByProduct={salesByProduct} dailySales={dailySales || []} />}
+          {tab === 'Performance'      && <ShopifyPerformance {...shopifyPerf} />}
           {tab === 'Shopify'          && <ShopifyTab products={shopifyProducts} />}
           {tab === 'Customers'        && <CustomersTab items={customers} />}
           {tab === 'B2B'              && <B2BTab items={b2b} />}
@@ -4239,5 +4244,19 @@ export async function getServerSideProps() {
   const sohData = soh;
   const sohSource = 'airtable';
 
-  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers: subscribers || [], cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, rspTracker: rspTracker || [], vine: vine || [], error: null, serverTime: new Date().toISOString() } };
+  // Shopify performance reads the OS-native finance tables directly — no
+  // Airtable fallback, so it never costs a call and the sync cannot clobber it.
+  const fin = await getShopifyFinance(['2026-06', '2026-07']).catch(e => {
+    console.warn('[uk] shopify finance fetch failed:', e.message);
+    return null;
+  });
+  const shopifyPerf = fin ? {
+    pnl: [...fin.pnl.values()],
+    traffic: [...fin.traffic.values()],
+    products: fin.products,
+    costs: fin.costs,
+    costModel: fin.model,
+  } : {};
+
+  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers: subscribers || [], cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, rspTracker: rspTracker || [], vine: vine || [], shopifyPerf, error: null, serverTime: new Date().toISOString() } };
 }

@@ -3484,3 +3484,120 @@ details.qa-root[open] > summary.qa-fab:active { transform: rotate(45deg) scale(0
   .sb-tab:hover { color: var(--white); background: rgba(255,255,255,0.05); }
   .sb-tab--active { color: var(--white); background: var(--forest-700); }
 }
+
+/* ═══ Shopify Performance tab ═══════════════════════════════
+   The own store's answer to the Amazon Sales tab. Visual rule that drives
+   everything here: a missing cost is never drawn as a number — it renders as
+   a PENDING pill, so density never becomes false confidence. */
+.sp-caveat {
+  margin: 10px 0 18px;
+  padding: 10px 14px;
+  background: var(--cream);
+  border: 1px solid var(--hair, var(--cream-dark));
+  border-left: 3px solid var(--forest-600);
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 300;
+  line-height: 1.55;
+  color: var(--charcoal-70);
+}
+.sp-caveat strong { font-weight: 600; color: var(--forest-800); }
+
+.sp-delta { margin-left: 6px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; }
+.sp-delta--up { color: #3f7350; }
+.sp-delta--down { color: #8c4a3a; }
+.sp-delta--flat { color: var(--charcoal-45); }
+
+.sp-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+@media (min-width: 860px) { .sp-grid { grid-template-columns: 1fr 1fr; } }
+
+.sp-card {
+  background: var(--white);
+  border: 1px solid var(--cream-dark);
+  border-radius: 10px;
+  padding: 18px 20px;
+}
+.sp-card-label {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9.5px; font-weight: 600; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--forest-600);
+  margin-bottom: 12px;
+}
+
+.sp-mini { width: 100%; border-collapse: collapse; }
+.sp-mini td { padding: 7px 0; border-bottom: 1px solid var(--cream-dark); font-size: 13px; }
+.sp-mini tr:last-child td { border-bottom: none; }
+.sp-mini .sp-src {
+  display: block; font-size: 10.5px; color: var(--charcoal-45); font-weight: 300; margin-top: 1px;
+}
+
+.sp-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.sp-table {
+  width: 100%; min-width: 520px; border-collapse: collapse;
+  background: var(--white); border: 1px solid var(--cream-dark); border-radius: 8px;
+}
+.sp-table th {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--forest-600); text-align: left; padding: 11px 13px;
+  background: var(--cream); border-bottom: 1px solid var(--cream-dark);
+  white-space: nowrap;
+}
+.sp-table td { padding: 10px 13px; border-bottom: 1px solid var(--cream-dark); font-size: 13px; }
+.sp-table tr:last-child td { border-bottom: none; }
+
+.sp-num {
+  text-align: right;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12.5px; white-space: nowrap;
+}
+th.sp-num { text-align: right; }
+.sp-neg { color: #8c4a3a; }
+.sp-sub td, tr.sp-sub td { font-weight: 600; }
+tr.sp-total td { background: var(--cream); font-weight: 700; color: var(--forest-800); }
+.sp-basis { font-size: 11px; color: var(--charcoal-45); font-weight: 300; text-align: right; }
+.sp-mono { font-family: var(--mono, ui-monospace, monospace); font-size: 12px; }
+
+.sp-pending {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
+  color: var(--forest-600);
+}
+.sp-status {
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9.5px; font-weight: 600; letter-spacing: 0.06em;
+  border: 1px solid var(--cream-deep); color: var(--charcoal-70);
+}
+.sp-status--pending { background: var(--cream); color: var(--forest-600); }
+.sp-status--query { background: #f7ece8; border-color: #e0c8bf; color: #8c4a3a; }
+.sp-status--actual, .sp-status--confirm { background: var(--forest-050); color: var(--forest-700); }
+
+.sp-flag {
+  margin: 12px 0;
+  padding: 14px 16px;
+  background: var(--cream);
+  border: 1px solid var(--cream-dark);
+  border-left: 3px solid var(--forest-600);
+  border-radius: 8px;
+}
+.sp-flag--warn { border-left-color: #8c4a3a; }
+.sp-flag-title {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--forest-800); margin-bottom: 6px;
+}
+.sp-flag p { font-size: 13px; font-weight: 300; line-height: 1.6; color: var(--charcoal); }
+
+.sp-note {
+  margin-top: 10px; font-size: 11.5px; font-weight: 300;
+  line-height: 1.55; color: var(--charcoal-45);
+}
+.sp-note-inline {
+  font-size: 11px; font-weight: 300; color: var(--charcoal-45);
+  margin-top: 2px; max-width: 46ch; line-height: 1.45;
+}
+.sp-badge {
+  display: inline-block; margin-left: 6px; padding: 0 6px;
+  border-radius: 999px; background: var(--forest-600); color: var(--white);
+  font-family: var(--mono, ui-monospace, monospace); font-size: 9.5px; font-weight: 600;
+}
