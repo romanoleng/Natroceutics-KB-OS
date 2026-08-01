@@ -3972,3 +3972,46 @@ tr.sp-total td, tr.sp-total td.sp-num { color: var(--forest-800); }
 }
 .today-blocker.active em { background: #a8614f; color: #fff; }
 .today-blocker--wait span { background: #fdf3e7; color: #8a6415; }
+
+/* Editable chips on a task card. The two things that actually change on a task
+   are when it is due and who has it, so both are one tap from the card rather
+   than behind a detail panel. */
+.tc-chip--edit { border: 1px dashed var(--cream-deep); cursor: pointer; font-family: inherit; }
+.tc-chip--edit:hover { border-style: solid; border-color: var(--navy); }
+.tc-chip--overdue.tc-chip--edit, .tc-chip--today.tc-chip--edit { border-style: solid; }
+
+.tc-edit {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  margin-top: 10px; padding: 10px; border-radius: 9px;
+  background: var(--navy-bg); border: 1px solid #d6dde9;
+}
+.tc-edit--wrap { max-height: 190px; overflow-y: auto; }
+.tc-edit input[type="date"] {
+  font-family: inherit; font-size: 16px; padding: 7px 10px;
+  border: 1px solid var(--cream-dark); border-radius: 7px; background: #fff;
+}
+.tc-edit button {
+  font-family: inherit; font-size: 12px; font-weight: 600;
+  padding: 6px 11px; border-radius: 7px; cursor: pointer;
+  border: 1px solid var(--cream-dark); background: #fff; color: var(--charcoal-70);
+}
+.tc-edit button:hover { border-color: var(--navy); color: var(--navy-fg); }
+.tc-edit button.on { background: var(--navy); border-color: var(--navy); color: #fff; }
+.tc-edit-clear { color: #8c4a3a !important; border-color: #e0c8bf !important; }
+
+/* Due date in the card header, beside priority. Scannable down a long list in
+   a way the meta row never was. */
+.tc-due {
+  flex-shrink: 0;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 10px; font-weight: 600; letter-spacing: .04em;
+  padding: 3px 8px; border-radius: 999px;
+  background: var(--navy-bg); color: var(--navy-fg);
+  border: 1px solid transparent;
+}
+.tc-due--edit { cursor: pointer; }
+.tc-due--edit:hover { border-color: var(--navy); }
+.tc-due--empty { background: transparent; color: var(--charcoal-45); border: 1px dashed var(--cream-deep); }
+.tc-due--empty:hover { color: var(--navy-fg); border-color: var(--navy); border-style: solid; }
+.tc-due--overdue { background: #f7ece8; color: #8c4a3a; }
+.tc-due--today { background: var(--forest-800); color: #fff; }

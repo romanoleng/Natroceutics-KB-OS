@@ -28,7 +28,7 @@ const REGIONS = [
   ['AFF', 'Affiliate Ops', '🤝'],
 ];
 
-function Group({ title, hint, tasks, tone, onStatus, onSnooze, onDelete, busyId, open = true }) {
+function Group({ title, hint, tasks, tone, onStatus, onSnooze, onDelete, onField, busyId, open = true }) {
   const [show, setShow] = useState(open);
   if (!tasks.length) return null;
   return (
@@ -42,7 +42,7 @@ function Group({ title, hint, tasks, tone, onStatus, onSnooze, onDelete, busyId,
       {show && (
         <div className="tg-body">
           {tasks.map(t => (
-            <TaskCard key={t.id} task={t} onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} busy={busyId === t.id} />
+            <TaskCard key={t.id} task={t} onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} busy={busyId === t.id} />
           ))}
         </div>
       )}
@@ -103,6 +103,9 @@ export default function TodayPage({ initialTasks, error, serverTime }) {
     (task, status) => write(task, { Status: status }, { status, overdue: status === 'Done' ? false : task.overdue }),
     [write]
   );
+
+  /** Edit a field straight from a chip: due date, owner. Same optimistic path. */
+  const onField = useCallback((task, fields, optimistic) => write(task, fields, optimistic), [write]);
 
   const onSnooze = useCallback((task, days) => {
     const until = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
@@ -214,15 +217,15 @@ export default function TodayPage({ initialTasks, error, serverTime }) {
         </div>
 
         <Group title="Overdue" hint="past their due date" tone="overdue" tasks={view.overdue}
-               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} busyId={busyId} />
+               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} busyId={busyId} />
         <Group title="Today" hint="in progress, due, or high priority" tone="now" tasks={view.today}
-               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} busyId={busyId} />
+               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} busyId={busyId} />
         <Group title="Waiting on others" hint="blocked or delegated" tone="waiting" tasks={view.waiting}
-               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} busyId={busyId} />
+               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} busyId={busyId} />
         <Group title="Backlog" hint="nothing due, nothing blocking" tone="backlog" tasks={view.backlog}
-               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} busyId={busyId} open={false} />
+               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} busyId={busyId} open={false} />
         <Group title="Snoozed" hint="hidden until their date" tone="backlog" tasks={view.snoozed}
-               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} busyId={busyId} open={false} />
+               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} busyId={busyId} open={false} />
 
         {view.counts.live === 0 && (
           <div className="os-empty">Nothing open. Either a very good day, or a filter is on.</div>

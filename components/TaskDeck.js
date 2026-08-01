@@ -76,6 +76,9 @@ export default function TaskDeck({ tasks = [], region, regionLabel, flag, baseId
     (task, status) => write(task, { Status: status }, { status, overdue: status === 'Done' ? false : task.overdue }),
     [write]
   );
+  /** Edit a field straight from a chip: due date, owner. Same optimistic path. */
+  const onField = useCallback((task, fields, optimistic) => write(task, fields, optimistic), [write]);
+
   const onSnooze = useCallback((task, days) => {
     const until = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
     return write(task, { 'Snoozed Until': until }, { snoozedUntil: until });
@@ -142,7 +145,7 @@ export default function TaskDeck({ tasks = [], region, regionLabel, flag, baseId
       {view === 'cards' ? (
         <div className="tg-body">
           {visible.map(t => (
-            <TaskCard key={t.id} task={t} onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} busy={busyId === t.id} />
+            <TaskCard key={t.id} task={t} onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} busy={busyId === t.id} />
           ))}
         </div>
       ) : (

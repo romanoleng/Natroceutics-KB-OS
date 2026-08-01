@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { PEOPLE } from '../lib/tasks';
 
 /**
  * One task, as a card you can act on with a thumb.
@@ -27,9 +28,13 @@ const STATUS_TONE = {
   'In Progress': 'progress', 'Under Review': 'review',
 };
 
-export default function TaskCard({ task, onStatus, onSnooze, onDelete, busy }) {
+export default function TaskCard({ task, onStatus, onSnooze, onDelete, onField, busy }) {
   const [dx, setDx] = useState(0);
   const [sheet, setSheet] = useState(false);
+  // Which chip is currently being edited in place. The chips are the fastest
+  // route to the two things that actually change on a task: when it is due and
+  // who has it. Opening a whole detail panel for that is friction.
+  const [editing, setEditing] = useState(null);
   const start = useRef(null);
   const axis = useRef(null);
 
@@ -92,6 +97,23 @@ export default function TaskCard({ task, onStatus, onSnooze, onDelete, busy }) {
         <div className="tc-head">
           <span className="tc-flag" title={task.regionLabel}>{FLAG[task.region] || '•'}</span>
           <h3 className="tc-title">{task.title}</h3>
+          {/* Due sits beside priority because it is a SCANNING field: down a
+              list of forty cards you read the top-right corner, not the meta
+              row. An empty slot becomes "+ due", which is how the 181 tasks
+              with no date ever get one. */}
+          {onField ? (
+            <button
+              className={`tc-due tc-due--edit${task.overdue ? ' tc-due--overdue' : task.dueToday ? ' tc-due--today' : ''}${task.due ? '' : ' tc-due--empty'}`}
+              onClick={e => { e.stopPropagation(); setEditing(editing === 'due' ? null : 'due'); }}
+              title={task.due ? 'Change due date' : 'Set a due date'}
+            >
+              {task.due ? (task.dueToday ? 'today' : task.due.slice(5)) : '+ due'}
+            </button>
+          ) : task.due && (
+            <span className={`tc-due${task.overdue ? ' tc-due--overdue' : task.dueToday ? ' tc-due--today' : ''}`}>
+              {task.dueToday ? 'today' : task.due.slice(5)}
+            </span>
+          )}
           {task.priority && (
             <span className={`tc-prio tc-prio--${task.priority.toLowerCase()}`}>{task.priority}</span>
           )}
@@ -100,15 +122,53 @@ export default function TaskCard({ task, onStatus, onSnooze, onDelete, busy }) {
         <div className="tc-meta">
           <span className={`tc-status tc-status--${STATUS_TONE[task.status] || 'todo'}`}>{task.status}</span>
           {task.area && <span className="tc-chip">{task.area}</span>}
-          {task.owner && <span className="tc-chip tc-chip--who">{task.owner}</span>}
+          {onField ? (
+            <button
+              className="tc-chip tc-chip--who tc-chip--edit"
+              onClick={e => { e.stopPropagation(); setEditing(editing === 'owner' ? null : 'owner'); }}
+              title="Reassign"
+            >
+              {task.owner || 'Unassigned'}
+            </button>
+          ) : task.owner && <span className="tc-chip tc-chip--who">{task.owner}</span>}
+
           {task.waitingOn && <span className="tc-chip tc-chip--wait">waiting on {task.waitingOn}</span>}
-          {task.due && (
-            <span className={`tc-chip${task.overdue ? ' tc-chip--overdue' : task.dueToday ? ' tc-chip--today' : ''}`}>
-              {task.overdue ? 'overdue ' : task.dueToday ? 'due today' : 'due '}
-              {task.dueToday ? '' : task.due}
-            </span>
-          )}
+
         </div>
+
+        {editing === 'due' && (
+          <div className="tc-edit">
+            <input
+              type="date"
+              defaultValue={task.due || ''}
+              onChange={e => { onField(task, { 'Due Date': e.target.value }, { due: e.target.value }); setEditing(null); }}
+              autoFocus
+            />
+            {[['Today', 0], ['Tomorrow', 1], ['Next week', 7]].map(([l, d]) => (
+              <button key={l} onClick={() => {
+                const v = new Date(Date.now() + d * 86400000).toISOString().slice(0, 10);
+                onField(task, { 'Due Date': v }, { due: v }); setEditing(null);
+              }}>{l}</button>
+            ))}
+            {task.due && (
+              <button className="tc-edit-clear" onClick={() => { onField(task, { 'Due Date': '' }, { due: null }); setEditing(null); }}>
+                Clear
+              </button>
+            )}
+          </div>
+        )}
+
+        {editing === 'owner' && (
+          <div className="tc-edit tc-edit--wrap">
+            {PEOPLE.map(p => (
+              <button
+                key={p}
+                className={task.owner === p ? 'on' : ''}
+                onClick={() => { onField(task, { Owner: p }, { owner: p, waitingOn: null }); setEditing(null); }}
+              >{p}</button>
+            ))}
+          </div>
+        )}
 
         {task.notes && <p className="tc-notes">{task.notes}</p>}
 
