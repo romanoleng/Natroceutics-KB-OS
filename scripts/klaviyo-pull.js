@@ -53,7 +53,7 @@ async function main() {
 
   const since = `${new Date().getFullYear()}-01-01T00:00:00`;
   const until = `${today()}T00:00:00`;
-  const revenue = await klaviyo.getAttributedRevenue(since, until)
+  const revenue = await klaviyo.getOrderMetric(since, until)
     .catch(e => { console.warn('revenue:', e.message); return null; });
 
   const live = flows.filter(f => String(f.status).toLowerCase() === 'live' && !f.archived);
@@ -91,13 +91,24 @@ async function main() {
   ];
 
   if (revenue) {
-    jobs.push(['KLAVIYO_REVENUE', revenue.map(r => ({
+    // The aggregate can return the same month more than once (one row per
+    // bucket boundary). Upserting duplicates in a single statement is a hard
+    // Postgres error, so fold them here rather than letting the write fail.
+    const byMonth = new Map();
+    for (const r of revenue) {
+      const cur = byMonth.get(r.month) || { month: r.month, revenue: 0, orders: 0, seen: false };
+      if (r.revenue != null) { cur.revenue += Number(r.revenue) || 0; cur.seen = true; }
+      if (r.orders != null) { cur.orders += Number(r.orders) || 0; cur.seen = true; }
+      byMonth.set(r.month, cur);
+    }
+    const merged = [...byMonth.values()].sort((a, b) => a.month.localeCompare(b.month));
+    jobs.push(['KLAVIYO_REVENUE', merged.map(r => ({
       recordId: `kr:${r.month}`,
       fields: {
         Month: r.month,
-        'Attributed Revenue (£)': r.revenue ?? '',
-        'Attributed Orders': r.orders ?? '',
-        Source: 'Klaviyo Placed Order metric',
+        'Order Value (£)': r.seen ? Math.round(r.revenue * 100) / 100 : '',
+        'Orders Recorded': r.seen ? r.orders : '',
+        Source: 'Klaviyo Placed Order metric (ALL orders, not email-attributed)',
         'Last Updated': today(),
       },
     }))]);

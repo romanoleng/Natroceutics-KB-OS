@@ -4,10 +4,18 @@ import SortableTable from './SortableTable';
 /**
  * Email / Klaviyo — the owned channel, measured.
  *
- * The context that makes this tab matter: Shopify recorded 3 email sessions in
- * June and 0 in July, against a list that snapshotted at 362 profiles. Email is
- * the cheapest revenue in the business and it is switched off. So the tab leads
- * with that gap rather than with a vanity list count.
+ * CORRECTION worth keeping: from Shopify session data alone it looked like the
+ * whole channel was switched off (3 email sessions in June, 0 in July). The API
+ * says otherwise — 10 flows are LIVE. Sessions were the wrong instrument: flow
+ * emails without UTM tags land in Shopify as "direct".
+ *
+ * What is genuinely dormant is BROADCAST: four campaigns ever, the last in
+ * January. And the Placed Order metric shows Klaviyo recorded zero orders in
+ * July against a month of real Shopify sales, which means the integration has
+ * stopped feeding it and every purchase-triggered flow is silently dead.
+ *
+ * So the tab leads with the distinction between automated and broadcast, and
+ * shouts about the stalled integration.
  *
  * `planned` are the flow designs held in Airtable (Gamma Waves' ME set). They
  * are the plan of record and are shown BESIDE what the API reports is live,
@@ -28,6 +36,14 @@ export default function KlaviyoPanel({
   const [sub, setSub] = useState('Flows');
 
   const live = flows.filter(f => String(f.Status).toLowerCase() === 'live' && f.Archived !== 'Yes');
+  // Placed Order fires on EVERY order, so Klaviyo's count should track
+  // Shopify's. A zero in the latest month means the integration stopped.
+  const months = [...revenue].sort((a, b) => String(a.Month).localeCompare(String(b.Month)));
+  const latest = months[months.length - 1] || {};
+  const latestMonth = latest.Month || '';
+  const latestOrders = Number(latest['Orders Recorded']) || 0;
+  const hadOrders = months.some(m => Number(m['Orders Recorded']) > 0);
+  const integrationStalled = hadOrders && latestOrders === 0;
   const draft = flows.filter(f => String(f.Status).toLowerCase() !== 'live' && f.Archived !== 'Yes');
   const profiles = lists.reduce((s, l) => s + (Number(l.Profiles) || 0), 0);
 
@@ -107,10 +123,32 @@ export default function KlaviyoPanel({
         </div>
       </div>
 
-      {live.length === 0 && (
+      {live.length === 0 ? (
         <div className="sp-caveat">
-          Klaviyo is connected but <strong>no flow is live</strong>. A list of {int(profiles)} profiles
-          with nothing running is the cheapest revenue in the business, unclaimed.
+          Klaviyo is connected but <strong>no flow is live</strong>. A list with nothing running
+          is the cheapest revenue in the business, unclaimed.
+        </div>
+      ) : (
+        <div className="sp-caveat">
+          <strong>{live.length} flows are live.</strong> The automated side of email is running.
+          What is dormant is broadcast: {campaigns.filter(c => String(c.Status).toLowerCase() === 'sent').length} campaigns
+          ever sent, the last on {(campaigns.filter(c => c.Sent).map(c => c.Sent).sort().pop()) || 'an unknown date'}.
+        </div>
+      )}
+
+      {integrationStalled && (
+        <div className="sp-flag sp-flag--warn">
+          <div className="sp-flag-title">Klaviyo has stopped receiving orders</div>
+          <p>
+            Klaviyo recorded <strong>{int(latestOrders)} orders</strong> in {latestMonth} while Shopify
+            recorded sales in the same month. Klaviyo&apos;s Placed Order metric fires on every order,
+            so a zero means the Shopify integration is no longer feeding it.
+          </p>
+          <p>
+            Every flow that triggers on a purchase is silently dead while this lasts: post-purchase,
+            winback, review request, and order-based segmentation. This is worth fixing before any
+            campaign work.
+          </p>
         </div>
       )}
 
@@ -180,7 +218,7 @@ export default function KlaviyoPanel({
         revenue.length === 0
           ? (
             <div className="sp-flag">
-              <div className="sp-flag-title">Attributed revenue not measurable</div>
+              <div className="sp-flag-title">Order metric not readable</div>
               <p>
                 Klaviyo&apos;s Placed Order metric could not be read, so this shows nothing rather
                 than zero. A channel that earned nothing and a channel we cannot measure must never
@@ -192,15 +230,15 @@ export default function KlaviyoPanel({
             <SortableTable
               cols={[
                 { label: 'Month', key: 'Month' },
-                { label: 'Attributed revenue', key: 'Attributed Revenue (£)', type: 'number' },
-                { label: 'Attributed orders', key: 'Attributed Orders', type: 'number' },
+                { label: 'Order value', key: 'Order Value (£)', type: 'number' },
+                { label: 'Orders recorded', key: 'Orders Recorded', type: 'number' },
               ]}
               data={revenue} hideDates emptyMsg="No revenue data."
               renderRow={r => (
                 <tr key={r.id || r.Month}>
                   <td>{r.Month}</td>
-                  <td className="sp-num">{money(r['Attributed Revenue (£)'])}</td>
-                  <td className="sp-num">{int(r['Attributed Orders'])}</td>
+                  <td className="sp-num">{money(r['Order Value (£)'])}</td>
+                  <td className="sp-num">{int(r['Orders Recorded'])}</td>
                 </tr>
               )}
             />
