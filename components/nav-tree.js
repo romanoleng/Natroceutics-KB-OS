@@ -66,6 +66,7 @@ export const REGIONS = [
       { href: '/sa?t=reporting', icon: <IconChart />,   name: 'Reporting' },
       // "Events" is the human name; the page tab (and Airtable table) is
       // Webinar — the ?t= normaliser maps webinar → the Webinar tab.
+      { href: '/sa?t=emailmailchimp', icon: <IconUsers />, name: 'Email / Mailchimp' },
       { href: '/sa?t=webinar',   icon: <IconSparkle />, name: 'Events' },
     ],
   },

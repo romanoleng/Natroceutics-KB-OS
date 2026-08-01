@@ -3,7 +3,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import OsLayout from '../components/OsLayout';
 import TaskDeck from '../components/TaskDeck';
+import MailchimpPanel from '../components/MailchimpPanel';
 import { BASES } from '../lib/airtable-tables';
+import { getMailchimp } from '../lib/shopify-finance';
 import ProductsSection from '../components/ProductsSection';
 import SortableTable from '../components/SortableTable';
 import TaskDetailPanel from '../components/TaskDetailPanel';
@@ -16,7 +18,7 @@ import {
   getProducts,
 } from '../lib/airtable';
 
-const TABS = ['Tasks', 'Priorities', 'Risks', 'Inventory', 'B2B', 'Customers', 'Marketing', 'Customer Service', 'Finance', 'Reporting', 'Products', 'Webinar'];
+const TABS = ['Tasks', 'Priorities', 'Risks', 'Inventory', 'B2B', 'Customers', 'Marketing', 'Email / Mailchimp', 'Customer Service', 'Finance', 'Reporting', 'Products', 'Webinar'];
 
 const SA_BASE  = 'appz7wLo78sxzLhjV';
 const SA_TASKS_TABLE = 'tblAv5lowKpohE27i';
@@ -591,7 +593,7 @@ function WebinarTab({ items }) {
 }
 
 /* ── Page ─────────────────────────────────────────────────── */
-export default function SAPage({ tasks, priorities, risks, inventory, finance, b2b, customers, marketing, cs, reporting, products, webinar = [], error, serverTime }) {
+export default function SAPage({ tasks, priorities, risks, inventory, finance, b2b, customers, marketing, cs, reporting, products, webinar = [], error, serverTime , mailchimp = {} }) {
   const routerDeep = useRouter();
   const [tab, setTab] = useState('Tasks');
 
@@ -645,6 +647,7 @@ export default function SAPage({ tasks, priorities, risks, inventory, finance, b
           {tab === 'Customer Service' && <CSTab items={cs} />}
           {tab === 'Reporting' && <ReportingTab items={reporting} />}
           {tab === 'Products'  && <ProductsSection products={products} />}
+          {tab === 'Email / Mailchimp' && <MailchimpPanel {...mailchimp} />}
           {tab === 'Webinar'   && <WebinarTab items={webinar} />}
         </div>
       </div>
@@ -655,6 +658,10 @@ export default function SAPage({ tasks, priorities, risks, inventory, finance, b
 export async function getServerSideProps() {
   const safe = p => p.catch(e => { console.warn('[sa] fetch partial fail:', e.message); return []; });
 
+  const mailchimp = await getMailchimp('SA').catch(e => {
+    console.warn('[sa] mailchimp fetch failed:', e.message); return {};
+  });
+
   const [tasks, priorities, risks, inventory, finance, b2b, customers, marketing, cs, reporting, products, webinar] = await Promise.all([
     safe(getSATasks()), safe(getSAPriorities()), safe(getSARisks()),
     safe(getSAInventory()), safe(getSAFinance()), safe(getSAB2B()),
@@ -662,5 +669,5 @@ export async function getServerSideProps() {
     safe(getProducts()),
     safe(getSAWebinar()),
   ]);
-  return { props: { tasks, priorities, risks, inventory, finance, b2b, customers, marketing, cs, reporting, products, webinar, error: null, serverTime: new Date().toISOString() } };
+  return { props: { mailchimp, tasks, priorities, risks, inventory, finance, b2b, customers, marketing, cs, reporting, products, webinar, error: null, serverTime: new Date().toISOString() } };
 }
