@@ -3374,9 +3374,9 @@ function SubscriptionsTab({ items, subscribers = [] }) {
         <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Plans</div></div>
         <div className="os-stat-card"><div className="os-stat-num">{gbp(mrr)}</div><div className="os-stat-label">Monthly Revenue</div></div>
       </div>
-      <div className="os-subtab-row" style={{ marginTop: 20, marginBottom: 16, overflowX: 'auto', whiteSpace: 'nowrap' }}>
+      <div className="os-sub-tabs" style={{ marginTop: 20, marginBottom: 16, overflowX: 'auto', whiteSpace: 'nowrap' }}>
         {['Subscribers', 'Plans'].map(t => (
-          <button key={t} className={`os-subtab-btn${subTab === t ? ' active' : ''}`} onClick={() => setSubTab(t)}>{t}</button>
+          <button key={t} className={`os-sub-tab${subTab === t ? ' active' : ''}`} onClick={() => setSubTab(t)}>{t}</button>
         ))}
       </div>
 

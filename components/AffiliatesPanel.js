@@ -121,9 +121,9 @@ export default function AffiliatesPanel({ affiliates = [], monthly = [] }) {
         </div>
       )}
 
-      <div className="os-subtab-row" style={{ marginTop: 20, marginBottom: 16, overflowX: 'auto', whiteSpace: 'nowrap' }}>
+      <div className="os-sub-tabs" style={{ marginTop: 20, marginBottom: 16, overflowX: 'auto', whiteSpace: 'nowrap' }}>
         {SUBS.map(t => (
-          <button key={t} className={`os-subtab-btn${sub === t ? ' active' : ''}`} onClick={() => setSub(t)}>
+          <button key={t} className={`os-sub-tab${sub === t ? ' active' : ''}`} onClick={() => setSub(t)}>
             {t}{t === 'All affiliates' && <span className="sp-badge">{stats.total}</span>}
           </button>
         ))}

@@ -3904,3 +3904,53 @@ tr.sp-total td { background: var(--cream); font-weight: 700; color: var(--forest
 /* Sticky header for long tables — you lose the column meanings otherwise. */
 .sp-scroll--freeze thead th { position: sticky; top: 0; z-index: 2; }
 .sp-scroll--freeze { max-height: 70vh; overflow: auto; }
+
+/* ═══ Packaging navy, given a job ═══════════════════════════
+   The blue from the Omega 3 box (--navy #414f6d) existed as a token but was
+   almost never used, so the OS read as green-and-white only.
+
+   The rule now: GREEN carries brand and structure (hero, nav, identity,
+   "good"). NAVY carries data and interaction (figures, links, focus,
+   selection, "measured"). In a finance OS you read numbers constantly, so
+   navy appears everywhere without ever competing with the green.
+
+   Deliberately NOT: navy on large surfaces, navy headings, navy buttons.
+   Subtle means high frequency and low weight, not one loud blue panel. */
+
+/* Every monospaced figure. The single highest-frequency use, and the reason
+   the blue registers at all without being decorative. */
+.sp-num, td.num, .tc-chip.tc-chip--who,
+.os-stat-num, .wh-banner-num, .headline .fig { color: var(--navy-fg); }
+
+/* Keep green where it means "good" or "brand", overriding the sweep above. */
+.os-stat-green .os-stat-num,
+tr.sp-total td, tr.sp-total td.sp-num { color: var(--forest-800); }
+.wh-banner .wh-banner-num { color: inherit; }
+
+/* Interaction: focus, selection, active tabs. */
+:where(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.os-sub-tab.active { box-shadow: inset 0 -2px 0 var(--navy-deep); }
+.sp-table tbody tr:hover td,
+.td-view button.on { background: var(--navy-bg); }
+.td-view button.on { color: var(--navy-fg); }
+
+/* "Measured" status pills read navy; green stays for positive outcomes. */
+.sp-status--actual { background: var(--navy-bg); color: var(--navy-fg); }
+
+/* Desktop rail: navy hairline on the active item, against the green ground. */
+@media (min-width: 1024px) and (pointer: fine) {
+  .sb-item--active { border-left-color: #7f93bb; }
+}
+
+/* Cards: the owner chip and due-today marker pick up navy so the card has one
+   cool accent among the greens. */
+.tc-chip--who { background: var(--navy-bg); }
+.today-blocker span { color: var(--navy-fg); }
+
+/* Sub-tab rows: scroll sideways rather than wrap into a ragged block. */
+.os-sub-tabs { display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; padding-bottom: 2px; }
+.os-sub-tabs .os-sub-tab { flex-shrink: 0; }
