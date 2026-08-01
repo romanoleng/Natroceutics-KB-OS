@@ -22,34 +22,27 @@
  *
  *   node --env-file-if-exists=.env.local scripts/shopify-pull.js --from=2026-06 --to=2026-07
  *
- * Needs SHOPIFY_SHOP_URL and a SHOPIFY_ADMIN_TOKEN with read_orders,
- * read_products and read_inventory. Traffic (sessions, referrers, repeat rate)
- * comes from ShopifyQL and is skipped with a warning if the token lacks
- * read_reports rather than failing the whole run.
+ * AUTH: Shopify retired admin-created custom apps, so there is no long-lived
+ * `shpat_` token any more. Dev Dashboard apps mint a 24-hour token from a
+ * client-credentials grant, which lib/shopify-auth.js does per run. Set
+ * SHOPIFY_SHOP_URL, SHOPIFY_CLIENT_ID and SHOPIFY_CLIENT_SECRET.
+ *
+ * SCOPES: read_orders, read_products, read_inventory at minimum. Add
+ * read_all_orders or Shopify silently returns only the last 60 days, which
+ * makes a backfill look like an empty store rather than a permissions problem.
  */
 const { getPrisma, isConfigured } = require('../lib/prisma');
 const { commitTable } = require('../lib/mirror-write');
-const { BASES, resolveBaseId, realEnv } = require('../lib/airtable-tables');
+const { BASES, resolveBaseId } = require('../lib/airtable-tables');
+const { shopifyGraphQL, isConfigured: shopifyReady, grantedScopes } = require('../lib/shopify-auth');
 
-const API_VERSION = '2025-01';
 const UK = BASES.UK;
 const r2 = n => Math.round(n * 100) / 100;
 const arg = k => (process.argv.find(a => a.startsWith(`--${k}=`)) || '').split('=')[1] || null;
 
-async function gql(query, variables) {
-  const shop = realEnv('SHOPIFY_SHOP_URL'), token = realEnv('SHOPIFY_ADMIN_TOKEN');
-  if (!shop || !token) throw new Error('SHOPIFY_SHOP_URL / SHOPIFY_ADMIN_TOKEN not set');
-  const host = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
-  const res = await fetch(`https://${host}/admin/api/${API_VERSION}/graphql.json`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token },
-    body: JSON.stringify({ query, variables }),
-  });
-  if (!res.ok) throw new Error(`Shopify ${res.status} ${res.statusText}`);
-  const json = await res.json();
-  if (json.errors) throw new Error(JSON.stringify(json.errors));
-  return json.data;
-}
+// Auth lives in lib/shopify-auth.js: Dev Dashboard apps mint a 24-hour token
+// from client credentials, so there is no long-lived token to store.
+const gql = (query, variables) => shopifyGraphQL(query, variables);
 
 /* ── unit costs ───────────────────────────────────────────────────────── */
 const VARIANTS_Q = `query V($after: String) {
@@ -246,10 +239,27 @@ function buildRecords({ months, products }, variants) {
 
 async function main() {
   if (!isConfigured()) { console.error('Missing DATABASE_URL.'); return 1; }
+  if (!shopifyReady()) {
+    console.error(
+      'Shopify credentials missing.\n\n' +
+      '  Shopify retired admin-created custom apps, so there is no long-lived token to paste.\n' +
+      '  Dev Dashboard > your app > Settings gives a Client ID and Secret; the OS exchanges\n' +
+      '  them for a fresh 24-hour token on every run.\n\n' +
+      '    npx vercel env add SHOPIFY_CLIENT_ID development\n' +
+      '    npx vercel env add SHOPIFY_CLIENT_SECRET development\n'
+    );
+    return 1;
+  }
   const from = arg('from') || '2026-06', to = arg('to') || '2026-07';
   console.log(`Pulling Shopify UK, ${from} to ${to}…\n`);
 
   const variants = await pullVariants();
+  const scopes = grantedScopes();
+  if (scopes) console.log(`scopes:   ${scopes}`);
+  if (scopes && !/read_all_orders/.test(scopes)) {
+    console.warn('WARNING: read_all_orders is not granted. Shopify returns only the last 60 days\n' +
+                 '         of orders, silently, so any backfill before that will come back empty.');
+  }
   const withCost = variants.filter(v => v.cost != null).length;
   console.log(`variants: ${variants.length} (${withCost} with a unit cost, ${variants.length - withCost} without)`);
 
