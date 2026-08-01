@@ -14,6 +14,9 @@ import { IconFileText, IconClipboard, IconCart, IconSparkle } from './Icons';
  */
 export default function QuickAdd() {
   const [syncState, setSyncState] = useState('idle');   // idle | syncing | done | error
+  // "Sync failed" on its own told Romano nothing and cost a day of guessing.
+  // Whatever the API says goes on the button.
+  const [syncErr, setSyncErr] = useState('');
   const router = useRouter();
 
   async function syncShopify(e) {
@@ -22,17 +25,19 @@ export default function QuickAdd() {
     setSyncState('syncing');
     try {
       const res = await fetch('/api/sync-shopify', { method: 'POST' });
-      const d = await res.json();
+      const d = await res.json().catch(() => ({}));
       if (res.ok && d.ok) {
         setSyncState('done');
         setTimeout(() => window.location.reload(), 800);
       } else {
+        setSyncErr(d.detail || d.error || `HTTP ${res.status}`);
         setSyncState('error');
-        setTimeout(() => setSyncState('idle'), 3500);
+        setTimeout(() => setSyncState('idle'), 9000);
       }
-    } catch {
+    } catch (err) {
+      setSyncErr(err.message || 'Network error');
       setSyncState('error');
-      setTimeout(() => setSyncState('idle'), 3500);
+      setTimeout(() => setSyncState('idle'), 9000);
     }
   }
 
@@ -63,10 +68,12 @@ export default function QuickAdd() {
             <span className="qa-item-title">
               {syncState === 'syncing' ? 'Syncing Shopify…'
                 : syncState === 'done' ? 'Synced ✓'
-                : syncState === 'error' ? 'Sync failed — see UK → Orders'
+                : syncState === 'error' ? 'Sync failed'
                 : 'Sync Shopify orders'}
             </span>
-            <span className="qa-item-sub">Pull latest orders from the store</span>
+            <span className="qa-item-sub">
+              {syncState === 'error' ? syncErr : 'Pull latest orders from the store'}
+            </span>
           </span>
         </button>
         <div className="qa-item qa-item--soon" role="menuitem" aria-disabled="true">
