@@ -71,9 +71,18 @@ export default async function handler(req, res) {
   try {
     const prepared = [];
     for (const r of records) {
-      const fields = r?.fields;
+      // Accept both shapes. External callers reasonably send flat objects,
+      // and rejecting them cost a scheduled run its whole batch for a reason
+      // the error did not explain. A record carrying `fields` is the wrapped
+      // form; anything else is treated as the fields themselves.
+      const fields = r && typeof r === 'object' && !Array.isArray(r) && r.fields
+        ? r.fields
+        : r;
       if (!fields || typeof fields !== 'object' || Array.isArray(fields)) {
-        return res.status(400).json({ error: 'Every record needs a fields object' });
+        return res.status(400).json({
+          error: 'Every record must be an object',
+          detail: 'Send either { "fields": { ... } } or the field object directly.',
+        });
       }
       let recordId = r.recordId ? String(r.recordId) : null;
       if (!recordId && keyField && fields[keyField] !== undefined && fields[keyField] !== '') {
@@ -81,6 +90,14 @@ export default async function handler(req, res) {
       }
       if (!recordId) {
         recordId = 'h:' + createHash('sha1').update(JSON.stringify(fields)).digest('hex').slice(0, 20);
+      }
+      // recordId is varchar(32). A Granola ID is a 36-character UUID, so
+      // using one as the key overflows the column and surfaces as an opaque
+      // 500 rather than anything a caller could act on. Hash deterministically
+      // instead: the same source ID always maps to the same key, so upserts
+      // still deduplicate and a re-run never doubles a meeting.
+      if (recordId.length > 32) {
+        recordId = 'k:' + createHash('sha1').update(recordId).digest('hex').slice(0, 28);
       }
       prepared.push({ recordId, fields });
     }
