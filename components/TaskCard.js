@@ -103,7 +103,36 @@ export default function TaskCard({ task, onStatus, onSnooze, onDelete, onField, 
       >
         <div className="tc-head">
           <span className="tc-flag" title={task.regionLabel}>{FLAG[task.region] || '•'}</span>
-          <h3 className="tc-title">{task.title}</h3>
+          {editing === 'title' ? (
+            <input
+              className="tc-title-edit"
+              defaultValue={task.title}
+              autoFocus
+              onClick={e => e.stopPropagation()}
+              onPointerDown={e => e.stopPropagation()}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  const v = e.target.value.trim();
+                  if (v && v !== task.title) onField(task, { Task: v }, { title: v });
+                  setEditing(null);
+                }
+                if (e.key === 'Escape') setEditing(null);
+              }}
+              onBlur={e => {
+                const v = e.target.value.trim();
+                if (v && v !== task.title) onField(task, { Task: v }, { title: v });
+                setEditing(null);
+              }}
+            />
+          ) : (
+            <h3
+              className={`tc-title${onField ? ' tc-title--edit' : ''}`}
+              onDoubleClick={e => { if (onField) { e.stopPropagation(); setEditing('title'); } }}
+              title={onField ? 'Double-click to rename' : undefined}
+            >
+              {task.title}
+            </h3>
+          )}
           {/* Due sits beside priority because it is a SCANNING field: down a
               list of forty cards you read the top-right corner, not the meta
               row. An empty slot becomes "+ due", which is how the 181 tasks
@@ -216,6 +245,11 @@ export default function TaskCard({ task, onStatus, onSnooze, onDelete, onField, 
             <button className="tc-sheet-btn" onClick={() => { onSnooze?.(task, 7); setSheet(false); }}>
               Snooze 7 days
             </button>
+            {onField && (
+              <button className="tc-sheet-btn" onClick={() => { setSheet(false); setEditing('title'); }}>
+                Rename
+              </button>
+            )}
             {onDelete && (
               <button
                 className="tc-sheet-btn tc-sheet-btn--danger"

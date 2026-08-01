@@ -442,11 +442,49 @@ function ReportingTab({ items }) {
 }
 
 /* ── Webinar ──────────────────────────────────────────────── */
+/**
+ * Natro Events — the webinar platform Romano is building at
+ * natro-events.romsbuild.com. Not launched yet, but the first email send has
+ * gone through it, so the OS links to it rather than pretending it does not
+ * exist. New tab on purpose: this is a separate application, not a subview.
+ */
+function EventsLinks() {
+  const links = [
+    ['Events site', 'https://natro-events.romsbuild.com', 'Public front end'],
+    ['Events admin', 'https://natro-events.romsbuild.com/admin/login/', 'Manage events and sends'],
+  ];
+  return (
+    <div className="ev-links">
+      <div className="ev-links-head">
+        <span className="ev-links-title">Natro Events</span>
+        <span className="ev-links-note">In build, not launched. First email send has run through it.</span>
+      </div>
+      <div className="ev-links-row">
+        {links.map(([label, href, sub]) => (
+          <a key={href} href={href} target="_blank" rel="noopener noreferrer" className="ev-link">
+            <span className="ev-link-label">{label}</span>
+            <span className="ev-link-sub">{sub}</span>
+            <span className="ev-link-go">↗</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function WebinarTab({ items }) {
-  if (!items.length) return <div className="os-empty">No webinar records yet. Add data to the Webinar Information table in Airtable.</div>;
   const totalRegistrants = items.reduce((s, i) => s + (Number(i['Total Registrants']) || 0), 0);
+  if (!items.length) {
+    return (
+      <>
+        <EventsLinks />
+        <div className="os-empty">No webinar records yet. They will appear here once events run.</div>
+      </>
+    );
+  }
   return (
     <>
+      <EventsLinks />
       <div className="os-stat-row">
         <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Webinars</div></div>
         <div className="os-stat-card os-stat-green"><div className="os-stat-num">{totalRegistrants.toLocaleString()}</div><div className="os-stat-label">Total Registrants</div></div>

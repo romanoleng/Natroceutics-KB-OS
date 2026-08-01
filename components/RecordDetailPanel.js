@@ -232,7 +232,8 @@ export default function RecordDetailPanel({
           <span className="dp-footer-note">We are efficacy first.</span>
         </div>
 
-      </aside>
+              <button className="dp-close-bar" onClick={onClose}>Close</button>
+</aside>
     </div>
   );
 }

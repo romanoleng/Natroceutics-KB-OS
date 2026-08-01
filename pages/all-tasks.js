@@ -93,7 +93,16 @@ export default function TodayPage({ initialTasks, error, serverTime }) {
         body: JSON.stringify({ baseId: task.baseId, tableId: task.tableId, recordId: task.id, fields }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Update failed');
-      setUndo({ task: before, label: optimistic.status ? `Marked ${optimistic.status}` : 'Snoozed' });
+      // Name the destination: a card disappearing is only reassuring if you
+      // are told where it went.
+      const moved = { Blocked: 'Waiting on others', Waiting: 'Waiting on others',
+                      'Under Review': 'Waiting on others', Done: 'done' }[optimistic.status];
+      setUndo({
+        task: before,
+        label: optimistic.status
+          ? `Marked ${optimistic.status}${moved && moved !== 'done' ? ` · moved to ${moved}` : ''}`
+          : 'Snoozed',
+      });
       // 12s, not 6: on a phone the toast has to survive a glance away, and an
       // undo you cannot reach is the same as no undo.
       setTimeout(() => setUndo(u => (u && u.task.id === before.id ? null : u)), 12000);

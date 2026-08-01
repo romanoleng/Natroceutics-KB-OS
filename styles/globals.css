@@ -4041,3 +4041,56 @@ tr.sp-total td, tr.sp-total td.sp-num { color: var(--forest-800); }
   padding: 1px 6px; border-radius: 999px;
   background: var(--navy); color: #fff;
 }
+
+/* Detail panel on touch: the close button was 30px, below the 44px minimum for
+   a thumb, and a full-width panel leaves no backdrop to tap. */
+@media (max-width: 767px), (pointer: coarse) {
+  .dp-close { width: 44px; height: 44px; font-size: 18px; }
+  .dp-panel { padding-bottom: 0; }
+  /* A second, unmissable way out at the end of the content. */
+  .dp-close-bar {
+    position: sticky; bottom: 0; z-index: 2;
+    display: block; width: 100%;
+    padding: 15px; border: 0; border-top: 1px solid var(--cream-dark);
+    background: var(--forest-800); color: var(--cream);
+    font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+}
+.dp-close-bar { display: none; }
+
+/* Rename in place. Double-click on desktop, and a Rename entry in the More
+   sheet because double-click is not a gesture that exists on a phone. */
+.tc-title--edit { cursor: text; }
+.tc-title-edit {
+  flex: 1; font-family: inherit; font-size: 14.5px; font-weight: 600;
+  line-height: 1.4; color: var(--charcoal);
+  padding: 4px 8px; border: 1px solid var(--navy); border-radius: 7px;
+  background: #fff; min-width: 0;
+}
+.tc-title-edit:focus { outline: none; box-shadow: 0 0 0 3px var(--navy-bg); }
+
+/* Natro Events links. A separate application, so these open in a new tab and
+   look like an exit rather than a tab within the OS. */
+.ev-links {
+  margin-bottom: 20px; padding: 16px 18px;
+  background: var(--cream); border: 1px solid var(--cream-dark);
+  border-left: 3px solid var(--navy); border-radius: 10px;
+}
+.ev-links-head { margin-bottom: 12px; }
+.ev-links-title {
+  display: block; font-size: 13px; font-weight: 700; color: var(--forest-800);
+  letter-spacing: .02em;
+}
+.ev-links-note { font-size: 11.5px; font-weight: 300; color: var(--charcoal-45); }
+.ev-links-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.ev-link {
+  display: flex; flex-direction: column; gap: 2px; position: relative;
+  flex: 1 1 200px; min-width: 0;
+  padding: 12px 34px 12px 14px; border-radius: 9px;
+  background: var(--white); border: 1px solid var(--cream-dark);
+  text-decoration: none; transition: border-color .14s ease;
+}
+.ev-link:hover { border-color: var(--navy); }
+.ev-link-label { font-size: 13.5px; font-weight: 600; color: var(--navy-fg); }
+.ev-link-sub { font-size: 11.5px; font-weight: 300; color: var(--charcoal-45); }
+.ev-link-go { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--navy); font-size: 14px; }
