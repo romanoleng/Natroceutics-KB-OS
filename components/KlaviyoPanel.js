@@ -4,18 +4,21 @@ import SortableTable from './SortableTable';
 /**
  * Email / Klaviyo — the owned channel, measured.
  *
- * CORRECTION worth keeping: from Shopify session data alone it looked like the
- * whole channel was switched off (3 email sessions in June, 0 in July). The API
- * says otherwise — 10 flows are LIVE. Sessions were the wrong instrument: flow
- * emails without UTM tags land in Shopify as "direct".
+ * TWO CORRECTIONS worth keeping, because both were mine.
  *
- * What is genuinely dormant is BROADCAST: four campaigns ever, the last in
- * January. And the Placed Order metric shows Klaviyo recorded zero orders in
- * July against a month of real Shopify sales, which means the integration has
- * stopped feeding it and every purchase-triggered flow is silently dead.
+ * From Shopify session data alone the channel looked switched off (3 email
+ * sessions in June, 0 in July). The API says otherwise: 10 flows are LIVE.
+ * Sessions were the wrong instrument, since flow emails without UTM tags land
+ * in Shopify as "direct".
  *
- * So the tab leads with the distinction between automated and broadcast, and
- * shouts about the stalled integration.
+ * I then reported the Shopify integration as dead because Placed Order showed
+ * zero orders in July. That was a month-bucketing bug of my own (see
+ * lib/klaviyo.js): Klaviyo returns bucket boundaries in UTC while we asked for
+ * Europe/London, so July arrived labelled 30 June. Klaviyo has recorded orders
+ * every few days without interruption.
+ *
+ * What IS genuinely dormant is BROADCAST: four campaigns ever, the last in
+ * January, against flows earning steadily. That is the gap.
  *
  * `planned` are the flow designs held in Airtable (Gamma Waves' ME set). They
  * are the plan of record and are shown BESIDE what the API reports is live,
@@ -43,7 +46,13 @@ export default function KlaviyoPanel({
   const latestMonth = latest.Month || '';
   const latestOrders = Number(latest['Orders Recorded']) || 0;
   const hadOrders = months.some(m => Number(m['Orders Recorded']) > 0);
-  const integrationStalled = hadOrders && latestOrders === 0;
+  // Only meaningful for a COMPLETE month: the current month legitimately reads
+  // low, and an earlier version of this check fired on a month-bucket bug and
+  // wrongly reported the integration as dead.
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const lastComplete = months.filter(m => m.Month < thisMonth).pop();
+  const integrationStalled = hadOrders && lastComplete
+    && Number(lastComplete['Orders Recorded']) === 0;
   // Attributed revenue, unlike the Placed Order metric: these come from the
   // flow/campaign value reports, which credit the message that drove the sale.
   const flowRevenue = flows.reduce((s, f) => s + (Number(f['Revenue (£)']) || 0), 0);
@@ -145,9 +154,9 @@ export default function KlaviyoPanel({
         <div className="sp-flag sp-flag--warn">
           <div className="sp-flag-title">Klaviyo has stopped receiving orders</div>
           <p>
-            Klaviyo recorded <strong>{int(latestOrders)} orders</strong> in {latestMonth} while Shopify
-            recorded sales in the same month. Klaviyo&apos;s Placed Order metric fires on every order,
-            so a zero means the Shopify integration is no longer feeding it.
+            Klaviyo recorded <strong>no orders</strong> in {lastComplete?.Month} while Shopify recorded
+            sales in the same month. Placed Order fires on every order, so a zero across a complete
+            month means the Shopify integration has stopped feeding it.
           </p>
           <p>
             Every flow that triggers on a purchase is silently dead while this lasts: post-purchase,

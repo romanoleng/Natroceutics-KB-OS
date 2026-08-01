@@ -362,12 +362,12 @@ export default function BoardReport({ r }) {
             </table>
           </div>
           <div className="br-note br-note--warn">
-            <b>Two things to fix before spending on email.</b>
+            <b>The automated side is carrying this channel alone.</b>
             <p>
-              Klaviyo has recorded no orders since June, which means the Shopify integration has stopped
-              feeding it and every purchase-triggered flow is silently dead: post-purchase, winback, review
-              request. And {owned.sentCampaigns} campaigns in a year against {owned.liveFlows} live flows
-              says the automated side has been carrying the channel alone.
+              {owned.liveFlows} flows are live and earning steadily, against {owned.sentCampaigns} campaigns
+              sent in a year, the last on {owned.lastCampaign}. Flows brought {money0(owned.flowRevenue)} over
+              twelve months and broadcast brought {money0(owned.campaignRevenue)}. The gap is not that email
+              does not work here: it is that nobody has sent anything.
             </p>
           </div>
         </Section>

@@ -82,14 +82,14 @@ export default function MailchimpPanel({ audiences = [], campaigns = [], automat
         <div className="sp-flag sp-flag--warn">
           <div className="sp-flag-title">Ecommerce tracking is not connected</div>
           <p>
-            All {campaigns.length} campaigns report exactly zero revenue. Mailchimp returns 0
-            rather than null when no store is linked, so this reads as
-            {' '}<strong>NOT TRACKED</strong>, never R0. Given open rates around 45%, treating it
-            as &ldquo;these campaigns earned nothing&rdquo; would be wrong.
+            Verified against the Mailchimp API: <strong>zero stores are connected</strong> to this
+            account, so campaign revenue can only ever report 0. All {campaigns.length} campaigns
+            therefore read <strong>NOT TRACKED</strong>, never R0. With open rates around 45%,
+            treating it as &ldquo;these campaigns earned nothing&rdquo; would be plainly wrong.
           </p>
           <p>
-            Connecting the SA store in Mailchimp is what turns 50 sends of engagement into a
-            revenue figure you can put next to the UK channel.
+            Mailchimp → Integrations → connect the SA store. That is what turns 50 sends of real
+            engagement into a revenue figure you can put beside the UK channel.
           </p>
         </div>
       )}
