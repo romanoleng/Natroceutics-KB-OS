@@ -54,7 +54,7 @@ function Delta({ prev, cur, invert }) {
   );
 }
 
-export default function ShopifyPerformance({ pnl = [], products = [], traffic = [], costs = [], costModel = [] }) {
+export default function ShopifyPerformance({ pnl = [], products = [], traffic = [], costs = [], costModel = [], payouts = [], ytd = null }) {
   const [sub, setSub] = useState('Summary');
 
   const months = useMemo(
@@ -101,7 +101,7 @@ export default function ShopifyPerformance({ pnl = [], products = [], traffic = 
     );
   }
 
-  const SUBS = ['Summary', 'Profit & Loss', 'Products', 'Traffic', 'Cost model'];
+  const SUBS = ['Summary', 'Profit & Loss', 'Year to date', 'Payouts', 'Products', 'Traffic', 'Cost model'];
 
   return (
     <>
@@ -312,6 +312,110 @@ export default function ShopifyPerformance({ pnl = [], products = [], traffic = 
             records. Failed card attempts carry a fee entry in the API and are excluded.
           </p>
         </div>
+      )}
+
+      {/* ── Year to date ─────────────────────────────── */}
+      {sub === 'Year to date' && (
+        ytd ? (
+          <>
+            <div className="os-stat-row">
+              <div className="os-stat-card os-stat-green">
+                <div className="os-stat-num">{money0(ytd['Net Sales (£)'])}</div>
+                <div className="os-stat-label">Net sales · {ytd.Months} months</div>
+              </div>
+              <div className="os-stat-card">
+                <div className="os-stat-num">{int(ytd.Orders)}</div>
+                <div className="os-stat-label">Orders</div>
+              </div>
+              <div className="os-stat-card">
+                <div className="os-stat-num">{money0(ytd['Contribution (£)'])}</div>
+                <div className="os-stat-label">Contribution</div>
+              </div>
+              <div className="os-stat-card">
+                <div className="os-stat-num">{pct(ytd['Contribution Margin %'])}</div>
+                <div className="os-stat-label">Margin</div>
+              </div>
+            </div>
+            <div className="sp-scroll">
+              <table className="sp-table">
+                <thead><tr><th>Line</th><th className="sp-num">{ytd.Period}</th></tr></thead>
+                <tbody>
+                  {[['Gross sales','Gross Sales (£)'],['Discounts','Discounts (£)'],
+                    ['Returns','Returns (£)'],['Net sales','Net Sales (£)'],
+                    ['Cost of goods','COGS (£)'],['Payment fees','Payment Fees (£)'],
+                    ['Contribution','Contribution (£)'],
+                    ['Shipping charged','Shipping Charged (£)']].map(([label, key]) => (
+                    <tr key={key} className={key === 'Contribution (£)' || key === 'Net Sales (£)' ? 'sp-total' : ''}>
+                      <td>{label}</td>
+                      <td className="sp-num">{money(ytd[key])}</td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td>Cost of goods coverage</td>
+                    <td className="sp-num">{pct(ytd['COGS Coverage %'])}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p className="sp-note">
+                Coverage is weighted by revenue, not an average of monthly percentages: a £100
+                month and a £4,000 month must not count equally. Contribution still excludes the
+                lines marked PENDING in the cost model.
+              </p>
+            </div>
+          </>
+        ) : <div className="os-empty">No year-to-date figures yet. Run scripts/shopify-finance-pull.js.</div>
+      )}
+
+      {/* ── Payouts ──────────────────────────────────── */}
+      {sub === 'Payouts' && (
+        payouts.length === 0
+          ? <div className="os-empty">No payout data yet. Run scripts/shopify-finance-pull.js.</div>
+          : (
+            <>
+              <div className="sp-flag">
+                <div className="sp-flag-title">Why this tab exists</div>
+                <p>
+                  Shopify Payments deposits real money into the bank; the P&amp;L says what the
+                  orders were worth. Nothing else in the OS can check one against the other. The
+                  variance column is our computed fees against what Shopify actually charged: near
+                  zero is the strongest evidence the finance engine is right, and a growing figure
+                  is the earliest warning that it is not.
+                </p>
+                <p>
+                  Payouts are grouped by issue date and orders pay out days later, so a month of
+                  payouts never equals a month of sales. The fee comparison is the meaningful one.
+                </p>
+              </div>
+              <div className="sp-scroll">
+                <table className="sp-table">
+                  <thead>
+                    <tr>
+                      <th>Month</th><th className="sp-num">Payouts</th><th className="sp-num">Paid out</th>
+                      <th className="sp-num">Shopify fees</th><th className="sp-num">Fees per P&amp;L</th>
+                      <th className="sp-num">Variance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...payouts].sort((a, b) => String(b.Month).localeCompare(String(a.Month))).map(p => {
+                      const v = num(p['Fee Variance (£)']);
+                      return (
+                        <tr key={p.Month}>
+                          <td>{monthLabel(p.Month)}</td>
+                          <td className="sp-num">{int(p.Payouts)}</td>
+                          <td className="sp-num">{money(p['Paid Out (£)'])}</td>
+                          <td className="sp-num">{money(p['Shopify Fees (£)'])}</td>
+                          <td className="sp-num">{p['Fees per P&L (£)'] === '' ? '—' : money(p['Fees per P&L (£)'])}</td>
+                          <td className={`sp-num${v != null && Math.abs(v) > 20 ? ' sp-neg' : ''}`}>
+                            {v == null ? '—' : money(v)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )
       )}
 
       {/* ── Products ─────────────────────────────────── */}

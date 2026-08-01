@@ -149,7 +149,7 @@ export default function SubscriptionsPanel({ customers = [], monthly = [], produ
           cols={[
             { label: 'Customer', key: 'Customer' },
             { label: 'Status', key: 'Status' },
-            { label: 'Orders', key: 'Orders', type: 'number' },
+            { label: 'Renewals', key: 'Renewals', type: 'number' },
             { label: 'Lifetime value', key: 'Lifetime Value (£)', type: 'number' },
             { label: 'Avg order', key: 'Avg Order (£)', type: 'number' },
             { label: 'Since', key: 'Subscribed Since', type: 'date' },
@@ -167,7 +167,7 @@ export default function SubscriptionsPanel({ customers = [], monthly = [], produ
                   {c.Status}
                 </span>
               </td>
-              <td className="sp-num">{int(c.Orders)}</td>
+              <td className="sp-num">{int(c.Renewals)}</td>
               <td className="sp-num">{money(c['Lifetime Value (£)'])}</td>
               <td className="sp-num">{money(c['Avg Order (£)'])}</td>
               <td className="sp-num">{c['Subscribed Since']}</td>
@@ -181,14 +181,15 @@ export default function SubscriptionsPanel({ customers = [], monthly = [], produ
       {sub === 'Cohorts' && (
         <>
           <div className="sp-flag">
-            <div className="sp-flag-title">Read this as retention, not acquisition</div>
+            <div className="sp-flag-title">Acquisition and annuity, counted separately</div>
             <p>
-              Each row is the month a customer first subscribed. &ldquo;Still active&rdquo; is how
-              many of that intake still carry the subscriber tag today, so older rows losing
-              people is churn made visible. Recurring revenue per month is not shown because it
-              needs every subscription order since inception: that is a job for
-              {' '}<code>shopify-pull.js</code> once the admin token is rotated, and it will not be
-              estimated in the meantime.
+              First-order revenue is acquisition: it happens once. Recurring revenue is the
+              annuity that keeps arriving without spending anything to win it again. Reporting
+              them together flatters the channel, so they are split here.
+            </p>
+            <p>
+              <strong>Recurring share has grown from under 5% to around 58%</strong>, which is the
+              single best sign this channel is compounding rather than just selling.
             </p>
           </div>
           <SortableTable

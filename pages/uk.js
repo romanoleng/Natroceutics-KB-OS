@@ -25,7 +25,7 @@ import {
   getProducts,
 } from '../lib/airtable';
 import { getLocalDailySales, getLocalSalesByProduct, getLocalPayouts } from '../lib/shopify';
-import { getShopifyFinance, getSubscriptions, getKlaviyo } from '../lib/shopify-finance';
+import { getShopifyFinance, getSubscriptions, getKlaviyo, getFinanceDepth } from '../lib/shopify-finance';
 
 /* ── Section / Tab structure ──────────────────── */
 const SECTIONS = ['Overview', 'Shopify UK', 'Amazon UK', 'Warehouse'];
@@ -3944,7 +3944,7 @@ function ReportingTab({ items }) {
 }
 
 /* ── Page ─────────────────────────────────────── */
-export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers = [], cs, reconcile, software, reporting, products, ppc = [], disbursements = [], reviews = [], bionature = [], billing = [], atSalesByProduct = [], affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [], rspTracker = [], vine = [], shopifyPerf = {}, subs = {}, klaviyo = {}, error, serverTime }) {
+export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers = [], cs, reconcile, software, reporting, products, ppc = [], disbursements = [], reviews = [], bionature = [], billing = [], atSalesByProduct = [], affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [], rspTracker = [], vine = [], shopifyPerf = {}, subs = {}, klaviyo = {}, affiliatesLive = {}, error, serverTime }) {
   const router = useRouter();
   const [section, setSection] = useState('Overview');
   const [tab, setTab] = useState('Tasks');
@@ -4123,6 +4123,7 @@ export async function getServerSideProps() {
   const sohData = soh;
   const sohSource = 'airtable';
 
+  const depthEarly = await getFinanceDepth().catch(() => ({}));
   // Shopify performance reads the OS-native finance tables directly — no
   // Airtable fallback, so it never costs a call and the sync cannot clobber it.
   const fin = await getShopifyFinance(['2026-06', '2026-07']).catch(e => {
@@ -4135,6 +4136,8 @@ export async function getServerSideProps() {
     products: fin.products,
     costs: fin.costs,
     costModel: fin.model,
+    payouts: depthEarly.payouts || [],
+    ytd: depthEarly.ytd || null,
   } : {};
 
   const subs = await getSubscriptions().catch(e => {
@@ -4145,6 +4148,7 @@ export async function getServerSideProps() {
     console.warn('[uk] klaviyo fetch failed:', e.message);
     return {};
   });
+  const affiliatesLive = { affiliates: depthEarly.affiliates || [], monthly: depthEarly.affMonthly || [] };
 
-  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers: subscribers || [], cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, rspTracker: rspTracker || [], vine: vine || [], shopifyPerf, subs, klaviyo, error: null, serverTime: new Date().toISOString() } };
+  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers: subscribers || [], cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, rspTracker: rspTracker || [], vine: vine || [], shopifyPerf, subs, klaviyo, affiliatesLive, error: null, serverTime: new Date().toISOString() } };
 }
