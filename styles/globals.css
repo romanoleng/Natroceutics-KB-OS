@@ -4178,3 +4178,71 @@ tr.sp-total td, tr.sp-total td.sp-num { color: var(--forest-800); }
   .sb-brand:hover { background: rgba(255,255,255,0.04); }
   .sb-brand:hover .sb-brand-mark { color: #fff; }
 }
+
+/* ═══ Data status: the strip on Home and the /status page ═══
+   Colour carries meaning here, so it is the one place the OS uses red. Green
+   for current, amber for late, red for broken, and a neutral grey for feeds
+   that were never on a schedule to begin with. */
+.sync-strip {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 14px; margin-bottom: 12px;
+  background: var(--surface); border: 1px solid var(--cream-dark);
+  border-radius: var(--radius-md); text-decoration: none;
+  transition: all 0.15s var(--ease);
+}
+.sync-strip:hover { border-color: var(--forest-600); }
+.sync-strip-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.sync-strip--good .sync-strip-dot { background: #3f8f63; }
+.sync-strip--warn .sync-strip-dot { background: #c98a2e; }
+.sync-strip--bad  .sync-strip-dot { background: #b4453a; }
+.sync-strip--bad { border-color: rgba(180,69,58,0.35); }
+.sync-strip-label {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9.5px; font-weight: 600; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--charcoal-45);
+}
+.sync-strip-text { flex: 1; font-size: 13px; color: var(--charcoal); }
+.sync-strip-go { color: var(--forest-600); font-size: 14px; }
+
+.st-list { display: flex; flex-direction: column; }
+.st-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 2px; border-top: 1px solid var(--cream-dark);
+}
+.st-row:first-child { border-top: 0; }
+.st-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+.st-row--good .st-dot { background: #3f8f63; }
+.st-row--warn .st-dot { background: #c98a2e; }
+.st-row--bad  .st-dot { background: #b4453a; }
+.st-row--idle .st-dot { background: var(--cream-dark); }
+.st-main { flex: 1; min-width: 0; }
+.st-name { font-size: 13.5px; font-weight: 600; color: var(--charcoal); }
+.st-region {
+  margin-left: 7px; font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9px; font-weight: 600; letter-spacing: .1em;
+  color: var(--charcoal-45); text-transform: uppercase;
+}
+.st-detail { font-size: 11.5px; font-weight: 300; color: var(--charcoal-45); margin-top: 2px; }
+.st-error {
+  font-size: 11px; color: #b4453a; margin-top: 5px;
+  font-family: var(--mono, ui-monospace, monospace); word-break: break-word;
+}
+.st-meta { text-align: right; flex-shrink: 0; display: flex; flex-direction: column; gap: 3px; }
+.st-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  font-family: var(--mono, ui-monospace, monospace);
+}
+.st-badge--good { background: rgba(63,143,99,.12); color: #2f6d4a; }
+.st-badge--warn { background: rgba(201,138,46,.14); color: #8a5c14; }
+.st-badge--bad  { background: rgba(180,69,58,.12); color: #9a382e; }
+.st-badge--idle { background: var(--cream); color: var(--charcoal-45); }
+.st-when { font-size: 11.5px; color: var(--charcoal-70); }
+.st-cadence {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 10px; color: var(--charcoal-45);
+}
+@media (max-width: 520px) {
+  .st-row { flex-wrap: wrap; }
+  .st-meta { text-align: left; flex-direction: row; align-items: center; gap: 8px; width: 100%; padding-left: 17px; }
+}

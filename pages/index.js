@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import OsLayout from '../components/OsLayout';
+import SyncStrip from '../components/SyncStrip';
+import { getSyncHealth } from '../lib/sync-health';
 import { IconGlobe, IconBook, IconHandshake, IconUpload, IconLeaf } from '../components/Icons';
 import { fetchFromMirror } from '../lib/mirror';
 import { BASES, resolveBaseId } from '../lib/airtable-tables';
@@ -50,7 +52,7 @@ const MODULES = [
   },
 ];
 
-export default function Home({ day }) {
+export default function Home({ day, health }) {
   return (
     <OsLayout title="Natroceutics OS">
       <section className="os-hero">
@@ -62,6 +64,9 @@ export default function Home({ day }) {
       </section>
 
       <div className="os-page-wrap">
+        {/* Whether the data arrived comes before what the data says. */}
+        <SyncStrip health={health} />
+
         {/* The day, before the modules. The bottom bar is fixed at five tabs by
             design, so Home is where the morning starts: one line, one tap. */}
         {day && (
@@ -98,6 +103,9 @@ export default function Home({ day }) {
 export async function getServerSideProps() {
   // Cheap: reads the same mirror Today does, counts only. Never blocks the
   // page — a failure here just hides the strip.
+  // Read first and outside the try: if the task counts fail, the status strip
+  // is exactly the thing that should still be on screen to say why.
+  const health = await getSyncHealth();
   try {
     const regions = [['UK','United Kingdom','🇬🇧'],['ME','Middle East','🇦🇪'],
                      ['SA','South Africa','🇿🇦'],['PT','Portugal','🇵🇹'],['AFF','Affiliate Ops','🤝']];
@@ -112,12 +120,15 @@ export async function getServerSideProps() {
       }
     }
     const v = buildToday(all);
-    return { props: { day: {
-      overdue: v.counts.overdue, today: v.counts.today, waiting: v.counts.waiting,
-      blockers: waitingBy(all).slice(0, 2),
-    } } };
+    return { props: {
+      day: {
+        overdue: v.counts.overdue, today: v.counts.today, waiting: v.counts.waiting,
+        blockers: waitingBy(all).slice(0, 2),
+      },
+      health,
+    } };
   } catch (e) {
     console.warn('[home] day strip failed:', e.message);
-    return { props: { day: null } };
+    return { props: { day: null, health } };
   }
 }
