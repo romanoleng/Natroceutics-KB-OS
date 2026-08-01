@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import SortableTable from './SortableTable';
 
 /**
@@ -54,8 +54,35 @@ function Delta({ prev, cur, invert }) {
   );
 }
 
+/**
+ * Freeze locks the first column and the header row in place so you keep sight
+ * of which row you are on while scrolling sideways through a wide table. It was
+ * on silently, which meant nobody could find it or turn it off.
+ */
+function FreezeToggle({ on, set }) {
+  return (
+    <div className="sp-freeze-bar">
+      <button className={`sp-freeze-btn${on ? ' on' : ''}`} onClick={() => set(!on)} type="button">
+        {on ? '🔒 First column frozen' : '🔓 Freeze first column'}
+      </button>
+      <span className="sp-freeze-note">
+        {on ? 'Scroll sideways: the month column and header stay put.' : 'Scroll freely, nothing pinned.'}
+      </span>
+    </div>
+  );
+}
+
 export default function ShopifyPerformance({ pnl = [], products = [], traffic = [], costs = [], costModel = [], payouts = [], ytd = null }) {
   const [sub, setSub] = useState('Summary');
+  // Freeze was silently always-on, so it was invisible and unexplained.
+  const [freeze, setFreeze] = useState(true);
+  // Keep the selected tab on screen. With seven tabs on a phone the row
+  // scrolls, and a tab selected off-screen looks like nothing happened.
+  const tabRow = useRef(null);
+  useEffect(() => {
+    tabRow.current?.querySelector('.os-sub-tab.active')
+      ?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+  }, [sub]);
 
   const months = useMemo(
     () => [...pnl].sort((a, b) => String(a.Month).localeCompare(String(b.Month))),
@@ -174,7 +201,7 @@ export default function ShopifyPerformance({ pnl = [], products = [], traffic = 
         </div>
       </div>
 
-      <div className="os-sub-tabs" style={{ marginTop: 20, marginBottom: 16, overflowX: 'auto', whiteSpace: 'nowrap' }}>
+      <div className="os-sub-tabs" ref={tabRow} style={{ marginTop: 20, marginBottom: 16 }}>
         {SUBS.map(t => (
           <button key={t} className={`os-sub-tab${sub === t ? ' active' : ''}`} onClick={() => setSub(t)}>
             {t}
@@ -251,7 +278,9 @@ export default function ShopifyPerformance({ pnl = [], products = [], traffic = 
 
       {/* ── P&L ──────────────────────────────────────── */}
       {sub === 'Profit & Loss' && (
-        <div className="sp-scroll sp-scroll--freeze">
+        <>
+        <FreezeToggle on={freeze} set={setFreeze} />
+        <div className={`sp-scroll${freeze ? ' sp-scroll--freeze' : ''}`}>
           <table className="sp-table">
             <thead>
               <tr>
@@ -312,6 +341,7 @@ export default function ShopifyPerformance({ pnl = [], products = [], traffic = 
             records. Failed card attempts carry a fee entry in the API and are excluded.
           </p>
         </div>
+        </>
       )}
 
       {/* ── Year to date ─────────────────────────────── */}
@@ -386,7 +416,8 @@ export default function ShopifyPerformance({ pnl = [], products = [], traffic = 
                   payouts never equals a month of sales. The fee comparison is the meaningful one.
                 </p>
               </div>
-              <div className="sp-scroll sp-scroll--freeze">
+              <FreezeToggle on={freeze} set={setFreeze} />
+              <div className={`sp-scroll${freeze ? ' sp-scroll--freeze' : ''}`}>
                 <table className="sp-table">
                   <thead>
                     <tr>

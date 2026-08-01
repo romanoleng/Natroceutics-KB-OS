@@ -1,4 +1,5 @@
 import OsLayout from '../components/OsLayout';
+import TimeTrackingSetting from '../components/TimeTrackingSetting';
 
 /**
  * /settings — the app's control room.
@@ -16,6 +17,8 @@ export default function Settings() {
       </section>
 
       <div className="os-page-wrap">
+        <TimeTrackingSetting />
+
 
         {/* ── navigation ── */}
         <h2 className="guide-h2">Navigation</h2>

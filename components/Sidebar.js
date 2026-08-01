@@ -46,10 +46,12 @@ export default function Sidebar() {
 
   return (
     <aside className="os-sidebar" aria-label="Primary">
-      <div className="sb-brand">
+      {/* The header wordmark is hidden on desktop (the rail carries the brand),
+          so this has to be the way home or there isn't one. */}
+      <Link href="/" className="sb-brand">
         <span className="sb-brand-mark">Natroceutics<sup>®</sup></span>
         <span className="sb-brand-os">OS</span>
-      </div>
+      </Link>
 
       <nav className="sb-scroll">
         <p className="sb-eyebrow">Company-wide</p>

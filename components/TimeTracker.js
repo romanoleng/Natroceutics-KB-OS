@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 
 /**
  * Passive time tracking.
@@ -63,5 +64,15 @@ export default function TimeTracker() {
     };
   }, [on]);
 
-  return null;   // entirely invisible: that is the point
+  if (!on) return null;
+
+  // Romano expected an icon and there wasn't one: tracking with no visible
+  // trace is indistinguishable from tracking you did not agree to. Small,
+  // out of the way, and a link to the page that explains itself.
+  return (
+    <Link href="/time" className="tt-dot" title="Time in the OS is being recorded. Tap to see it.">
+      <span className="tt-pulse" />
+      <span className="tt-label">Tracking</span>
+    </Link>
+  );
 }

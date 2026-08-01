@@ -84,6 +84,7 @@ export const REGIONS = [
 
 export const TOOLS = [
   { href: '/capture',  icon: <IconUpload />, name: 'Capture' },
+  { href: '/time',     icon: <IconChart />,  name: 'Time' },
   { href: '/guide',    icon: <IconLeaf />,   name: 'How the OS Works' },
   { href: '/settings', icon: <IconGear />,   name: 'Settings' },
 ];
