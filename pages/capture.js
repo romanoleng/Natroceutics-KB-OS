@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import OsLayout from '../components/OsLayout';
 import { IconUpload } from '../components/Icons';
+import SmartCapture from '../components/SmartCapture';
 
 /**
  * /upload — drop data exports straight into the OS. No AI, no terminal.
@@ -262,6 +263,10 @@ export default function Capture() {
       </section>
 
       <div className="os-page-wrap">
+
+        {/* Tell the OS leads: typing an instruction is the fastest way in, and
+            it costs nothing to run (rules-only router, no model call). */}
+        <SmartCapture />
 
         <div
           className={`upload-zone${dragOver ? ' upload-zone--over' : ''}`}
