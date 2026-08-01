@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import OsLayout from '../components/OsLayout';
 import ProductsSection from '../components/ProductsSection';
 import ShopifyPerformance from '../components/ShopifyPerformance';
+import SubscriptionsPanel from '../components/SubscriptionsPanel';
 import SortableTable from '../components/SortableTable';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 import RecordDetailPanel from '../components/RecordDetailPanel';
@@ -21,7 +22,7 @@ import {
   getProducts,
 } from '../lib/airtable';
 import { getLocalDailySales, getLocalSalesByProduct, getLocalPayouts } from '../lib/shopify';
-import { getShopifyFinance } from '../lib/shopify-finance';
+import { getShopifyFinance, getSubscriptions } from '../lib/shopify-finance';
 
 /* ── Section / Tab structure ──────────────────── */
 const SECTIONS = ['Overview', 'Shopify UK', 'Amazon UK', 'Warehouse'];
@@ -4065,7 +4066,7 @@ function ReportingTab({ items }) {
 }
 
 /* ── Page ─────────────────────────────────────── */
-export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers = [], cs, reconcile, software, reporting, products, ppc = [], disbursements = [], reviews = [], bionature = [], billing = [], atSalesByProduct = [], affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [], rspTracker = [], vine = [], shopifyPerf = {}, error, serverTime }) {
+export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers = [], cs, reconcile, software, reporting, products, ppc = [], disbursements = [], reviews = [], bionature = [], billing = [], atSalesByProduct = [], affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [], rspTracker = [], vine = [], shopifyPerf = {}, subs = {}, error, serverTime }) {
   const router = useRouter();
   const [section, setSection] = useState('Overview');
   const [tab, setTab] = useState('Tasks');
@@ -4179,7 +4180,7 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
           {tab === 'Affiliates'       && <AffiliatesTab items={affiliates} affPerformance={affPerformance} affSales={affSales} affPayouts={affPayouts} affTraffic={affTraffic} affTasks={affTasks} affProducts={affProducts} />}
           {tab === 'Email / Klaviyo'  && <EmailTab items={emailList} />}
           {tab === 'Marketing'        && <MarketingTab items={marketing} />}
-          {tab === 'Subscriptions'    && <SubscriptionsTab items={subscriptions} subscribers={subscribers} />}
+          {tab === 'Subscriptions'    && <SubscriptionsPanel {...subs} />}
           {tab === 'Customer Service' && <CSTab items={cs} />}
           {tab === 'Finance' && section === 'Shopify UK' && <FinanceTab reconcile={reconcile} software={software} payouts={payouts} payoutsCsv={payoutsCsv || []} serverTime={serverTime} billing={billing} atSalesByProduct={atSalesByProduct} />}
           {tab === 'Finance' && section === 'Amazon UK'  && <AmazonFinanceTab reconcile={reconcile} disbursements={disbursements} />}
@@ -4258,5 +4259,10 @@ export async function getServerSideProps() {
     costModel: fin.model,
   } : {};
 
-  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers: subscribers || [], cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, rspTracker: rspTracker || [], vine: vine || [], shopifyPerf, error: null, serverTime: new Date().toISOString() } };
+  const subs = await getSubscriptions().catch(e => {
+    console.warn('[uk] subscriptions fetch failed:', e.message);
+    return {};
+  });
+
+  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers: subscribers || [], cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, rspTracker: rspTracker || [], vine: vine || [], shopifyPerf, subs, error: null, serverTime: new Date().toISOString() } };
 }
