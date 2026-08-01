@@ -75,7 +75,7 @@ const ORDERS_Q = `query O($after: String, $q: String!) {
   orders(first: 50, after: $after, query: $q, sortKey: PROCESSED_AT) {
     pageInfo { hasNextPage endCursor }
     nodes {
-      name processedAt
+      name processedAt cancelledAt test
       currentSubtotalPriceSet { shopMoney { amount } }
       totalDiscountsSet { shopMoney { amount } }
       totalShippingPriceSet { shopMoney { amount } }
@@ -95,12 +95,19 @@ const ORDERS_Q = `query O($after: String, $q: String!) {
 async function pullOrders(from, to) {
   const q = `processed_at:>=${from}-01 processed_at:<=${to}-31`;
   const out = [];
-  let after = null, more = true;
+  let after = null, more = true, dropped = 0;
   while (more) {
     const d = await gql(ORDERS_Q, { after, q });
-    out.push(...d.orders.nodes);
+    for (const o of d.orders.nodes) {
+      // A cancelled order is not revenue and not an order. Including #1490
+      // pushed July to 68 orders against Shopify's own 66, and a P&L that
+      // disagrees with the admin gets distrusted whichever one is right.
+      if (o.cancelledAt || o.test) { dropped++; continue; }
+      out.push(o);
+    }
     ({ hasNextPage: more, endCursor: after } = d.orders.pageInfo);
   }
+  if (dropped) console.log(`  (excluded ${dropped} cancelled or test order${dropped === 1 ? '' : 's'})`);
   return out;
 }
 
