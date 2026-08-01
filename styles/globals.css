@@ -4015,3 +4015,11 @@ tr.sp-total td, tr.sp-total td.sp-num { color: var(--forest-800); }
 .tc-due--empty:hover { color: var(--navy-fg); border-color: var(--navy); border-style: solid; }
 .tc-due--overdue { background: #f7ece8; color: #8c4a3a; }
 .tc-due--today { background: var(--forest-800); color: #fff; }
+
+/* Tap a card to open it. The notes are clamped to two lines, so without this
+   there was no way to read a long task on a phone. */
+.tc { cursor: pointer; }
+.tc-more {
+  display: block; margin-top: 4px;
+  font-size: 11px; font-weight: 600; color: var(--navy-fg);
+}

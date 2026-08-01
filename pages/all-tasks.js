@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import OsLayout from '../components/OsLayout';
 import TaskCard from '../components/TaskCard';
+import RecordDetailPanel from '../components/RecordDetailPanel';
 import { fetchFromMirror } from '../lib/mirror';
 import { BASES, resolveBaseId } from '../lib/airtable-tables';
 import { normaliseTask, buildToday, waitingBy, ownerLoad } from '../lib/tasks';
@@ -28,7 +29,7 @@ const REGIONS = [
   ['AFF', 'Affiliate Ops', '🤝'],
 ];
 
-function Group({ title, hint, tasks, tone, onStatus, onSnooze, onDelete, onField, busyId, open = true }) {
+function Group({ title, hint, tasks, tone, onStatus, onSnooze, onDelete, onField, onOpen, busyId, open = true }) {
   const [show, setShow] = useState(open);
   if (!tasks.length) return null;
   return (
@@ -42,7 +43,7 @@ function Group({ title, hint, tasks, tone, onStatus, onSnooze, onDelete, onField
       {show && (
         <div className="tg-body">
           {tasks.map(t => (
-            <TaskCard key={t.id} task={t} onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} busy={busyId === t.id} />
+            <TaskCard key={t.id} task={t} onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} onOpen={onOpen} busy={busyId === t.id} />
           ))}
         </div>
       )}
@@ -54,6 +55,7 @@ export default function TodayPage({ initialTasks, error, serverTime }) {
   const [tasks, setTasks] = useState(initialTasks || []);
   const [busyId, setBusyId] = useState(null);
   const [undo, setUndo] = useState(null);
+  const [detail, setDetail] = useState(null);
   const [region, setRegion] = useState('');
   const [who, setWho] = useState('');
   const [q, setQ] = useState('');
@@ -62,7 +64,10 @@ export default function TodayPage({ initialTasks, error, serverTime }) {
     const needle = q.trim().toLowerCase();
     return tasks.filter(t =>
       (!region || t.region === region) &&
-      (!who || t.owner === who || t.waitingOn === who) &&
+      // ownerLoad labels a null owner "Unassigned", so the filter has to speak
+      // the same language or clicking that chip matches nothing and the page
+      // appears to empty itself.
+      (!who || (t.owner || 'Unassigned') === who || t.waitingOn === who) &&
       (!needle || t.title.toLowerCase().includes(needle) || (t.notes || '').toLowerCase().includes(needle))
     );
   }, [tasks, region, who, q]);
@@ -70,10 +75,11 @@ export default function TodayPage({ initialTasks, error, serverTime }) {
   const view = useMemo(() => buildToday(filtered), [filtered]);
   const blockers = useMemo(() => waitingBy(filtered), [filtered]);
   const owners = useMemo(() => ownerLoad(filtered), [filtered]);
-  const people = useMemo(
-    () => [...new Set(tasks.flatMap(t => [t.owner, t.waitingOn]).filter(Boolean))].sort(),
-    [tasks]
-  );
+  const people = useMemo(() => {
+    const set = new Set(tasks.flatMap(t => [t.owner, t.waitingOn]).filter(Boolean));
+    if (tasks.some(t => !t.owner)) set.add('Unassigned');
+    return [...set].sort();
+  }, [tasks]);
 
   /** Optimistic write: the card moves now, and rolls back if the API refuses. */
   const write = useCallback(async (task, fields, optimistic) => {
@@ -217,15 +223,15 @@ export default function TodayPage({ initialTasks, error, serverTime }) {
         </div>
 
         <Group title="Overdue" hint="past their due date" tone="overdue" tasks={view.overdue}
-               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} busyId={busyId} />
+               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} onOpen={setDetail} busyId={busyId} />
         <Group title="Today" hint="in progress, due, or high priority" tone="now" tasks={view.today}
-               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} busyId={busyId} />
+               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} onOpen={setDetail} busyId={busyId} />
         <Group title="Waiting on others" hint="blocked or delegated" tone="waiting" tasks={view.waiting}
-               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} busyId={busyId} />
+               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} onOpen={setDetail} busyId={busyId} />
         <Group title="Backlog" hint="nothing due, nothing blocking" tone="backlog" tasks={view.backlog}
-               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} busyId={busyId} open={false} />
+               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} onOpen={setDetail} busyId={busyId} open={false} />
         <Group title="Snoozed" hint="hidden until their date" tone="backlog" tasks={view.snoozed}
-               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} busyId={busyId} open={false} />
+               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} onOpen={setDetail} busyId={busyId} open={false} />
 
         {view.counts.live === 0 && (
           <div className="os-empty">Nothing open. Either a very good day, or a filter is on.</div>
@@ -236,6 +242,14 @@ export default function TodayPage({ initialTasks, error, serverTime }) {
           {' '}status changes save straight to the database
         </p>
       </div>
+
+      {detail && (
+        <RecordDetailPanel
+          record={{ ...(detail.rawFields || {}), id: detail.id, _baseId: detail.baseId, _tableId: detail.tableId }}
+          titleField="Task"
+          onClose={() => setDetail(null)}
+        />
+      )}
 
       {undo && (
         <div className="today-undo">

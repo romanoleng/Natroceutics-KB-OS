@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import TaskCard from './TaskCard';
+import RecordDetailPanel from './RecordDetailPanel';
 import { normaliseTask, PRIORITY_RANK, isDone } from '../lib/tasks';
 
 /**
@@ -34,6 +35,7 @@ export default function TaskDeck({ tasks = [], region, regionLabel, flag, baseId
   const [rows, setRows] = useState(normalised);
   const [busyId, setBusyId] = useState(null);
   const [undo, setUndo] = useState(null);
+  const [detail, setDetail] = useState(null);
   const [q, setQ] = useState('');
   const [showDone, setShowDone] = useState(false);
   const [view, setView] = useState('cards');
@@ -145,7 +147,7 @@ export default function TaskDeck({ tasks = [], region, regionLabel, flag, baseId
       {view === 'cards' ? (
         <div className="tg-body">
           {visible.map(t => (
-            <TaskCard key={t.id} task={t} onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} busy={busyId === t.id} />
+            <TaskCard key={t.id} task={t} onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} onOpen={setDetail} busy={busyId === t.id} />
           ))}
         </div>
       ) : (
@@ -177,6 +179,14 @@ export default function TaskDeck({ tasks = [], region, regionLabel, flag, baseId
             </tbody>
           </table>
         </div>
+      )}
+
+      {detail && (
+        <RecordDetailPanel
+          record={{ ...(detail.rawFields || {}), id: detail.id, _baseId: detail.baseId, _tableId: detail.tableId }}
+          titleField="Task"
+          onClose={() => setDetail(null)}
+        />
       )}
 
       {undo && (

@@ -28,7 +28,7 @@ const STATUS_TONE = {
   'In Progress': 'progress', 'Under Review': 'review',
 };
 
-export default function TaskCard({ task, onStatus, onSnooze, onDelete, onField, busy }) {
+export default function TaskCard({ task, onStatus, onSnooze, onDelete, onField, onOpen, busy }) {
   const [dx, setDx] = useState(0);
   const [sheet, setSheet] = useState(false);
   // Which chip is currently being edited in place. The chips are the fastest
@@ -63,10 +63,17 @@ export default function TaskCard({ task, onStatus, onSnooze, onDelete, onField, 
     e.preventDefault?.();
     setDx(Math.max(-140, Math.min(140, mx)));
   }
-  function up() {
+  function up(e) {
     if (axis.current === 'x') {
       if (dx > SWIPE_TRIGGER && !done) onStatus?.(task, 'Done');
       else if (dx < -SWIPE_TRIGGER) setSheet(true);
+    } else if (!axis.current && start.current && onOpen) {
+      // Never claimed an axis, so this was a tap rather than a drag. On a phone
+      // the notes are clamped to two lines and there was no other way to read
+      // the rest of a task, which is what Romano hit.
+      const moved = Math.abs(e.clientX - start.current.x) + Math.abs(e.clientY - start.current.y);
+      const interactive = e.target?.closest?.('button, a, input, select, textarea');
+      if (moved < 8 && !interactive) onOpen(task);
     }
     start.current = null;
     axis.current = null;
@@ -170,7 +177,12 @@ export default function TaskCard({ task, onStatus, onSnooze, onDelete, onField, 
           </div>
         )}
 
-        {task.notes && <p className="tc-notes">{task.notes}</p>}
+        {task.notes && (
+          <p className="tc-notes">
+            {task.notes}
+            {onOpen && task.notes.length > 120 && <span className="tc-more">Tap for full detail</span>}
+          </p>
+        )}
 
         <div className="tc-actions">
           {!done && (
