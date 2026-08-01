@@ -20,7 +20,10 @@ const mailchimp = require('../lib/mailchimp');
 
 const arg = k => (process.argv.find(a => a.startsWith(`--${k}=`)) || '').split('=')[1] || null;
 const today = () => new Date().toISOString().slice(0, 10);
-const pct = v => (v == null ? '' : Math.round(Number(v) * 1000) / 10);
+// Mailchimp returns open_rate as a FRACTION on campaigns (0.4208) but as a
+// PERCENT on list stats (42.08). Using one converter for both reported 4208.3%.
+const fracToPct = v => (v == null ? '' : Math.round(Number(v) * 1000) / 10);
+const alreadyPct = v => (v == null ? '' : Math.round(Number(v) * 10) / 10);
 
 async function main() {
   const region = (arg('region') || 'SA').toUpperCase();
@@ -51,19 +54,27 @@ async function main() {
 
   const members = audiences.reduce((s, a) => s + (a.members || 0), 0);
   const running = automations.filter(a => String(a.status).toLowerCase() === 'sending').length;
-  const tracked = campaigns.filter(c => c.revenue != null).length;
+  const earning = campaigns.filter(c => Number(c.revenue) > 0).length;
 
   console.log(`audiences:   ${audiences.length} (${members.toLocaleString('en-GB')} members)`);
   console.log(`campaigns:   ${campaigns.length} sent`);
   console.log(`automations: ${automations.length} (${running} running)`);
-  console.log(`revenue tracking: ${tracked} of ${campaigns.length} campaigns report ecommerce revenue`);
+  if (campaigns.length && earning === 0) {
+    console.log('revenue:     0 of ' + campaigns.length + ' campaigns report any revenue.');
+    console.log('             Mailchimp returns 0 (not null) when no store is connected, so this');
+    console.log('             almost certainly means ecommerce tracking is not linked rather than');
+    console.log('             that the campaigns earned nothing. Verify in Mailchimp before reading');
+    console.log('             it as performance.');
+  } else {
+    console.log(`revenue:     ${earning} of ${campaigns.length} campaigns report revenue`);
+  }
 
   const jobs = [
     ['MAILCHIMP_AUDIENCES', audiences.map(a => ({
       recordId: `mca:${a.id}`.slice(0, 32),
       fields: {
         Audience: a.name, Members: a.members ?? '', Unsubscribed: a.unsubscribed ?? '',
-        'Open Rate %': pct(a.openRate), 'Click Rate %': pct(a.clickRate),
+        'Open Rate %': alreadyPct(a.openRate), 'Click Rate %': alreadyPct(a.clickRate),
         'Last Campaign': a.lastSent ? String(a.lastSent).slice(0, 10) : '',
         Created: a.created || '', Source: 'Mailchimp API', 'Last Updated': today(),
       },
@@ -73,9 +84,11 @@ async function main() {
       fields: {
         Campaign: c.name, Subject: c.subject, Audience: c.audience,
         Sent: c.sent || '', Emails: c.emails ?? '',
-        Opens: c.opens ?? '', 'Open Rate %': pct(c.openRate),
-        Clicks: c.clicks ?? '', 'Click Rate %': pct(c.clickRate),
+        Opens: c.opens ?? '', 'Open Rate %': fracToPct(c.openRate),
+        Clicks: c.clicks ?? '', 'Click Rate %': fracToPct(c.clickRate),
         // Empty, not zero, when ecommerce tracking is not connected.
+        // 0 here is indistinguishable from 'no store connected'; the panel
+        // reads the all-zero case as untracked rather than as a result.
         'Revenue': c.revenue ?? '', 'Orders': c.orders ?? '',
         Source: 'Mailchimp API', 'Last Updated': today(),
       },

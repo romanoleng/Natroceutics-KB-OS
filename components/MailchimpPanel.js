@@ -45,7 +45,11 @@ export default function MailchimpPanel({ audiences = [], campaigns = [], automat
 
   const members = audiences.reduce((s, a) => s + (Number(a.Members) || 0), 0);
   const running = automations.filter(a => String(a.Status).toLowerCase() === 'sending').length;
-  const untracked = campaigns.filter(c => c.Revenue === '' || c.Revenue == null).length;
+  // Mailchimp returns 0, not null, when no store is connected. So every
+  // campaign reading exactly 0 means untracked, not "earned nothing" — and
+  // presenting it as R0 would libel a channel with 45% open rates.
+  const earning = campaigns.filter(c => Number(c.Revenue) > 0).length;
+  const untracked = campaigns.length > 0 && earning === 0;
   const SUBS = ['Campaigns', 'Audiences', 'Automations'];
 
   return (
@@ -74,12 +78,19 @@ export default function MailchimpPanel({ audiences = [], campaigns = [], automat
           automated is the cheapest revenue in the region, unclaimed.
         </div>
       )}
-      {untracked > 0 && campaigns.length > 0 && (
-        <div className="sp-caveat">
-          {untracked} of {campaigns.length} campaigns report no revenue because Mailchimp
-          ecommerce tracking is not connected to the store. Those read
-          {' '}<strong>NOT TRACKED</strong>, never R0: a campaign that earned nothing and one we
-          cannot measure are different facts.
+      {untracked && (
+        <div className="sp-flag sp-flag--warn">
+          <div className="sp-flag-title">Ecommerce tracking is not connected</div>
+          <p>
+            All {campaigns.length} campaigns report exactly zero revenue. Mailchimp returns 0
+            rather than null when no store is linked, so this reads as
+            {' '}<strong>NOT TRACKED</strong>, never R0. Given open rates around 45%, treating it
+            as &ldquo;these campaigns earned nothing&rdquo; would be wrong.
+          </p>
+          <p>
+            Connecting the SA store in Mailchimp is what turns 50 sends of engagement into a
+            revenue figure you can put next to the UK channel.
+          </p>
         </div>
       )}
 
