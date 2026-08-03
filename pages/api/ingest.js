@@ -49,7 +49,7 @@ export default async function handler(req, res) {
 
   if (!isConfigured()) return res.status(500).json({ error: 'No database configured' });
 
-  const { table, records, keyField, replace = false } = req.body || {};
+  const { table, records, keyField, replace = false, source, heartbeat = false } = req.body || {};
 
   const [baseKey, tableKey] = String(table || '').split('.');
   const base = BASES[baseKey];
@@ -59,6 +59,36 @@ export default async function handler(req, res) {
       error: `Unknown table "${table}"`,
       detail: 'Use BASE.TABLE, e.g. "UK.TASKS". Bases: ' + Object.keys(BASES).join(', '),
     });
+  }
+
+  // A scheduled feed may name itself so /status can watch it on its own
+  // cadence instead of everything arriving as one anonymous "ingest". The
+  // allowlist matters: an unknown caller must not be able to invent a feed
+  // name, because the status page treats a named feed as something that is
+  // SUPPOSED to arrive and will go red when it stops. Anything unrecognised
+  // falls back to 'ingest', which reads as a manual capture and is never red.
+  const FEED_SOURCES = new Set(['outlook', 'granola', 'sellerboard']);
+  const feedSource = FEED_SOURCES.has(source) ? source : 'ingest';
+
+  // "Ran, found nothing" is a successful run and has to be recorded as one.
+  // Without this a quiet day is indistinguishable from a job that died, which
+  // is the failure /status exists to catch — and the reason a naive cadence
+  // check would cry wolf every time the mail happened to be dull.
+  if (heartbeat) {
+    if (feedSource === 'ingest') {
+      return res.status(400).json({
+        error: 'A heartbeat must name its feed',
+        detail: 'Send "source" as one of: ' + [...FEED_SOURCES].join(', '),
+      });
+    }
+    await getPrisma().syncRun.create({
+      data: {
+        baseKey, tableKey, baseId: base.defaultBaseId, tableId,
+        status: 'ok', source: feedSource, recordCount: 0, deleted: 0,
+        startedAt: new Date(), finishedAt: new Date(),
+      },
+    });
+    return res.status(200).json({ ok: true, table, source: feedSource, heartbeat: true, written: 0 });
   }
 
   if (!Array.isArray(records) || !records.length) {
@@ -108,10 +138,10 @@ export default async function handler(req, res) {
       tableId,
       records: prepared,
       replace: Boolean(replace),
-      source: 'ingest',
+      source: feedSource,
     });
 
-    return res.status(200).json({ ok: true, table, written, replaced: deleted });
+    return res.status(200).json({ ok: true, table, source: feedSource, written, replaced: deleted });
   } catch (err) {
     console.error('[api/ingest]', err.message);
     return res.status(500).json({ error: 'Ingest failed', detail: err.message });

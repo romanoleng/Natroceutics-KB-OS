@@ -67,8 +67,9 @@ export default function StatusPage({ health, serverTime }) {
 
         <div className="sp-caveat">
           This reports when data last <strong>arrived</strong>, not whether it is correct. A feed can
-          be current and still be wrong if the source is wrong. Nothing here runs on a schedule yet,
-          so ages reflect the last time a pull was run by hand.
+          be current and still be wrong if the source is wrong. Outlook, Granola and Sellerboard
+          arrive on a daily schedule and record a heartbeat even on a day with nothing to report, so
+          a gap in those is a real gap. The rest are run by hand and their ages reflect that.
         </div>
 
         {groups.map(([title, rows]) => (
