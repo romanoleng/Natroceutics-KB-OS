@@ -7,6 +7,7 @@ import { BASES } from '../lib/airtable-tables';
 import ProductsSection from '../components/ProductsSection';
 import SortableTable from '../components/SortableTable';
 import TaskDetailPanel from '../components/TaskDetailPanel';
+import RecordDeck from '../components/RecordDeck';
 import { useStatusEditor, StatusSelect, sc, DONE_VALS as DONE_VALS_SHARED, BASE_STATUSES as BASE_STATUSES_SHARED } from '../components/StatusSelect';
 import {
   getPTTasks, getPTPriorities, getPTRisks,
@@ -651,8 +652,10 @@ export default function PTPage({ tasks, priorities, risks, inventory, finance, b
 
         <div className="os-tab-content">
           {tab === 'Tasks'            && <TaskDeck tasks={tasks} region="PT" regionLabel="Portugal" flag="🇵🇹" baseId={BASES.PT.defaultBaseId} tableId={BASES.PT.tables.TASKS} />}
-          {tab === 'Priorities'       && <PriorityList items={priorities} />}
-          {tab === 'Risks'            && <RiskList items={risks} />}
+          {tab === 'Priorities'       && <RecordDeck type="PRIORITIES" records={priorities} region="PT" regionLabel="Portugal" flag="🇵🇹"
+                          baseId={BASES.PT.defaultBaseId} tableId={BASES.PT.tables.PRIORITIES} />}
+          {tab === 'Risks'            && <RecordDeck type="RISKS" records={risks} region="PT" regionLabel="Portugal" flag="🇵🇹"
+                          baseId={BASES.PT.defaultBaseId} tableId={BASES.PT.tables.RISKS} />}
           {tab === 'Inventory'        && <InventoryTab items={inventory} />}
           {tab === 'Finance'          && <FinanceTab items={finance} />}
           {tab === 'B2B'              && <B2BTab items={b2b} />}

@@ -6,6 +6,7 @@ import TaskDeck from '../components/TaskDeck';
 import { BASES } from '../lib/airtable-tables';
 import ProductsSection from '../components/ProductsSection';
 import TaskDetailPanel from '../components/TaskDetailPanel';
+import RecordDeck from '../components/RecordDeck';
 import SortableTable from '../components/SortableTable';
 import PlatformCosts from '../components/PlatformCosts';
 import { useStatusEditor, StatusSelect, sc, DONE_VALS as DONE_VALS_SHARED, BASE_STATUSES as BASE_STATUSES_SHARED } from '../components/StatusSelect';
@@ -773,8 +774,10 @@ export default function MEPage({ tasks, priorities, risks, registrations, invent
 
         <div className="os-tab-content">
           {tab === 'Tasks' && <TaskDeck tasks={tasks} region="ME" regionLabel="Middle East" flag="🇦🇪" baseId={BASES.ME.defaultBaseId} tableId={BASES.ME.tables.TASKS} />}
-          {tab === 'Priorities' && <PriorityList items={priorities} />}
-          {tab === 'Risks' && <RiskList items={risks} />}
+          {tab === 'Priorities' && <RecordDeck type="PRIORITIES" records={priorities} region="ME" regionLabel="Middle East" flag="🇦🇪"
+                          baseId={BASES.ME.defaultBaseId} tableId={BASES.ME.tables.PRIORITIES} />}
+          {tab === 'Risks' && <RecordDeck type="RISKS" records={risks} region="ME" regionLabel="Middle East" flag="🇦🇪"
+                          baseId={BASES.ME.defaultBaseId} tableId={BASES.ME.tables.RISKS} />}
           {tab === 'Registrations' && <RegistrationsTab items={registrations} />}
           {tab === 'Inventory' && <InventoryTab items={inventory} />}
           {tab === 'Affiliates' && <AffiliatesTab items={affiliates} />}

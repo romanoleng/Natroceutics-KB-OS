@@ -10,6 +10,7 @@ import KlaviyoPanel from '../components/KlaviyoPanel';
 import AffiliatesPanel from '../components/AffiliatesPanel';
 import SortableTable from '../components/SortableTable';
 import TaskDetailPanel from '../components/TaskDetailPanel';
+import RecordDeck from '../components/RecordDeck';
 import RecordDetailPanel from '../components/RecordDetailPanel';
 import { useStatusEditor, StatusSelect, DateCell, sc, DONE_VALS as DONE_VALS_SHARED, BASE_STATUSES as BASE_STATUSES_SHARED } from '../components/StatusSelect';
 import {
@@ -4021,8 +4022,10 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
         <div className="os-tab-content">
           {tab === 'Tasks'            && section === 'Overview'   && <TaskDeck tasks={overviewTasks} region="UK" regionLabel="United Kingdom" flag="🇬🇧" baseId={BASES.UK.defaultBaseId} tableId={BASES.UK.tables.TASKS} />}
           {tab === 'Tasks'            && section === 'Shopify UK' && <TaskDeck tasks={shopifyTasks} region="UK" regionLabel="United Kingdom" flag="🇬🇧" baseId={BASES.UK.defaultBaseId} tableId={BASES.UK.tables.TASKS} />}
-          {tab === 'Priorities'       && <PriorityList items={priorities} />}
-          {tab === 'Risks'            && <RiskList items={risks} />}
+          {tab === 'Priorities'       && <RecordDeck type="PRIORITIES" records={priorities} region="UK" regionLabel="United Kingdom" flag="🇬🇧"
+                          baseId={BASES.UK.defaultBaseId} tableId={BASES.UK.tables.PRIORITIES} />}
+          {tab === 'Risks'            && <RecordDeck type="RISKS" records={risks} region="UK" regionLabel="United Kingdom" flag="🇬🇧"
+                          baseId={BASES.UK.defaultBaseId} tableId={BASES.UK.tables.RISKS} />}
           {tab === 'Reporting'        && <ReportingTab items={reporting} />}
           {tab === 'Products'         && <ProductsSection products={products} markets={[['UK','Shopify UK'],['AMZN','Amazon UK']]} />}
           {tab === 'Orders'           && <OrdersTab orders={orders} ordersSource={ordersSource} discounts={discounts} refunds={refunds} salesByProduct={salesByProduct} dailySales={dailySales || []} />}

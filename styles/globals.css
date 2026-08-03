@@ -4027,12 +4027,12 @@ tr.sp-total td, tr.sp-total td.sp-num { color: var(--forest-800); }
 .tc-edit--wrap { max-height: 190px; overflow-y: auto; }
 .tc-edit input[type="date"] {
   font-family: inherit; font-size: 16px; padding: 7px 10px;
-  border: 1px solid var(--cream-dark); border-radius: 7px; background: #fff;
+  border: 1px solid var(--cream-dark); border-radius: 7px; background: var(--surface);
 }
 .tc-edit button {
   font-family: inherit; font-size: 12px; font-weight: 600;
   padding: 6px 11px; border-radius: 7px; cursor: pointer;
-  border: 1px solid var(--cream-dark); background: #fff; color: var(--charcoal-70);
+  border: 1px solid var(--cream-dark); background: var(--surface); color: var(--charcoal-70);
 }
 .tc-edit button:hover { border-color: var(--navy); color: var(--navy-fg); }
 .tc-edit button.on { background: var(--navy); border-color: var(--navy); color: #fff; }
@@ -4111,7 +4111,7 @@ tr.sp-total td, tr.sp-total td.sp-num { color: var(--forest-800); }
   flex: 1; font-family: inherit; font-size: 14.5px; font-weight: 600;
   line-height: 1.4; color: var(--charcoal);
   padding: 4px 8px; border: 1px solid var(--navy); border-radius: 7px;
-  background: #fff; min-width: 0;
+  background: var(--surface); min-width: 0;
 }
 .tc-title-edit:focus { outline: none; box-shadow: 0 0 0 3px var(--navy-bg); }
 
