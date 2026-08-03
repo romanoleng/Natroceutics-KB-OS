@@ -7,6 +7,7 @@ import { BASES } from '../lib/airtable-tables';
 import ProductsSection from '../components/ProductsSection';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 import RecordDeck from '../components/RecordDeck';
+import ModulePanel from '../components/ModulePanel';
 import SortableTable from '../components/SortableTable';
 import PlatformCosts from '../components/PlatformCosts';
 import { useStatusEditor, StatusSelect, sc, DONE_VALS as DONE_VALS_SHARED, BASE_STATUSES as BASE_STATUSES_SHARED } from '../components/StatusSelect';
@@ -731,7 +732,7 @@ function KlaviyoMETab({ items }) {
 }
 
 /* ── Page ─────────────────────────────────────────────────── */
-export default function MEPage({ tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, costModel = [], marketing, cs, customers, reporting, products, subscriptions = [], klaviyo = [], error, serverTime }) {
+export default function MEPage({ panels = {}, tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, costModel = [], marketing, cs, customers, reporting, products, subscriptions = [], klaviyo = [], error, serverTime }) {
   const router = useRouter();
   const routerDeep = useRouter();
   const [tab, setTab] = useState('Tasks');
@@ -790,6 +791,8 @@ export default function MEPage({ tasks, priorities, risks, registrations, invent
           ))}
         </div>
 
+        {panels[section] && <ModulePanel panel={panels[section]} label={section} />}
+
         <div className="os-subnav">
           {SECTION_TABS[section].map(t => (
             <button key={t} className={`os-subnav-btn${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{t}</button>
@@ -833,5 +836,12 @@ export async function getServerSideProps() {
     safe(getProducts()),
     safe(getMESubscriptions()), safe(getMEKlaviyo()),
   ]);
-  return { props: { tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, costModel, marketing, cs, customers, reporting, products, subscriptions, klaviyo, error: null, serverTime: new Date().toISOString() } };
+  // Advice panels for this page's desks. Contained failures, same as UK.
+  let panels = {};
+  try {
+    const { loadPanelsFor } = require('../lib/mission-control/panels');
+    panels = await loadPanelsFor('me');
+  } catch { panels = {}; }
+
+  return { props: { panels, tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, costModel, marketing, cs, customers, reporting, products, subscriptions, klaviyo, error: null, serverTime: new Date().toISOString() } };
 }
