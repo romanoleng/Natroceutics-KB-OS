@@ -79,6 +79,21 @@ full sync deletes anything it did not write.
 
 ---
 
+## Two traps found on 3 August
+
+**A table is only served from the mirror if it has a successful `SyncRun`.**
+`lib/mirror.js` checks that set before reading, so rows written with a raw
+INSERT are invisible to every page while sitting in the database. Always write
+through `commitTable`, which records the run as it writes. This cost a
+debugging round on `os:me-cost-model`, where the tab was empty and the data was
+there the whole time.
+
+**A green build and a clean server render do not prove the page works.** The ME
+Cost Model tab compiled, server-rendered and returned 200 while crashing in the
+browser on a prop that was passed but never destructured. Only opening it
+caught that. For anything touching a page component, look at it in a browser
+before calling it done.
+
 ## Environment variables: the trap that cost a day
 
 **A key must exist in the Vercel environment that RUNS the code.** Local
@@ -112,7 +127,17 @@ See `docs/CONNECTED-SOURCES.md` for the full table. In short:
 | Shopify orders, finance, subscriptions | Client-credentials grant, 24h tokens |
 | Klaviyo, GoAffPro, Mailchimp | API keys, `scripts/*-pull.js` |
 | Amazon UK | Sellerboard report emails, nightly |
+| Warehouse SOH | "SOH with Batches & BBDs" workbook, dropped on `/capture` |
 | Outlook, Granola | Local scheduled task, daily 06:06 |
+
+**The SOH workbook is the only source of expiry in the OS.** Header sits on row
+3 under a title block, and each stock code carries up to three (QTY, Batch &
+BBD) pairs. `lib/soh-batches.js` reads it into `UK.STOCK` with an Earliest BBD
+per SKU, and it supersedes the older stock take PDF, which has no batch data.
+Batch text is hand-typed and no two rows are spelled alike, so the pattern is
+deliberately loose. Totals are **not** forced to reconcile: where batch
+quantities do not sum to the stock total the difference is reported as unbatched
+rather than absorbed.
 
 **Shopify retired long-lived `shpat_` tokens.** `lib/shopify-auth.js` mints one
 per run from client credentials. `read_all_orders` is required or Shopify
@@ -176,6 +201,21 @@ re-running the pass, and confirming both status and reason survived.
 **Not yet done:** the pass is run by hand. It has no place in the daily
 schedule and no row on `/status`'s own feed list, so a pass that stops running
 is currently invisible. That is the next piece.
+
+**A stock expiry check does not belong here yet.** "Stock expiring soon" is an
+observation, not two records that disagree, so it fails the rule above. It
+becomes a finding only when it can name a second side, for example stock whose
+BBD lands before the sell-through rate could clear it.
+
+## Regions: Finance versus Cost Model
+
+Finance is bills and revenue. What it costs to RUN a store is a cost model and
+lives in its own table and tab: `os:uk-cost-model` and `os:me-cost-model`. The
+Gamma Waves 3-region quote sat in `ME.FINANCE` until 3 August sharing none of
+its fields, so ten fully populated rows rendered as ten rows of dashes through
+the revenue table. `ME.FINANCE` is now empty, which is the honest state until
+the ME store is live. The quote is a **draft for internal review** in USD, not
+measured cost, and the UI says so.
 
 ---
 
