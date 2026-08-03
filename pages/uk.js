@@ -9,6 +9,7 @@ import SubscriptionsPanel from '../components/SubscriptionsPanel';
 import KlaviyoPanel from '../components/KlaviyoPanel';
 import AffiliatesPanel from '../components/AffiliatesPanel';
 import SortableTable from '../components/SortableTable';
+import ModulePanel from '../components/ModulePanel';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 import RecordDeck from '../components/RecordDeck';
 import RecordDetailPanel from '../components/RecordDetailPanel';
@@ -3914,7 +3915,7 @@ function ReportingTab({ items }) {
 }
 
 /* ── Page ─────────────────────────────────────── */
-export default function UKPage({ tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers = [], cs, reconcile, software, reporting, products, ppc = [], disbursements = [], reviews = [], bionature = [], billing = [], atSalesByProduct = [], affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [], rspTracker = [], vine = [], shopifyPerf = {}, subs = {}, klaviyo = {}, affiliatesLive = {}, error, serverTime }) {
+export default function UKPage({ amazonPanel = null, tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh, sohSource = 'airtable', inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers = [], cs, reconcile, software, reporting, products, ppc = [], disbursements = [], reviews = [], bionature = [], billing = [], atSalesByProduct = [], affPerformance = [], affSales = [], affPayouts = [], affTraffic = [], affTasks = [], affProducts = [], rspTracker = [], vine = [], shopifyPerf = {}, subs = {}, klaviyo = {}, affiliatesLive = {}, error, serverTime }) {
   const router = useRouter();
   const [section, setSection] = useState('Overview');
   const [tab, setTab] = useState('Tasks');
@@ -4019,6 +4020,11 @@ export default function UKPage({ tasks, priorities, risks, amazon, catalogue, sh
         </div>
 
         {/* ── Tab content ── */}
+        {/* Advice for the desk you are on. Amazon UK is the pilot: it has the
+            richest real data, so if the panel reads as filler here it would
+            read as filler everywhere. */}
+        {section === 'Amazon UK' && <ModulePanel panel={amazonPanel} label="Amazon UK" />}
+
         <div className="os-tab-content">
           {tab === 'Tasks'            && section === 'Overview'   && <TaskDeck tasks={overviewTasks} region="UK" regionLabel="United Kingdom" flag="🇬🇧" baseId={BASES.UK.defaultBaseId} tableId={BASES.UK.tables.TASKS} />}
           {tab === 'Tasks'            && section === 'Shopify UK' && <TaskDeck tasks={shopifyTasks} region="UK" regionLabel="United Kingdom" flag="🇬🇧" baseId={BASES.UK.defaultBaseId} tableId={BASES.UK.tables.TASKS} />}
@@ -4128,5 +4134,17 @@ export async function getServerSideProps() {
   });
   const affiliatesLive = { affiliates: depthEarly.affiliates || [], monthly: depthEarly.affMonthly || [] };
 
-  return { props: { tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers: subscribers || [], cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, rspTracker: rspTracker || [], vine: vine || [], shopifyPerf, subs, klaviyo, affiliatesLive, error: null, serverTime: new Date().toISOString() } };
+  // The Amazon desk's advice panel. Isolated: loadPanel catches its own
+  // failures, so a broken module reports that on the panel rather than taking
+  // the whole UK page down.
+  let amazonPanel = null;
+  try {
+    const { loadPanel } = require('../lib/mission-control/contract');
+    amazonPanel = await loadPanel(require('../lib/mission-control/modules/amazon-uk'));
+    amazonPanel = JSON.parse(JSON.stringify(amazonPanel));
+  } catch (e) {
+    amazonPanel = { actions: [], insights: [], error: e.message };
+  }
+
+  return { props: { amazonPanel, tasks, priorities, risks, amazon, catalogue, shopifyProducts, orders, ordersSource, salesByProduct, dailySales, discounts, refunds, payouts, payoutsCsv, soh: sohData, sohSource, inbound, b2b, customers, affiliates, emailList, marketing, subscriptions, subscribers: subscribers || [], cs, reconcile, software, reporting, products, ppc, disbursements, reviews, bionature, billing, atSalesByProduct, affPerformance, affSales, affPayouts, affTraffic, affTasks, affProducts, rspTracker: rspTracker || [], vine: vine || [], shopifyPerf, subs, klaviyo, affiliatesLive, error: null, serverTime: new Date().toISOString() } };
 }
