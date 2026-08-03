@@ -14,7 +14,10 @@ import { IconBook, IconHandshake, IconCheck, IconBox, IconCart, IconWarehouse, I
  * inside the page, not in the nav.
  */
 export const COMPANY = [
-  // Today leads: the first item in the rail should be the first thing you do.
+  // Mission Control leads, then Today. Mission Control answers "where does the
+  // hour go"; Today answers "what do I do in it". Both were reachable only by
+  // typing the URL until 3 Aug, which is a page that may as well not exist.
+  { href: '/mission',        icon: <IconSparkle />,   name: 'Mission Control' },
   { href: '/all-tasks',      icon: <IconCheck />,     name: 'Today' },
   { href: '/kb',             icon: <IconBook />,      name: 'Knowledge Base' },
   { href: '/partner-brands', icon: <IconHandshake />, name: 'Partner Brands' },
@@ -85,6 +88,7 @@ export const REGIONS = [
 export const TOOLS = [
   { href: '/capture',  icon: <IconUpload />, name: 'Capture' },
   { href: '/status',   icon: <IconChart />,  name: 'Data status' },
+  { href: '/admin/data', icon: <IconFileText />, name: 'Data admin' },
   { href: '/time',     icon: <IconChart />,  name: 'Time' },
   { href: '/guide',    icon: <IconLeaf />,   name: 'How the OS Works' },
   { href: '/settings', icon: <IconGear />,   name: 'Settings' },
