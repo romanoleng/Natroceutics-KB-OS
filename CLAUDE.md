@@ -236,8 +236,16 @@ in the OS notices. It fires only when a move is notable (revenue up 15%+), never
 on a wobble. **The OS drafts the words and offers Copy. Sending is Romano's.**
 
 Collapsed by default: a page that shouts advice on every open gets scrolled
-past. Piloted on Amazon UK alone on purpose — richest real data, so if it reads
-as filler there it reads as filler everywhere.
+past.
+
+`lib/mission-control/panels.js` maps **desk → module**, so adding a panel is a
+line in that map, not an edit to a page, and the page never learns which module
+served it. Live on Amazon UK, Shopify UK, Warehouse and all three ME desks.
+
+**A desk with no entry gets no panel, deliberately.** A panel with nothing to
+say is worse than none: it teaches you the control is not worth opening, and
+that lesson is hard to unlearn. SA and PT have none until their data supports
+one.
 
 ## Consistency: one card for every record
 
