@@ -27,6 +27,10 @@ async function fileToBase64(file) {
 const STATUS_META = {
   pending:  { icon: '⟳', cls: 'upload-item--pending' },
   ok:       { icon: '✓', cls: 'upload-item--ok' },
+  // Written, but the file did not fully account for itself. Distinct from ok
+  // on purpose: a stock import that cannot attribute every unit to a batch has
+  // succeeded and still left a question, and a tick would bury it.
+  warn:     { icon: '!', cls: 'upload-item--warn' },
   error:    { icon: '✕', cls: 'upload-item--error' },
   rejected: { icon: '—', cls: 'upload-item--rejected' },
 };
@@ -63,7 +67,10 @@ function PasteBox({ onResult }) {
       if (res.ok && data.ok) {
         const range = data.dateRange ? ` · ${data.dateRange.from} → ${data.dateRange.to}` : '';
         const preview = data.preview ? ` — “${String(data.preview).slice(0, 60)}”` : '';
-        onResult({ name: 'Pasted data', status: 'ok', detail: `${data.detected} → ${data.table} · ${data.written} record${data.written === 1 ? '' : 's'}${range}${preview}` });
+        // An import that succeeded but could not account for everything is not
+        // a clean success, and saying so is the whole point of this surface.
+        const warn = data.warnings?.length ? ` · ${data.warnings.join(' · ')}` : '';
+        onResult({ name: 'Pasted data', status: data.warnings?.length ? 'warn' : 'ok', detail: `${data.detected} → ${data.table} · ${data.written} record${data.written === 1 ? '' : 's'}${range}${preview}${warn}` });
         setText('');
       } else {
         onResult({ name: 'Pasted data', status: 'error', detail: data.detail || data.error || `HTTP ${res.status}` });
@@ -227,8 +234,9 @@ export default function Capture() {
         if (res.ok && data.ok) {
           const range = data.dateRange ? ` · ${data.dateRange.from} → ${data.dateRange.to}` : '';
           const preview = data.preview ? ` · ${data.preview}` : '';
+          const warn = data.warnings?.length ? ` · ${data.warnings.join(' · ')}` : '';
           setItems(prev => prev.map(it => it.id === id
-            ? { ...it, status: 'ok', detail: `${data.detected} — ${data.written} records${range}${preview}` }
+            ? { ...it, status: data.warnings?.length ? 'warn' : 'ok', detail: `${data.detected} — ${data.written} records${range}${preview}${warn}` }
             : it));
         } else {
           setItems(prev => prev.map(it => it.id === id

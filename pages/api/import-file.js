@@ -134,8 +134,54 @@ export default async function handler(req, res) {
       try {
         const XLSX = require('xlsx');
         const { parseSellerboardFile } = require('../../lib/sellerboard');
+        const { parseSohBatches } = require('../../lib/soh-batches');
         const wb = XLSX.read(buffer, { type: 'buffer' });
         const asinNames = await loadAsinNames(prisma);
+
+        // Warehouse SOH with batches and BBDs. Checked before the sellerboard
+        // reports because its shape is distinctive and it is the only source of
+        // expiry dates anywhere in the OS.
+        for (const sheetName of wb.SheetNames) {
+          const grid = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {
+            header: 1, blankrows: false, defval: '',
+          });
+          const soh = parseSohBatches(grid, today());
+          if (!soh) continue;
+
+          const { written, deleted } = await commitTable(prisma, {
+            baseKey: 'UK', tableKey: 'STOCK',
+            baseId: BASES.UK.defaultBaseId,
+            tableId: BASES.UK.tables.STOCK,
+            records: soh.records,
+            replace: true,   // a SOH sheet IS the warehouse inventory
+            source: 'xlsx',
+          });
+
+          const soonest = soh.records
+            .map(r => r.fields['Earliest BBD'])
+            .filter(Boolean)
+            .sort()[0] || null;
+
+          return res.status(200).json({
+            ok: true,
+            filename: filename || null,
+            detected: `Warehouse SOH with batches (sheet “${sheetName}”)`,
+            table: 'UK.STOCK',
+            written,
+            replaced: deleted,
+            dateRange: null,
+            preview: `${soh.parsedTotal.toLocaleString('en-GB')} units across ${written} SKUs`
+              + (soonest ? `, earliest BBD ${soonest}` : ''),
+            // Reported, never silently absorbed: a batch total that does not
+            // match the stock total is a fact about the sheet, and a batch line
+            // nobody could read means expiry is understated.
+            warnings: [
+              ...soh.unreconciled.map(u =>
+                `${u.sku}: ${u.total} in stock but only ${u.batched} attributed to a batch (${u.gap} unbatched)`),
+              ...soh.unreadable.map(u => `${u.sku}: could not read batch line “${u.text}”`),
+            ],
+          });
+        }
 
         // Collect every matching sheet, then prefer the newest dated tab
         // ("27 July" beats "17 July"); fall back to sheet order.
@@ -158,7 +204,7 @@ export default async function handler(req, res) {
         if (!match) {
           return res.status(422).json({
             error: 'No recognisable sheet in this workbook',
-            detail: `Looked at: ${wb.SheetNames.join(', ')}. A sheet needs the column headings of a supported report (e.g. ASIN / Seller 1 (Buy Box) / RRP for the pricing sheet).`,
+            detail: `Looked at: ${wb.SheetNames.join(', ')}. A sheet needs the column headings of a supported report: the warehouse SOH sheet (Code / Description / Total QTY / Batch & BBD), a sellerboard export, or the pricing sheet (ASIN / Seller 1 (Buy Box) / RRP).`,
             filename: filename || null,
           });
         }
@@ -279,8 +325,11 @@ export default async function handler(req, res) {
         error: 'File not recognised',
         detail:
           'The header row does not match any known export. Supported: sellerboard ' +
-          'Dashboard by day, Dashboard by product, Orders, Stock history, and the ' +
-          'RSP competitor sheet (tab-separated).',
+          'Dashboard by day, Dashboard by product, Orders, Stock history, the ' +
+          'RSP competitor sheet, and the warehouse SOH sheet with batches ' +
+          '(Code / Description / Total QTY / Batch & BBD) — all tab-separated. ' +
+          'The SOH sheet is only read from a workbook, not from pasted text, ' +
+          'because its header sits below a title block that a paste usually drops.',
         filename: filename || null,
       });
     }

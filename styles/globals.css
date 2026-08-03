@@ -2853,10 +2853,12 @@ th.th-sort:hover { background: rgba(29,65,48,0.85); }
 .upload-item--ok    .upload-item-icon { background: var(--ok-bg);    color: var(--ok-fg); }
 .upload-item--error .upload-item-icon { background: var(--red-bg);   color: var(--red); }
 .upload-item--pending .upload-item-icon { background: var(--amber-bg); color: var(--amber-fg); }
+.upload-item--warn  .upload-item-icon { background: var(--amber-bg); color: var(--amber-fg); }
 
 .upload-item-name   { font-size: 13.5px; font-weight: 600; color: var(--forest-900); word-break: break-all; }
 .upload-item-detail { font-size: 12.5px; color: var(--charcoal-70); margin-top: 2px; line-height: 1.5; }
 .upload-item--error .upload-item-detail { color: var(--red); }
+.upload-item--warn  .upload-item-detail { color: var(--amber-fg); }
 
 @media (max-width: 640px) {
   .upload-zone { padding: 36px 16px; }
