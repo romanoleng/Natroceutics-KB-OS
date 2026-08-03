@@ -285,7 +285,21 @@ export default async function handler(req, res) {
       });
     }
     if (!parsed.records.length) {
-      return res.status(422).json({ error: 'Recognised the file but found no usable rows', filename: filename || null });
+      // "No usable rows" on its own sent someone hunting through the parser for
+      // an hour: every row of two dashboard exports was being dropped on an
+      // unparseable date and the message named neither the column nor a value.
+      // Say which export matched, how many rows were read, and what the first
+      // row actually looked like — enough to spot a format change from the UI.
+      return res.status(422).json({
+        error: 'Recognised the file but found no usable rows',
+        detail:
+          `Matched "${parsed.type.label}" and read ${parsed.rowCount} data row` +
+          `${parsed.rowCount === 1 ? '' : 's'}, but every row was skipped — each was ` +
+          'missing the date or key column the builder requires. This usually means the ' +
+          'export format changed. First row as parsed: ' +
+          JSON.stringify(parsed.sample ?? {}).slice(0, 300),
+        filename: filename || null,
+      });
     }
 
     const { type, records } = parsed;

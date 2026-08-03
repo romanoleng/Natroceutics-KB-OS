@@ -73,12 +73,33 @@ async function main() {
     }
   }
 
-  /* Duplicate exports of the same report: keep the one with the most records. */
+  /* Several exports of the same report, and they are not interchangeable.
+   *
+   * Time-series reports (replace:false — the daily and per-ASIN P&L) are keyed
+   * by date, so two exports covering different windows are additive: MERGE
+   * them, letting a later file correct an earlier one where they overlap.
+   * Picking just the longest file silently threw away every other window —
+   * a 41-row May-June export outranked the 32-row July one, so July never
+   * landed and the OS showed no figures for it at all.
+   *
+   * Snapshot reports (replace:true — stock, RSP) are a picture of one moment
+   * and must NOT be merged; stitching two stock-takes together would invent a
+   * position that never existed. For those, keep the single largest file.
+   */
   const byType = new Map();
   for (const { parsed } of parsedFiles) {
     if (!parsed) continue;
-    const prev = byType.get(parsed.type.key);
-    if (!prev || parsed.records.length > prev.records.length) byType.set(parsed.type.key, parsed);
+    const key = parsed.type.key;
+    const prev = byType.get(key);
+
+    if (parsed.type.replace !== false) {
+      if (!prev || parsed.records.length > prev.records.length) byType.set(key, parsed);
+      continue;
+    }
+    if (!prev) { byType.set(key, { ...parsed, records: [...parsed.records] }); continue; }
+    const merged = new Map(prev.records.map(r => [r.recordId, r]));
+    for (const r of parsed.records) merged.set(r.recordId, r);
+    byType.set(key, { ...prev, records: [...merged.values()] });
   }
 
   const jobs = [...byType.values()].map(p => ({
