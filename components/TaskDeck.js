@@ -1,27 +1,25 @@
 import { useState, useMemo, useCallback } from 'react';
 import TaskCard from './TaskCard';
+import TaskGroup from './TaskGroup';
 import RecordDetailPanel from './RecordDetailPanel';
-import { normaliseTask, PRIORITY_RANK, isDone } from '../lib/tasks';
+import { normaliseTask, buildLanes, laneOf, laneSort, isDone } from '../lib/tasks';
 
 /**
- * Tasks inside a section — the same cards as Today, in a flatter container.
+ * Tasks inside a section, grouped by status.
  *
- * Today is a TRIAGE view: three groups answering "what do I do now?" across
- * every region. A section's Tasks tab is already scoped, so re-triaging it adds
- * noise. This is one urgency-sorted list instead, with a table toggle because
- * scanning forty-odd tasks is genuinely faster in rows than in cards.
+ * This was one flat urgency-sorted list until 3 Aug 2026, and it had a
+ * particular fault: status was not part of the sort, so moving a task to
+ * Blocked repainted its chip and left the card exactly where it was. Nothing
+ * moved out of the way, which made every status change feel like it had not
+ * taken. Status is now a LANE, so changing it visibly relocates the card.
  *
- * Same TaskCard, same optimistic write, same undo. One component replaces the
- * four near-identical TaskTable copies that lived in uk/me/sa/pt.
+ * Lanes rather than Today's three groups: Today triages across every region and
+ * asks "what now?", while a section tab is already scoped, so the useful
+ * question here is "where is everything up to?".
+ *
+ * The table view stays a flat list on purpose. Rows are for scanning forty
+ * tasks at once, and headings interrupt exactly the reading a table is for.
  */
-
-const urgency = (a, b) => {
-  if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
-  if (a.due && b.due && a.due !== b.due) return a.due < b.due ? -1 : 1;
-  if (a.due && !b.due) return -1;
-  if (!a.due && b.due) return 1;
-  return (PRIORITY_RANK[a.priority] ?? 4) - (PRIORITY_RANK[b.priority] ?? 4);
-};
 
 export default function TaskDeck({ tasks = [], region, regionLabel, flag, baseId, tableId, emptyMsg }) {
   const normalised = useMemo(
@@ -45,13 +43,15 @@ export default function TaskDeck({ tasks = [], region, regionLabel, flag, baseId
   const [lastSig, setLastSig] = useState(sig);
   if (sig !== lastSig) { setLastSig(sig); setRows(normalised); }
 
-  const visible = useMemo(() => {
+  const matched = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows
       .filter(t => (showDone || !isDone(t)))
-      .filter(t => !needle || t.title.toLowerCase().includes(needle) || (t.notes || '').toLowerCase().includes(needle))
-      .sort(urgency);
+      .filter(t => !needle || t.title.toLowerCase().includes(needle) || (t.notes || '').toLowerCase().includes(needle));
   }, [rows, q, showDone]);
+
+  const lanes = useMemo(() => buildLanes(matched), [matched]);
+  const visible = useMemo(() => [...matched].sort(laneSort), [matched]);
 
   const open = rows.filter(t => !isDone(t)).length;
   const overdue = rows.filter(t => t.overdue).length;
@@ -66,14 +66,16 @@ export default function TaskDeck({ tasks = [], region, regionLabel, flag, baseId
         body: JSON.stringify({ baseId: task.baseId, tableId: task.tableId, recordId: task.id, fields }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Update failed');
-      // Name the destination: a card disappearing is only reassuring if you
-      // are told where it went.
-      const moved = { Blocked: 'Waiting on others', Waiting: 'Waiting on others',
-                      'Under Review': 'Waiting on others', Done: 'done' }[optimistic.status];
+      // Name the destination lane. A card that jumps somewhere else is only
+      // reassuring if you are told where it went, and now that lanes are real
+      // the toast can read the answer off the same rules the list uses.
+      const from = laneOf(before);
+      const to = laneOf({ ...before, ...optimistic });
+      const movedLane = to && from && to.key !== from.key ? to.title : null;
       setUndo({
         task: before,
         label: optimistic.status
-          ? `Marked ${optimistic.status}${moved && moved !== 'done' ? ` · moved to ${moved}` : ''}`
+          ? `Marked ${optimistic.status}${movedLane ? ` · moved to ${movedLane}` : ''}`
           : 'Snoozed',
       });
       setTimeout(() => setUndo(u => (u && u.task.id === before.id ? null : u)), 12000);
@@ -154,11 +156,18 @@ export default function TaskDeck({ tasks = [], region, regionLabel, flag, baseId
       {visible.length === 0 && <div className="os-empty">Nothing matches.</div>}
 
       {view === 'cards' ? (
-        <div className="tg-body">
-          {visible.map(t => (
-            <TaskCard key={t.id} task={t} onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} onOpen={setDetail} busy={busyId === t.id} />
+        <>
+          {lanes.map(lane => (
+            <TaskGroup
+              key={lane.key}
+              title={lane.title} hint={lane.hint} tone={lane.tone} tasks={lane.tasks}
+              // Done arrives collapsed. It is here to be checked, not read.
+              open={lane.key !== 'done'}
+              onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete}
+              onField={onField} onOpen={setDetail} busyId={busyId}
+            />
           ))}
-        </div>
+        </>
       ) : (
         <div className="sp-scroll">
           <table className="sp-table">

@@ -129,6 +129,14 @@ export default async function handler(req, res) {
       if (recordId.length > 32) {
         recordId = 'k:' + createHash('sha1').update(recordId).digest('hex').slice(0, 28);
       }
+      // Stamp when this arrived. Task lists sort new work to the top, and
+      // without a date anything the scheduler files ties on priority and sinks
+      // out of sight. Set only when absent, so a caller that knows the real
+      // date keeps it and a re-run never rewrites history.
+      if (tableKey === 'TASKS' && !fields.Added) {
+        fields.Added = new Date().toISOString().slice(0, 10);
+      }
+
       prepared.push({ recordId, fields });
     }
 

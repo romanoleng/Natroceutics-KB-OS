@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import OsLayout from '../components/OsLayout';
 import TaskCard from '../components/TaskCard';
+import TaskGroup from '../components/TaskGroup';
 import RecordDetailPanel from '../components/RecordDetailPanel';
 import { fetchFromMirror } from '../lib/mirror';
 import { BASES, resolveBaseId } from '../lib/airtable-tables';
@@ -28,28 +29,6 @@ const REGIONS = [
   ['PT', 'Portugal', '🇵🇹'],
   ['AFF', 'Affiliate Ops', '🤝'],
 ];
-
-function Group({ title, hint, tasks, tone, onStatus, onSnooze, onDelete, onField, onOpen, busyId, open = true }) {
-  const [show, setShow] = useState(open);
-  if (!tasks.length) return null;
-  return (
-    <section className={`tg tg--${tone}`}>
-      <button className="tg-head" onClick={() => setShow(s => !s)}>
-        <span className="tg-title">{title}</span>
-        <span className="tg-count">{tasks.length}</span>
-        {hint && <span className="tg-hint">{hint}</span>}
-        <span className={`tg-chev${show ? ' open' : ''}`}>▾</span>
-      </button>
-      {show && (
-        <div className="tg-body">
-          {tasks.map(t => (
-            <TaskCard key={t.id} task={t} onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} onOpen={onOpen} busy={busyId === t.id} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
 
 export default function TodayPage({ initialTasks, error, serverTime }) {
   const [tasks, setTasks] = useState(initialTasks || []);
@@ -231,15 +210,15 @@ export default function TodayPage({ initialTasks, error, serverTime }) {
           </select>
         </div>
 
-        <Group title="Overdue" hint="past their due date" tone="overdue" tasks={view.overdue}
+        <TaskGroup title="Overdue" hint="past their due date" tone="overdue" tasks={view.overdue}
                onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} onOpen={setDetail} busyId={busyId} />
-        <Group title="Today" hint="in progress, due, or high priority" tone="now" tasks={view.today}
+        <TaskGroup title="Today" hint="in progress, due, or high priority" tone="now" tasks={view.today}
                onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} onOpen={setDetail} busyId={busyId} />
-        <Group title="Waiting on others" hint="blocked or delegated" tone="waiting" tasks={view.waiting}
+        <TaskGroup title="Waiting on others" hint="blocked or delegated" tone="waiting" tasks={view.waiting}
                onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} onOpen={setDetail} busyId={busyId} />
-        <Group title="Backlog" hint="nothing due, nothing blocking" tone="backlog" tasks={view.backlog}
+        <TaskGroup title="Backlog" hint="nothing due, nothing blocking" tone="backlog" tasks={view.backlog}
                onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} onOpen={setDetail} busyId={busyId} open={false} />
-        <Group title="Snoozed" hint="hidden until their date" tone="backlog" tasks={view.snoozed}
+        <TaskGroup title="Snoozed" hint="hidden until their date" tone="backlog" tasks={view.snoozed}
                onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete} onField={onField} onOpen={setDetail} busyId={busyId} open={false} />
 
         {view.counts.live === 0 && (

@@ -72,13 +72,21 @@ export default async function handler(req, res) {
 
     // Status changes used to post an Airtable comment. Keep the audit trail
     // in the row itself, where it costs nothing and survives the migration.
-    if (fields.Status && fields.Status !== current.Status) {
+    // Log the fields that change what a task IS, not just its status. Moving a
+    // due date silently left no trace, so a date that had been pushed twice
+    // looked identical to one nobody had touched.
+    const LOGGED = ['Status', 'Due Date', 'Owner', 'Priority', 'Snoozed Until'];
+    const changed = LOGGED.filter(k => fields[k] !== undefined && fields[k] !== current[k]);
+    if (changed.length) {
       const stamp = new Date().toISOString();
       merged['Last Note At'] = stamp;
-      const entry = `Status → ${fields.Status} · ${stamp.slice(0, 16).replace('T', ' ')}`;
-      merged['Activity Log'] = current['Activity Log']
-        ? `${current['Activity Log']}\n${entry}`
-        : entry;
+      const when = stamp.slice(0, 16).replace('T', ' ');
+      const entries = changed.map(k => {
+        const to = fields[k] === '' || fields[k] === null ? 'cleared' : fields[k];
+        const from = current[k];
+        return `${k} → ${to}${from ? ` (was ${from})` : ''} · ${when}`;
+      });
+      merged['Activity Log'] = [current['Activity Log'], ...entries].filter(Boolean).join('\n');
     }
 
     await prisma.$executeRaw`

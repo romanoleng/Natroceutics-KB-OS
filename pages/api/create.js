@@ -32,7 +32,13 @@ export default async function handler(req, res) {
   // recordId is varchar(32): "os:" + 26 hex chars stays inside it.
   const recordId = `os:${randomUUID().replace(/-/g, '').slice(0, 26)}`;
   const now = new Date().toISOString();
-  const stored = { ...fields, 'Date Added': fields['Date Added'] || now.slice(0, 10) };
+  // `Added` is what the task lists sort "newest first" on; `Date Added` predates
+  // it and other record types still read that name, so both are written.
+  const stored = {
+    ...fields,
+    'Date Added': fields['Date Added'] || now.slice(0, 10),
+    Added: fields.Added || now.slice(0, 10),
+  };
 
   try {
     const prisma = getPrisma();
