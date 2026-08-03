@@ -207,6 +207,42 @@ observation, not two records that disagree, so it fails the rule above. It
 becomes a finding only when it can name a second side, for example stock whose
 BBD lands before the sell-through rate could clear it.
 
+## What is safe to make editable
+
+**Check before adding any edit control.** The test is not "does a feed touch
+this table", it is **does the writer REPLACE the table or add to it**. A
+hand-typed value on a replaced table survives until the next run and then
+vanishes, which is worse than never offering the edit, because it is trusted in
+the meantime.
+
+- **`commitTable(..., replace: true)` with a freshly built record set** destroys
+  edits. Off limits: `UK.SHOPIFY_*`, `UK.SUBS_*`, `UK.KLAVIYO_*`, `UK.AMAZON*`,
+  `UK.ORDERS`, `UK.STOCK`, `UK.AFFILIATES_LIVE`, `UK.AFF_MONTHLY`,
+  `UK.MEETINGS`, `SA.MAILCHIMP_*`.
+- **Add-only or upsert writers** preserve edits. `/api/ingest`, Outlook, Granola
+  and Smart Capture add rows without replacing, so `UK.TASKS`, `ME.TASKS`,
+  `GLOBAL.KNOWLEDGE`, `ME.RISKS`, `ME.PARTNERS` are safe to edit.
+- **Read-back-then-replace also preserves.** `scripts/goaffpro-pull.js` uses
+  `replace: true` but reads every other row out of the mirror first and writes it
+  back untouched, so `UK.COST_MODEL` is editable on **every row except
+  `affiliate_commission`**, which it recomputes daily. `FEED_OWNED` in
+  `components/ShopifyPerformance.js` is that list; keep it in step with the
+  script.
+- **Airtable is retired**, so a table whose only `SyncRun` source is `airtable`
+  has no live writer and is now hand-owned. That covers most region tables:
+  PRIORITIES, RISKS, B2B, PARTNERS, CUSTOMERS, INVENTORY, MARKETING, CS,
+  REPORTING, REGISTRATIONS, and the whole GLOBAL knowledge set.
+- **`GLOBAL.FINDINGS`** is written by a script, but `Status` and `Resolution`
+  are deliberately preserved on re-run, which is what makes closing sacred.
+
+`components/EditableValue.js` is the shared control. It takes `locked` plus a
+`lockReason` so a feed-owned value renders as plain text with an explanation
+rather than a control that would lose the value.
+
+**Unit costs are the exception worth naming.** They live in Shopify and arrive
+via `shopify-pull`, so they can never be edited in the OS. Romano sets those in
+Shopify itself.
+
 ## Tasks: status is a place, not a label
 
 Section decks group tasks into lanes (`LANES` / `buildLanes` / `laneOf` in
