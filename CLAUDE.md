@@ -207,6 +207,31 @@ observation, not two records that disagree, so it fails the rule above. It
 becomes a finding only when it can name a second side, for example stock whose
 BBD lands before the sell-through rate could clear it.
 
+## Tasks: status is a place, not a label
+
+Section decks group tasks into lanes (`LANES` / `buildLanes` / `laneOf` in
+`lib/tasks.js`), rendered by `components/TaskGroup.js`, which Today shares.
+Before 3 August the deck sorted on urgency and **status was not a sort key**, so
+moving a task to Blocked repainted its chip and left the card where it was.
+If you add a status, add it to a lane, or it becomes invisible.
+
+Sort inside a lane is **overdue → due → priority → newest added**. Priority
+outranks arrival date on purpose: priority is set on every open task while due
+dates are set on about 15%, so leading with newest would bury a Critical task
+under a Medium one filed this morning.
+
+`Added` is the arrival date, distinct from due. `/api/ingest` and `/api/create`
+stamp it. It was backfilled from `syncToken`, which embeds the millisecond
+timestamp of the creating write, because `createdTime` is empty on every open UK
+task. Run `scripts/normalise-tasks.js` if stored status or `Added` ever drift.
+
+**Stored values, not just displayed ones.** Read-normalisation made cards look
+tidy for a month while `"In Progress"` and `"🟡 In Progress"` stayed two
+different strings underneath. Anything that groups or sorts on a stored field
+needs that field cleaned in the database first. `Business Area` still has this
+problem: "Amazon" and "🛒 Amazon UK" are the same thing to a reader and not to a
+`GROUP BY`.
+
 ## Regions: Finance versus Cost Model
 
 Finance is bills and revenue. What it costs to RUN a store is a cost model and
