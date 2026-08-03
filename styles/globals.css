@@ -4254,6 +4254,62 @@ tr.sp-total td, tr.sp-total td.sp-num { color: var(--forest-800); }
   .st-meta { text-align: left; flex-direction: row; align-items: center; gap: 8px; width: 100%; padding-left: 17px; }
 }
 
+/* ═══ Findings on /status ═══
+   The findings pass writes what disagrees; this is where it is read. The
+   layout leads with the two sides of the disagreement because a finding
+   that cannot show both is not a finding. */
+.fd-list { display: flex; flex-direction: column; }
+.fd-row { padding: 14px 2px; border-top: 1px solid var(--cream-dark); }
+.fd-row:first-child { border-top: 0; }
+.fd-count {
+  margin-left: 8px; font-family: var(--mono, ui-monospace, monospace);
+  font-size: 10px; font-weight: 600; color: var(--charcoal-45);
+  letter-spacing: .08em; text-transform: uppercase;
+}
+.fd-head { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+.fd-title { font-size: 13.5px; font-weight: 600; color: var(--charcoal); flex: 1; min-width: 200px; }
+.fd-age {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 10px; color: var(--charcoal-45); white-space: nowrap;
+}
+.fd-evidence { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.fd-evidence > div {
+  font-size: 12px; font-weight: 300; color: var(--charcoal-70);
+  line-height: 1.5; word-break: break-word;
+}
+.fd-side {
+  display: inline-block; width: 16px; margin-right: 6px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9.5px; font-weight: 700; color: var(--forest-600);
+}
+.fd-body { margin-top: 9px; }
+.fd-body p { font-size: 12.5px; font-weight: 300; color: var(--charcoal-70); line-height: 1.55; margin: 0 0 7px; }
+.fd-body strong { font-weight: 600; color: var(--charcoal); }
+.fd-actions { margin-top: 9px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fd-btn {
+  padding: 5px 12px; border-radius: 999px; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--cream-dark);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 10px; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--charcoal-70);
+  transition: all 0.15s var(--ease);
+}
+.fd-btn:hover:not(:disabled) { border-color: var(--forest-600); color: var(--forest-700); }
+.fd-btn:disabled { opacity: .5; cursor: default; }
+.fd-btn--confirm { background: var(--forest-050); border-color: var(--forest-600); color: var(--forest-700); }
+.fd-close-form { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 240px; }
+.fd-reason {
+  flex: 1; min-width: 140px; padding: 6px 11px;
+  border: 1px solid var(--cream-dark); border-radius: var(--radius-md);
+  background: var(--surface); font-size: 12.5px; color: var(--charcoal);
+}
+.fd-reason:focus { outline: none; border-color: var(--forest-600); }
+.fd-empty { font-size: 12.5px; font-weight: 300; color: var(--charcoal-45); padding: 6px 0 2px; }
+.fd-footnote {
+  margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--cream-dark);
+  font-size: 11px; font-weight: 300; color: var(--charcoal-45);
+}
+
 /* ═══ SortableTable as cards on phones ═══
    A table on a 390px screen is a sideways drag. Every list in the OS reads as
    cards there instead, matching what tasks already do. The table markup still

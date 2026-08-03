@@ -1,5 +1,7 @@
 import OsLayout from '../components/OsLayout';
+import FindingsPanel from '../components/FindingsPanel';
 import { getSyncHealth } from '../lib/sync-health';
+import { getFindings } from '../lib/findings';
 
 /**
  * /status — every feed into the OS, when it last arrived, and what is missing.
@@ -32,7 +34,7 @@ function ago(hours) {
 const cadence = h =>
   !h ? 'On demand' : h >= 168 ? 'Weekly' : h >= 24 ? 'Daily' : `Every ${h}h`;
 
-export default function StatusPage({ health, serverTime }) {
+export default function StatusPage({ health, findings, serverTime }) {
   const { feeds = [], headline } = health || {};
   const groups = [
     ['Needs attention', feeds.filter(f => ['failed', 'stale', 'never'].includes(f.state))],
@@ -70,7 +72,22 @@ export default function StatusPage({ health, serverTime }) {
           be current and still be wrong if the source is wrong. Outlook, Granola and Sellerboard
           arrive on a daily schedule and record a heartbeat even on a day with nothing to report, so
           a gap in those is a real gap. The rest are run by hand and their ages reflect that.
+          Findings are the exception: they are the OS checking correctness against itself, two
+          records at a time.
         </div>
+
+        {findings?.ok ? (
+          <FindingsPanel
+            findings={findings.open}
+            otherCount={findings.other}
+            baseId={findings.baseId}
+            tableId={findings.tableId}
+          />
+        ) : (
+          <div className="os-empty" style={{ marginTop: 16 }}>
+            The findings table could not be read: {findings?.reason || 'unknown error'}.
+          </div>
+        )}
 
         {groups.map(([title, rows]) => (
           <div className="sp-card" style={{ marginTop: 16 }} key={title}>
@@ -110,6 +127,6 @@ export default function StatusPage({ health, serverTime }) {
 }
 
 export async function getServerSideProps() {
-  const health = await getSyncHealth();
-  return { props: { health, serverTime: new Date().toISOString() } };
+  const [health, findings] = await Promise.all([getSyncHealth(), getFindings()]);
+  return { props: { health, findings, serverTime: new Date().toISOString() } };
 }
