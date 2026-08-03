@@ -218,6 +218,32 @@ observation, not two records that disagree, so it fails the rule above. It
 becomes a finding only when it can name a second side, for example stock whose
 BBD lands before the sell-through rate could clear it.
 
+## Consistency: one card for every record
+
+Risks, priorities and registrations render through the **real `TaskCard`**, via
+`components/RecordDeck.js` and `lib/record-decks.js`. Not a lookalike: a
+lookalike drifts the moment the task card improves, and consistency maintained
+by hand is consistency you lose. Adding a type means adding a config to
+`RECORD_TYPES`, not writing a component.
+
+Each record carries **two statuses**. `status` is the word the business uses and
+is what the card shows; `laneStatus` is normalised and is what lanes match on.
+Without the split a risk read "Open" in its lane header and "To Do" on the chip
+of the same card.
+
+**A record matching no lane appears in an Unclassified lane that names the
+status.** It must never simply disappear while remaining in the database and in
+the counts — same failure class as an error dressed as an empty state.
+
+Region pages use **Region → Desk → Tab**. UK has Overview / Shopify UK / Amazon
+UK / Warehouse; ME mirrors it with Overview / Shopify ME / Launch. A desk is
+added when the work exists, not in advance, which is why ME has no Amazon or
+Warehouse. Deep links must set the desk as well as the tab.
+
+**Open: cost model per region.** UK and ME have one; SA and PT do not. ME will
+also need sub-regions (UAE, Saudi, Kuwait) rather than a single ME column, which
+the current Gamma Waves quote does not model. Romano's call, deferred.
+
 ## Mission Control
 
 `/mission` (3 Aug) is a FRAMEWORK, not a dashboard. The page contains no
