@@ -12,12 +12,12 @@ import { useStatusEditor, StatusSelect, sc, DONE_VALS as DONE_VALS_SHARED, BASE_
 import {
   getMETasks, getMEPriorities, getMERisks, getMERegistrations,
   getMEInventory, getMEAffiliates, getMEB2B, getMEPartners,
-  getMEFinance, getMEMarketing, getMECS, getMECustomers, getMEReporting,
+  getMEFinance, getMECostModel, getMEMarketing, getMECS, getMECustomers, getMEReporting,
   getMESubscriptions, getMEKlaviyo,
   getProducts,
 } from '../lib/airtable';
 
-const TABS = ['Tasks', 'Priorities', 'Risks', 'Registrations', 'Inventory', 'B2B', 'Partners', 'Affiliates', 'Customers', 'Marketing', 'Customer Service', 'Finance', 'Subscriptions', 'Email / Klaviyo', 'Reporting', 'Products', 'Google'];
+const TABS = ['Tasks', 'Priorities', 'Risks', 'Registrations', 'Inventory', 'B2B', 'Partners', 'Affiliates', 'Customers', 'Marketing', 'Customer Service', 'Finance', 'Cost Model', 'Subscriptions', 'Email / Klaviyo', 'Reporting', 'Products', 'Google'];
 
 const ME_BASE  = 'appdN9dWxVcB2KFZ6';
 const ME_TASKS_TABLE = 'tbleGswAUGSDhcrE9';
@@ -346,21 +346,17 @@ function PartnersTab({ items }) {
 }
 
 /* ── Finance ME ───────────────────────────────────────────────
- * Two record shapes share this table. Revenue rows carry Period, Market and
- * AED figures; the Gamma Waves platform cost rows carry a component priced
- * across three regions and none of those fields. Rendering both through the
- * revenue table turned a fully populated quote into ten rows of dashes, so
- * each shape now gets the layout it actually needs.
+ * Bills and revenue only. What it costs to RUN the store is a cost model and
+ * lives in its own tab: the Gamma Waves quote sat in this table until 3 Aug
+ * 2026 sharing none of its fields, so ten populated rows rendered as ten rows
+ * of dashes. Empty here is the honest state until the ME store is live.
  */
-const isPlatformCost = r => Boolean(r['Cost Component']);
-
 function FinanceTab({ items }) {
-  const costRows = items.filter(isPlatformCost);
-  const revenueRows = items.filter(r => !isPlatformCost(r));
+  const revenueRows = items;
   const editor = useStatusEditor(revenueRows);
   const finStatuses = [...new Set(['Draft', 'In Review', 'Approved', 'Done', ...BASE_STATUSES_SHARED, ...revenueRows.map(r => r.Status).filter(Boolean)])];
 
-  const revenue = revenueRows.length ? (
+  return revenueRows.length ? (
     <>
       {editor.updateError && <div className="os-alert-error" style={{ marginBottom: 8 }}>{editor.updateError}</div>}
       <div style={csvRowStyle}>
@@ -397,18 +393,9 @@ function FinanceTab({ items }) {
     </>
   ) : (
     <div className="os-empty">
-      No revenue recorded yet. Populates once the ME store is live.
+      No bills or revenue recorded yet. Populates once the ME store is live.
+      Running costs are under Cost Model.
     </div>
-  );
-
-  return (
-    <>
-      <PlatformCosts rows={costRows} />
-      <div style={{ marginTop: costRows.length ? 20 : 0 }}>
-        {costRows.length > 0 && <div className="pc-section-label">Revenue</div>}
-        {revenue}
-      </div>
-    </>
   );
 }
 
@@ -737,7 +724,7 @@ function KlaviyoMETab({ items }) {
 }
 
 /* ── Page ─────────────────────────────────────────────────── */
-export default function MEPage({ tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, marketing, cs, customers, reporting, products, subscriptions = [], klaviyo = [], error, serverTime }) {
+export default function MEPage({ tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, costModel = [], marketing, cs, customers, reporting, products, subscriptions = [], klaviyo = [], error, serverTime }) {
   const router = useRouter();
   const routerDeep = useRouter();
   const [tab, setTab] = useState('Tasks');
@@ -794,6 +781,7 @@ export default function MEPage({ tasks, priorities, risks, registrations, invent
           {tab === 'B2B' && <B2BTab items={b2b} />}
           {tab === 'Partners' && <PartnersTab items={partners} />}
           {tab === 'Finance' && <FinanceTab items={finance} />}
+          {tab === 'Cost Model' && <PlatformCosts rows={costModel} />}
           {tab === 'Marketing' && <MarketingTab items={marketing} />}
           {tab === 'Customer Service' && <CSTab items={cs} />}
           {tab === 'Customers' && <CustomersTab items={customers} />}
@@ -811,12 +799,12 @@ export default function MEPage({ tasks, priorities, risks, registrations, invent
 export async function getServerSideProps() {
   const safe = p => p.catch(e => { console.warn('[me] fetch partial fail:', e.message); return []; });
 
-  const [tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, marketing, cs, customers, reporting, products, subscriptions, klaviyo] = await Promise.all([
+  const [tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, costModel, marketing, cs, customers, reporting, products, subscriptions, klaviyo] = await Promise.all([
     safe(getMETasks()), safe(getMEPriorities()), safe(getMERisks()), safe(getMERegistrations()),
     safe(getMEInventory()), safe(getMEAffiliates()), safe(getMEB2B()), safe(getMEPartners()),
-    safe(getMEFinance()), safe(getMEMarketing()), safe(getMECS()), safe(getMECustomers()), safe(getMEReporting()),
+    safe(getMEFinance()), safe(getMECostModel()), safe(getMEMarketing()), safe(getMECS()), safe(getMECustomers()), safe(getMEReporting()),
     safe(getProducts()),
     safe(getMESubscriptions()), safe(getMEKlaviyo()),
   ]);
-  return { props: { tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, marketing, cs, customers, reporting, products, subscriptions, klaviyo, error: null, serverTime: new Date().toISOString() } };
+  return { props: { tasks, priorities, risks, registrations, inventory, affiliates, b2b, partners, finance, costModel, marketing, cs, customers, reporting, products, subscriptions, klaviyo, error: null, serverTime: new Date().toISOString() } };
 }

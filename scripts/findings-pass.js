@@ -69,10 +69,10 @@ function checkCostModelGaps(costModel) {
  * re-litigate a settled decision every single run. If the VAT position is
  * ever reopened, it reopens in conversation, not by a script nagging. */
 
-function checkMeQuoteFillsUkGaps(costModel, meFinance) {
+function checkMeQuoteFillsUkGaps(costModel, meCostModel) {
   const gaps = costModel.map(f).filter(r => r.Status === 'PENDING' && !n(r.Value)).map(r => r.Key);
   if (!gaps.length) return [];
-  const quote = meFinance.filter(r => r.recordId.startsWith('gw-')).map(f);
+  const quote = meCostModel.filter(r => r.recordId.startsWith('gw-')).map(f);
   if (!quote.length) return [];
 
   const pairs = [
@@ -94,7 +94,7 @@ function checkMeQuoteFillsUkGaps(costModel, meFinance) {
     Area: 'UK',
     Page: 'UK / Performance',
     'Evidence A': `UK.COST_MODEL: ${[...new Set(matched.map(m => m.gap))].join(', ')} — Status PENDING, no Value`,
-    'Evidence B': matched.map(m => `ME.FINANCE ${m.row['Cost Component']} → United Kingdom: ${m.row['United Kingdom']}`).join(' | '),
+    'Evidence B': matched.map(m => `ME.COST_MODEL ${m.row['Cost Component']} → United Kingdom: ${m.row['United Kingdom']}`).join(' | '),
     'Why it matters': 'The answer to a UK question is already sitting in the ME base, filed there because ME is Gamma Waves\' first project. Neither page shows the other, so the gap stays open while the number exists two clicks away. These are USD estimates for a proposed build, not measured UK costs, so they cannot simply be pasted across — but they are a defensible starting figure where today there is nothing at all.',
     'Suggested action': 'Use the quoted figures to seed the PENDING lines at Status PENDING with the estimate in the Note, converted to GBP, so the gap is quantified rather than blank. Do not mark them ACTUAL.',
     'Money at risk': 'Roughly $486 to $907/mo of UK platform cost currently absent from the model',
@@ -147,16 +147,16 @@ async function main() {
   if (!isConfigured()) { console.error('Missing DATABASE_URL.'); return 1; }
   const prisma = getPrisma();
 
-  const [costModel, amazon, meFinance, existing] = await Promise.all([
+  const [costModel, amazon, meCostModel, existing] = await Promise.all([
     readTable(prisma, 'UK', 'COST_MODEL'),
     readTable(prisma, 'UK', 'AMAZON'),
-    readTable(prisma, 'ME', 'FINANCE'),
+    readTable(prisma, 'ME', 'COST_MODEL'),
     readTable(prisma, 'GLOBAL', 'FINDINGS').catch(() => []),
   ]);
 
   const found = [
     ...checkCostModelGaps(costModel),
-    ...checkMeQuoteFillsUkGaps(costModel, meFinance),
+    ...checkMeQuoteFillsUkGaps(costModel, meCostModel),
     ...checkZeroStock(amazon),
     ...checkStockImportBlindSpot(amazon),
   ];
