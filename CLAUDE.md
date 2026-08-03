@@ -154,12 +154,12 @@ badges, rename, delete, status hierarchy. Board report. Passive time tracking
 
 ---
 
-## In flight
+## Findings
 
-`scripts/findings-pass.js` plus the `os:findings` table shipped 3 August:
-committed, run live, 4 findings Open in the database. The VAT check was
-removed before shipping because it re-raised a settled question; that
-decision is recorded in the script itself.
+Shipped 3 August and live on `/status`: `scripts/findings-pass.js` writes into
+the `os:findings` table, `lib/findings.js` reads it, `components/FindingsPanel.js`
+displays it. 4 findings Open. The VAT check was removed before shipping because
+it re-raised a settled question; that decision is recorded in the script itself.
 
 The rule that keeps it useful: **a finding is two records that disagree**, not
 an observation, not a metric, not advice. If a check cannot name both sides it
@@ -168,10 +168,14 @@ decision taken on a wrong figure. Closing is sacred, a re-run never reopens
 what Romano closed, and a finding that stops reproducing goes Stale rather
 than being deleted, so a broken check cannot look like a solved problem.
 
-**The gap: nothing in the UI reads `os:findings` yet.** Findings land in the
-database invisibly, which is the exact silent-failure pattern this project
-exists to kill. The display surface is an agreed August decision, not an
-oversight.
+Closing requires a written reason, because the pass never overwrites one: an
+empty Resolution would make that permanence pointless. There is no delete and
+no snooze on purpose. Verified end to end on 3 August by closing a finding,
+re-running the pass, and confirming both status and reason survived.
+
+**Not yet done:** the pass is run by hand. It has no place in the daily
+schedule and no row on `/status`'s own feed list, so a pass that stops running
+is currently invisible. That is the next piece.
 
 ---
 
@@ -191,6 +195,14 @@ oversight.
 **Deferred by Romano:** bottom-bar swipe tabs, Natro AI v1, EN to Arabic
 translator. Tab reordering for Shopify UK and Amazon UK is waiting on `/time`
 evidence rather than guesswork.
+
+**August, agreed 3 August.** Romano chose all four themes, so they are a
+sequence rather than a menu: the OS talks back (findings surfaced, the pass
+scheduled, Sellerboard economics mapped so dead capital becomes a check) ·
+close the money gaps (the seven unit costs, the five PENDING cost lines, the
+secret rotation) · task-first daily driver · hold and harden. The first is
+underway; nothing below it should start before the piece above it is verified
+working.
 
 **Settled, do not re-raise:** VAT is closed (Grant confirmed the own store
 correctly charges none). Mailchimp has no SA store to connect, so zero tracked
