@@ -7,6 +7,7 @@ import { BASES } from '../lib/airtable-tables';
 import ProductsSection from '../components/ProductsSection';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 import SortableTable from '../components/SortableTable';
+import PlatformCosts from '../components/PlatformCosts';
 import { useStatusEditor, StatusSelect, sc, DONE_VALS as DONE_VALS_SHARED, BASE_STATUSES as BASE_STATUSES_SHARED } from '../components/StatusSelect';
 import {
   getMETasks, getMEPriorities, getMERisks, getMERegistrations,
@@ -344,12 +345,22 @@ function PartnersTab({ items }) {
   );
 }
 
-/* ── Finance ME ───────────────────────────────────────────── */
+/* ── Finance ME ───────────────────────────────────────────────
+ * Two record shapes share this table. Revenue rows carry Period, Market and
+ * AED figures; the Gamma Waves platform cost rows carry a component priced
+ * across three regions and none of those fields. Rendering both through the
+ * revenue table turned a fully populated quote into ten rows of dashes, so
+ * each shape now gets the layout it actually needs.
+ */
+const isPlatformCost = r => Boolean(r['Cost Component']);
+
 function FinanceTab({ items }) {
-  const editor = useStatusEditor(items);
-  const finStatuses = [...new Set(['Draft', 'In Review', 'Approved', 'Done', ...BASE_STATUSES_SHARED, ...items.map(r => r.Status).filter(Boolean)])];
-  if (!items.length) return <div className="os-empty">No finance data yet. Populates once ME store is live.</div>;
-  return (
+  const costRows = items.filter(isPlatformCost);
+  const revenueRows = items.filter(r => !isPlatformCost(r));
+  const editor = useStatusEditor(revenueRows);
+  const finStatuses = [...new Set(['Draft', 'In Review', 'Approved', 'Done', ...BASE_STATUSES_SHARED, ...revenueRows.map(r => r.Status).filter(Boolean)])];
+
+  const revenue = revenueRows.length ? (
     <>
       {editor.updateError && <div className="os-alert-error" style={{ marginBottom: 8 }}>{editor.updateError}</div>}
       <div style={csvRowStyle}>
@@ -383,6 +394,20 @@ function FinanceTab({ items }) {
         }}
         emptyMsg="No finance data yet."
       />
+    </>
+  ) : (
+    <div className="os-empty">
+      No revenue recorded yet. Populates once the ME store is live.
+    </div>
+  );
+
+  return (
+    <>
+      <PlatformCosts rows={costRows} />
+      <div style={{ marginTop: costRows.length ? 20 : 0 }}>
+        {costRows.length > 0 && <div className="pc-section-label">Revenue</div>}
+        {revenue}
+      </div>
     </>
   );
 }

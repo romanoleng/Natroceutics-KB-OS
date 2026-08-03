@@ -4310,6 +4310,80 @@ tr.sp-total td, tr.sp-total td.sp-num { color: var(--forest-800); }
   font-size: 11px; font-weight: 300; color: var(--charcoal-45);
 }
 
+/* ═══ Platform costs (ME Finance) ═══
+   A cost priced across three regions does not fit a row of columns on a
+   phone, and the values are sentences rather than figures. Each component
+   is its own block with the three regions stacked inside it. */
+.pc-count {
+  margin-left: 8px; font-family: var(--mono, ui-monospace, monospace);
+  font-size: 10px; font-weight: 600; color: var(--charcoal-45);
+  letter-spacing: .06em; text-transform: uppercase;
+}
+.pc-caveat {
+  margin: 10px 0 4px; padding: 10px 12px;
+  background: var(--cream); border-radius: var(--radius-md);
+  font-size: 12px; font-weight: 300; color: var(--charcoal-70); line-height: 1.55;
+}
+.pc-caveat strong { font-weight: 600; color: var(--forest-800); }
+.pc-list { display: flex; flex-direction: column; }
+.pc-row { padding: 13px 2px; border-top: 1px solid var(--cream-dark); }
+.pc-row:first-child { border-top: 0; }
+.pc-row--total { background: var(--forest-050); border-radius: var(--radius-md); padding: 13px 12px; }
+.pc-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.pc-name { font-size: 13.5px; font-weight: 600; color: var(--charcoal); }
+.pc-cat, .pc-freq {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 999px; background: var(--cream); color: var(--charcoal-45);
+}
+.pc-regions { margin-top: 7px; display: flex; flex-direction: column; gap: 3px; }
+.pc-region { display: flex; gap: 9px; align-items: baseline; }
+.pc-region-label {
+  flex-shrink: 0; width: 22px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9.5px; font-weight: 700; color: var(--forest-600); letter-spacing: .06em;
+}
+.pc-region-value { font-size: 12.5px; font-weight: 300; color: var(--charcoal-70); line-height: 1.5; }
+.pc-row--total .pc-region-value { font-weight: 600; color: var(--forest-800); }
+.pc-note {
+  margin: 8px 0 0; font-size: 12px; font-weight: 300;
+  color: var(--charcoal-70); line-height: 1.55;
+}
+.pc-btn {
+  margin-top: 7px; padding: 3px 10px; border-radius: 999px; cursor: pointer;
+  background: transparent; border: 1px solid var(--cream-dark);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9.5px; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--charcoal-45);
+}
+.pc-btn:hover { border-color: var(--forest-600); color: var(--forest-700); }
+.pc-context { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--cream-dark); }
+.pc-context-label {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9.5px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--charcoal-45); margin-bottom: 6px;
+}
+.pc-ctx-row { border-top: 1px solid var(--cream-dark); }
+.pc-ctx-row:first-of-type { border-top: 0; }
+.pc-ctx-head {
+  width: 100%; display: flex; align-items: baseline; justify-content: space-between;
+  gap: 10px; padding: 9px 0; background: none; border: 0; cursor: pointer; text-align: left;
+}
+.pc-ctx-name { font-size: 12.5px; font-weight: 600; color: var(--charcoal); }
+.pc-ctx-status {
+  flex-shrink: 0; font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9.5px; color: var(--charcoal-45); text-align: right;
+}
+.pc-source {
+  margin-top: 12px; padding-top: 9px; border-top: 1px solid var(--cream-dark);
+  font-size: 11px; font-weight: 300; color: var(--charcoal-45);
+}
+.pc-section-label {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9.5px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--charcoal-45); margin-bottom: 2px;
+}
+
 /* ═══ SortableTable as cards on phones ═══
    A table on a 390px screen is a sideways drag. Every list in the OS reads as
    cards there instead, matching what tasks already do. The table markup still
