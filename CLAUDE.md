@@ -218,6 +218,42 @@ observation, not two records that disagree, so it fails the rule above. It
 becomes a finding only when it can name a second side, for example stock whose
 BBD lands before the sell-through rate could clear it.
 
+## Mission Control
+
+`/mission` (3 Aug) is a FRAMEWORK, not a dashboard. The page contains no
+business knowledge: it asks `lib/mission-control/registry.js` one question,
+"what can render?", and presents the answer. Adding Marketing, CRM,
+CreativeDigital or Personal means adding a module file and listing it in
+`MODULES`. **`pages/mission.js` does not change.** If you find yourself editing
+that page to add a capability, the module contract is being bypassed.
+
+`lib/mission-control/contract.js` is the agreement, and it enforces rather than
+advises:
+
+- Every contribution resolves to **READY, EMPTY or ERROR**. `safeLoad` turns any
+  throw into ERROR, so a crash can never surface as an empty widget.
+- `empty()` **refuses to return without a reason**, in business terms. An
+  unexplained blank is what makes a working panel look broken.
+- `attention()` requires a `why`. An item you cannot act on is noise.
+- `health()` cannot be `unknown` and carry a score. Use `stateFromScore` so
+  every module is on one scale — modules choosing their own produced Amazon UK
+  reading "bad" at 87% beside Shopify UK reading "bad" at 38%.
+
+Attention items dedupe by `dedupeKey`. Two modules noticing the same fact is
+corroboration, recorded as `alsoFrom`, not a repeat.
+
+Modules read through `modules/_read.js`, which goes to Postgres directly and
+caches for 10s to collapse the three questions each module is asked. Do not
+reintroduce a batched row-constructor `IN`: it was tried and measured slower
+than the plain per-table query.
+
+Widgets return display rows as DATA (`headline`, `sub`, `rows`), never a render
+function. Functions cannot cross `getServerSideProps`, and a renderer map in the
+page would mean Mission Control knows what widgets contain.
+
+It sits alongside Home rather than replacing it, and Home stays until this earns
+the slot.
+
 ## Admin
 
 `/admin/data` (3 Aug) is the first piece of the self-managed admin programme:
