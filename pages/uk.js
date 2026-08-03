@@ -1252,8 +1252,6 @@ function GoogleTab({ section = 'Shopify UK' }) {
 /* ── Amazon UK — full hub ─────────────────────── */
 function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, reporting, ppc = [], reviews = [], rspTracker = [], vine = [] }) {
   const [sub, setSub] = useState('Overview');
-  const [taskSearch, setTaskSearch] = useState('');
-  const [taskStatus, setTaskStatus] = useState('');
   const [selectedPPC, setSelectedPPC] = useState(null);
   const [selectedDateASIN, setSelectedDateASIN] = useState(null);
   const [amzRange, setAmzRange] = useState('MTD');
@@ -1342,17 +1340,9 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
 
   const reorderCount = fba.filter(p => p.Reorder === 'Yes' || p.Reorder === true).length;
   const totalFBA = fba.reduce((s, p) => s + (Number(p['FBA Stock']) || 0), 0);
+  // Counts the Overview tile; TaskDeck on the Tasks sub-tab owns the list and
+  // derives its own status options and filtering.
   const openTasks = amazonTasks.filter(t => !DONE_VALS_SHARED.has(t.Status));
-  const taskStatuses = [...new Set([...BASE_STATUSES_SHARED, ...amazonTasks.map(t => t.Status).filter(Boolean)])];
-
-  const filteredTasks = useMemo(() => {
-    const q = taskSearch.toLowerCase();
-    return amazonTasks.filter(t => {
-      const mQ = !q || (t.Task || '').toLowerCase().includes(q) || (t.Owner || '').toLowerCase().includes(q);
-      const mS = !taskStatus || t.Status === taskStatus;
-      return mQ && mS;
-    });
-  }, [amazonTasks, taskSearch, taskStatus]);
 
   // Active inbound = excludes Done/Completed rows (matching strikethrough logic)
   const activeInbound = useMemo(
@@ -1471,37 +1461,11 @@ function AmazonTab({ fba, catalogue, tasks, priorities, marketing, inbound, repo
             </>
           )}
 
-          {openTasks.length > 0 && (
-            <>
-              <h3 className="os-section-heading" style={{ marginTop: 28 }}>Open Amazon Tasks</h3>
-              <SortableTable
-                cols={[
-                  { label: 'Task', key: 'Task' },
-                  { label: 'Area', key: 'Business Area', w: 130 },
-                  { label: 'Status', key: 'Status', w: 120 },
-                  { label: 'Priority', key: 'Priority', w: 100 },
-                  { label: 'Owner', key: 'Owner', w: 110 },
-                ]}
-                data={openTasks}
-                sinkCompleted="Status"
-                renderRow={t => {
-                  const isDone = DONE_VALS_SHARED.has(t.Status);
-                  return (
-                  <tr key={t.id} className={isDone ? 'row-done' : ''}>
-                    <td><strong>{fmt(t.Task)}</strong>{t.Notes && <p className="os-table-note">{t.Notes}</p>}</td>
-                    <td className="os-muted">{fmt(t['Business Area'])}</td>
-                    <td onClick={e => e.stopPropagation()}>
-                      <StatusSelect record={t} allStatuses={taskStatuses} handleStatusChange={tasksEditor.handleStatusChange} saving={tasksEditor.saving} />
-                    </td>
-                    <td>{t.Priority ? <span className="os-pill pill-default">{t.Priority}</span> : '—'}</td>
-                    <td className="os-muted">{fmt(t.Owner)}</td>
-                  </tr>
-                  );
-                }}
-                emptyMsg="No open tasks."
-              />
-            </>
-          )}
+          {/* Open Amazon tasks are NOT listed here. This was a second rendering
+              of the same amazonTasks the Tasks sub-tab already shows, in the
+              older table style, so the two drifted apart visually and an edit
+              in one place looked like it had not taken in the other. The "Open
+              Tasks" tile above still counts them; the Tasks tab owns the list. */}
 
           {reorderCount > 0 && (
             <>
