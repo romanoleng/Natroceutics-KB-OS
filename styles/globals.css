@@ -29,12 +29,18 @@
   --navy-bg:   #eef1f6;
   --navy-fg:   #2c3a56;
 
-  /* Surface system: white page, cream information surfaces, green accents.
-     --page     page background (was cream)
-     --surface  cards / panels / tables (was white)
-     --field    inputs, selects, inset areas — one step deeper cream */
+  /* Surface system, three real tiers. All three were #ffffff until 3 Aug 2026,
+     so a card was separated from the page by a 1px hairline and nothing else:
+     on a dim screen or in daylight the whole OS read as one flat sheet.
+
+     Romano's call: the PAGE stays white and the cards carry the tint. Card
+     cream is kept lighter than --cream, because --cream fills the chips and
+     counts that sit ON cards, and if the two matched those would disappear.
+     --page     page background, always pure white
+     --surface  cards, panels, tables, controls — faint cream
+     --field    inputs, selects, inset areas — one step deeper again */
   --page:    #ffffff;
-  --surface: #ffffff;
+  --surface: #f8faf9;
   --field:   var(--navy-bg);
 
   --red:    #c0392b; --red-bg:    #fdecea;
@@ -3514,7 +3520,7 @@ details.qa-root[open] > summary.qa-fab:active { transform: rotate(45deg) scale(0
 @media (min-width: 860px) { .sp-grid { grid-template-columns: 1fr 1fr; } }
 
 .sp-card {
-  background: var(--white);
+  background: var(--surface);
   border: 1px solid var(--cream-dark);
   border-radius: 10px;
   padding: 18px 20px;
@@ -3536,7 +3542,7 @@ details.qa-root[open] > summary.qa-fab:active { transform: rotate(45deg) scale(0
 .sp-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .sp-table {
   width: 100%; min-width: 520px; border-collapse: collapse;
-  background: var(--white); border: 1px solid var(--cream-dark); border-radius: 8px;
+  background: var(--surface); border: 1px solid var(--cream-dark); border-radius: 8px;
 }
 .sp-table th {
   font-family: var(--mono, ui-monospace, monospace);
@@ -3614,7 +3620,7 @@ tr.sp-total td { background: var(--cream); font-weight: 700; color: var(--forest
 .today-blocker {
   display: inline-flex; align-items: center; gap: 7px;
   padding: 6px 12px; border-radius: 999px; cursor: pointer;
-  border: 1px solid var(--cream-dark); background: var(--white);
+  border: 1px solid var(--cream-dark); background: var(--surface);
   font-family: inherit; font-size: 12.5px; font-weight: 500; color: var(--charcoal-70);
 }
 .today-blocker span {
@@ -3628,7 +3634,7 @@ tr.sp-total td { background: var(--cream); font-weight: 700; color: var(--forest
 .today-filters select, .today-search {
   font-family: inherit; font-size: 14px; padding: 9px 12px;
   border: 1px solid var(--cream-dark); border-radius: 8px;
-  background: var(--white); color: var(--charcoal);
+  background: var(--surface); color: var(--charcoal);
 }
 .today-search { flex: 1 1 220px; }
 
@@ -3698,7 +3704,7 @@ tr.sp-total td { background: var(--cream); font-weight: 700; color: var(--forest
 
 .tc {
   position: relative;
-  background: var(--white); border: 1px solid var(--cream-dark); border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--cream-dark); border-radius: 12px;
   padding: 14px 16px;
   transition: transform 0.18s var(--ease-out, ease), box-shadow 0.15s ease, opacity 0.15s ease;
   touch-action: pan-y;                 /* let the list scroll; we claim X only */
@@ -3753,7 +3759,7 @@ tr.sp-total td { background: var(--cream); font-weight: 700; color: var(--forest
 .tc-btn {
   font-family: inherit; font-size: 12px; font-weight: 600;
   padding: 7px 13px; border-radius: 8px; cursor: pointer;
-  border: 1px solid var(--cream-dark); background: var(--white); color: var(--charcoal-70);
+  border: 1px solid var(--cream-dark); background: var(--surface); color: var(--charcoal-70);
 }
 .tc-btn--done { background: var(--forest-800); border-color: var(--forest-800); color: var(--white); }
 .tc-btn:disabled { opacity: 0.5; cursor: default; }
@@ -3811,7 +3817,7 @@ tr.sp-total td { background: var(--cream); font-weight: 700; color: var(--forest
 .sc-title { font-size: 17px; font-weight: 700; color: var(--forest-800); margin: 0 0 4px; }
 .sc-sub { font-size: 13px; font-weight: 300; color: var(--charcoal-70); margin: 0; }
 
-.sc-box { background: var(--white); border: 1px solid var(--cream-dark); border-radius: 12px; padding: 12px; }
+.sc-box { background: var(--surface); border: 1px solid var(--cream-dark); border-radius: 12px; padding: 12px; }
 .sc-input {
   width: 100%; border: 0; resize: vertical; font-family: inherit;
   font-size: 16px;              /* 16px = no iOS auto-zoom on focus */
@@ -3822,7 +3828,7 @@ tr.sp-total td { background: var(--cream); font-weight: 700; color: var(--forest
 .sc-mic, .sc-go, .sc-confirm, .sc-cancel {
   font-family: inherit; font-size: 13px; font-weight: 600;
   padding: 9px 15px; border-radius: 9px; cursor: pointer; border: 1px solid var(--cream-dark);
-  background: var(--white); color: var(--charcoal-70);
+  background: var(--surface); color: var(--charcoal-70);
 }
 .sc-mic.on { background: #8c4a3a; border-color: #8c4a3a; color: var(--white); }
 .sc-go, .sc-confirm { margin-left: auto; background: var(--forest-800); border-color: var(--forest-800); color: var(--cream); }
@@ -3837,7 +3843,7 @@ tr.sp-total td { background: var(--cream); font-weight: 700; color: var(--forest
 .sc-conf {
   font-family: var(--mono, ui-monospace, monospace);
   font-size: 9.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
-  padding: 3px 8px; border-radius: 999px; background: var(--white); color: var(--charcoal-45);
+  padding: 3px 8px; border-radius: 999px; background: var(--surface); color: var(--charcoal-45);
 }
 .sc-conf--high { background: var(--forest-800); color: var(--white); }
 .sc-conf--medium { background: var(--forest-100); color: var(--forest-700); }
@@ -3853,7 +3859,7 @@ tr.sp-total td { background: var(--cream); font-weight: 700; color: var(--forest
 .sc-field input, .sc-field select {
   font-family: inherit; font-size: 16px; padding: 9px 11px;
   border: 1px solid var(--cream-dark); border-radius: 8px;
-  background: var(--white); color: var(--charcoal);
+  background: var(--surface); color: var(--charcoal);
 }
 .sc-row { display: flex; gap: 10px; }
 .sc-note { font-size: 12.5px; font-weight: 300; color: var(--charcoal-70); margin: 4px 0 0; }
@@ -3876,13 +3882,13 @@ tr.sp-total td { background: var(--cream); font-weight: 700; color: var(--forest
 .td-count--od { background: #f7ece8; color: #8c4a3a; }
 .td-search {
   flex: 1 1 160px; font-family: inherit; font-size: 16px; padding: 8px 11px;
-  border: 1px solid var(--cream-dark); border-radius: 8px; background: var(--white);
+  border: 1px solid var(--cream-dark); border-radius: 8px; background: var(--surface);
 }
 .td-toggle { display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--charcoal-70); }
 .td-view { display: flex; border: 1px solid var(--cream-dark); border-radius: 8px; overflow: hidden; }
 .td-view button {
   font-family: inherit; font-size: 11.5px; font-weight: 600; text-transform: capitalize;
-  padding: 7px 12px; border: 0; background: var(--white); color: var(--charcoal-45); cursor: pointer;
+  padding: 7px 12px; border: 0; background: var(--surface); color: var(--charcoal-45); cursor: pointer;
 }
 .td-view button.on { background: var(--forest-800); color: var(--white); }
 .td-row--od td { background: #fdf6f4; }
@@ -3903,7 +3909,7 @@ tr.sp-total td { background: var(--cream); font-weight: 700; color: var(--forest
 .sp-monthbar select {
   font-family: inherit; font-size: 14px; padding: 7px 11px;
   border: 1px solid var(--cream-dark); border-radius: 8px;
-  background: var(--white); color: var(--charcoal);
+  background: var(--surface); color: var(--charcoal);
 }
 .sp-monthbar-note { font-size: 11.5px; font-weight: 300; color: var(--charcoal-45); }
 
@@ -3927,7 +3933,7 @@ tr.sp-total td { background: var(--cream); font-weight: 700; color: var(--forest
   position: sticky;
   left: 0;
   z-index: 2;
-  background: var(--white);
+  background: var(--surface);
   /* A hairline rather than a shadow: the shadow reads as a seam on cream. */
   box-shadow: 1px 0 0 var(--cream-dark);
 }
@@ -4127,7 +4133,7 @@ tr.sp-total td, tr.sp-total td.sp-num { color: var(--forest-800); }
   display: flex; flex-direction: column; gap: 2px; position: relative;
   flex: 1 1 200px; min-width: 0;
   padding: 12px 34px 12px 14px; border-radius: 9px;
-  background: var(--white); border: 1px solid var(--cream-dark);
+  background: var(--surface); border: 1px solid var(--cream-dark);
   text-decoration: none; transition: border-color .14s ease;
 }
 .ev-link:hover { border-color: var(--navy); }
@@ -4190,7 +4196,7 @@ tr.sp-total td, tr.sp-total td.sp-num { color: var(--forest-800); }
 .sp-freeze-btn {
   font-family: inherit; font-size: 11.5px; font-weight: 600;
   padding: 6px 12px; border-radius: 999px; cursor: pointer;
-  border: 1px solid var(--cream-dark); background: var(--white); color: var(--charcoal-45);
+  border: 1px solid var(--cream-dark); background: var(--surface); color: var(--charcoal-45);
 }
 .sp-freeze-btn.on { background: var(--navy-bg); border-color: var(--navy); color: var(--navy-fg); }
 .sp-freeze-note { font-size: 11px; font-weight: 300; color: var(--charcoal-45); }

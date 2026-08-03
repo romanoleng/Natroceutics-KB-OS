@@ -40,8 +40,19 @@ Load the `natroceutics-brand` skill for anything brand-facing. The essentials:
 - It is **nature-based therapeutics**, never "supplements".
 - Locked: *We are efficacy first.* / *Enhancing health through nature-based
   therapeutics and nutrition.*
-- Colours: Deep Forest `#1d4130`, Mid Green `#406550`, Charcoal `#2d2a26`,
-  Cream `#eeebe1`, hairline `#dedad0`. White is for cards only.
+- Colours: Deep Forest `#1d4130`, Mid Green `#406550`, Charcoal `#2d2a26`.
+  **The beige is gone.** Romano replaced it on 30 July with cool porcelain:
+  white, green and the packaging navy `#414f6d`, no beige anywhere. The tokens
+  are still *named* `--cream` so 200-odd usages restyle from one place, but they
+  hold `#f4f6f5` and `#dfe4e8`. `#eeebe1` and `#dedad0` are dead and must not
+  come back; there is not one instance left in the stylesheet.
+- **Page is white, cards are faintly cream** (`--page: #ffffff`,
+  `--surface: #f8faf9`), his call on 3 August. All three surface tokens were
+  `#ffffff` until then, so a card was separated from the page by a 1px hairline
+  and nothing else and the OS read as one flat sheet. Card cream stays lighter
+  than `--cream`, because `--cream` fills the chips that sit ON cards and the
+  two matching would erase them. Never fill a surface with `var(--white)`
+  directly; use `--surface` so the tier stays real.
 - Manrope for text, DM Mono for data. No emoji in brand-facing copy.
 
 Code comments should explain **why**, especially why something is not the
