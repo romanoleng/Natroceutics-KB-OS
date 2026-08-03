@@ -1,5 +1,5 @@
 /**
- * POST /api/create — add a Knowledge Base entry.
+ * POST /api/create — add a row to any editable table.
  *
  * Writes to Postgres, not Airtable, for the same reason as update-record: the
  * workspace has 1,000 API calls a month and none of them should go on routine
@@ -13,20 +13,49 @@ import { randomUUID } from 'crypto';
 import { getPrisma, isConfigured } from '../../lib/prisma';
 import { invalidateMirrorCache } from '../../lib/mirror';
 import { BASES, resolveBaseId } from '../../lib/airtable-tables';
+import { tableVerdict } from '../../lib/editability';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { fields } = req.body || {};
-  if (!fields?.title) return res.status(400).json({ error: 'title is required' });
+  const { fields, table } = req.body || {};
+  if (!fields || typeof fields !== 'object' || Array.isArray(fields)) {
+    return res.status(400).json({ error: 'fields must be an object' });
+  }
   if (!isConfigured()) {
     return res.status(500).json({ error: 'No database configured (DATABASE_URL missing)' });
   }
 
-  const baseId = resolveBaseId(BASES.GLOBAL.envVar);
-  const tableId = BASES.GLOBAL.tables.KNOWLEDGE;
-  if (!baseId || !tableId) {
-    return res.status(500).json({ error: 'Global knowledge table not configured' });
+  // No `table` means the original caller, the Knowledge add form, which still
+  // requires a title. A targeted caller names its own table and validates its
+  // own required fields.
+  const [baseKey, tableKey] = table ? String(table).split('.') : ['GLOBAL', 'KNOWLEDGE'];
+  if (!table && !fields.title) {
+    return res.status(400).json({ error: 'title is required' });
+  }
+
+  const base = BASES[baseKey];
+  const tableId = base?.tables?.[tableKey];
+  if (!base || !tableId) {
+    return res.status(400).json({
+      error: `Unknown table "${baseKey}.${tableKey}"`,
+      detail: 'Use BASE.TABLE from the registry, e.g. "UK.RISKS".',
+    });
+  }
+
+  // Refuse to create a row in a table a feed rebuilds. It would be written,
+  // shown, trusted, and then silently deleted on the next run.
+  const verdict = tableVerdict(baseKey, tableKey);
+  if (verdict.verdict === 'feed') {
+    return res.status(409).json({
+      error: `${baseKey}.${tableKey} is maintained by a feed`,
+      detail: verdict.reason,
+    });
+  }
+
+  const baseId = resolveBaseId(base.envVar) || base.defaultBaseId;
+  if (!baseId) {
+    return res.status(500).json({ error: `No base id for ${baseKey}` });
   }
 
   // recordId is varchar(32): "os:" + 26 hex chars stays inside it.

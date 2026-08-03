@@ -18,6 +18,18 @@
 import { getPrisma, isConfigured } from '../../lib/prisma';
 import { invalidateMirrorCache } from '../../lib/mirror';
 import { BASES, resolveBaseId } from '../../lib/airtable-tables';
+import { tableVerdict, rowEditable, fieldEditable } from '../../lib/editability';
+
+/** baseId+tableId back to the registry keys, so the guard can name the table. */
+function keysFor(baseId, tableId) {
+  for (const [baseKey, b] of Object.entries(BASES)) {
+    if (b.defaultBaseId !== baseId && resolveBaseId(b.envVar) !== baseId) continue;
+    for (const [tableKey, id] of Object.entries(b.tables || {})) {
+      if (id === tableId) return { baseKey, tableKey };
+    }
+  }
+  return null;
+}
 
 /** Base IDs we accept writes for — every registered base, env override included. */
 const ALLOWED_BASES = new Set(
@@ -45,6 +57,33 @@ export default async function handler(req, res) {
   }
   if (!isConfigured()) {
     return res.status(500).json({ error: 'No database configured (DATABASE_URL missing)' });
+  }
+
+  // The editability rule is enforced HERE, not only in the UI. A control that
+  // is hidden is a suggestion; an API that refuses is a guarantee, and this is
+  // the path every edit surface in the OS goes through.
+  const keys = keysFor(baseId, tableId);
+  if (keys) {
+    const v = tableVerdict(keys.baseKey, keys.tableKey);
+    if (v.verdict === 'feed') {
+      return res.status(409).json({
+        error: `${keys.baseKey}.${keys.tableKey} is maintained by a feed`,
+        detail: v.reason,
+      });
+    }
+    if (!rowEditable(keys.baseKey, keys.tableKey, recordId)) {
+      return res.status(409).json({
+        error: 'This row is maintained by a feed',
+        detail: v.reason,
+      });
+    }
+    const blocked = Object.keys(fields).filter(k => !fieldEditable(keys.baseKey, keys.tableKey, k));
+    if (blocked.length) {
+      return res.status(409).json({
+        error: `Fields maintained by a feed: ${blocked.join(', ')}`,
+        detail: v.reason,
+      });
+    }
   }
 
   const prisma = getPrisma();
