@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import TaskCard from './TaskCard';
 import TaskGroup from './TaskGroup';
 import RecordDetailPanel from './RecordDetailPanel';
-import { normaliseTask, buildLanes, laneOf, laneSort, isDone } from '../lib/tasks';
+import { normaliseTask, buildGroups, laneOf, laneSort, isDone, GROUPINGS } from '../lib/tasks';
 
 /**
  * Tasks inside a section, grouped by status.
@@ -37,6 +37,7 @@ export default function TaskDeck({ tasks = [], region, regionLabel, flag, baseId
   const [q, setQ] = useState('');
   const [showDone, setShowDone] = useState(false);
   const [view, setView] = useState('cards');
+  const [groupBy, setGroupBy] = useState('status');
 
   // Region pages re-fetch on tab change; keep local state in step with props.
   const sig = normalised.map(t => t.id).join('|');
@@ -50,7 +51,7 @@ export default function TaskDeck({ tasks = [], region, regionLabel, flag, baseId
       .filter(t => !needle || t.title.toLowerCase().includes(needle) || (t.notes || '').toLowerCase().includes(needle));
   }, [rows, q, showDone]);
 
-  const lanes = useMemo(() => buildLanes(matched), [matched]);
+  const lanes = useMemo(() => buildGroups(matched, groupBy), [matched, groupBy]);
   const visible = useMemo(() => [...matched].sort(laneSort), [matched]);
 
   const open = rows.filter(t => !isDone(t)).length;
@@ -146,6 +147,16 @@ export default function TaskDeck({ tasks = [], region, regionLabel, flag, baseId
           <input type="checkbox" checked={showDone} onChange={e => setShowDone(e.target.checked)} />
           Done
         </label>
+        {view === 'cards' && (
+          <label className="td-groupby">
+            Group by
+            <select value={groupBy} onChange={e => setGroupBy(e.target.value)}>
+              {Object.entries(GROUPINGS).map(([k, g]) => (
+                <option key={k} value={k}>{g.label}</option>
+              ))}
+            </select>
+          </label>
+        )}
         <div className="td-view">
           {['cards', 'table'].map(v => (
             <button key={v} className={view === v ? 'on' : ''} onClick={() => setView(v)} type="button">{v}</button>
@@ -161,8 +172,9 @@ export default function TaskDeck({ tasks = [], region, regionLabel, flag, baseId
             <TaskGroup
               key={lane.key}
               title={lane.title} hint={lane.hint} tone={lane.tone} tasks={lane.tasks}
-              // Done arrives collapsed. It is here to be checked, not read.
-              open={lane.key !== 'done'}
+              // Everything starts folded. Romano opens the pile he is working
+              // in; forty cards open at once is the wall this was meant to fix.
+              open={false}
               onStatus={onStatus} onSnooze={onSnooze} onDelete={onDelete}
               onField={onField} onOpen={setDetail} busyId={busyId}
             />

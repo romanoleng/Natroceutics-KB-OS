@@ -1,5 +1,17 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import SortableTable from './SortableTable';
+import EditableValue from './EditableValue';
+
+/**
+ * Cost-model rows a feed rewrites on every run. Editing one here would look
+ * like it saved and then disappear within a day, which is worse than not
+ * offering it: you would trust the figure in between.
+ *
+ * Only affiliate_commission qualifies. goaffpro-pull reads every OTHER row back
+ * out of the mirror and writes it again untouched, so hand-entered values on
+ * the rest survive the daily run.
+ */
+const FEED_OWNED = new Set(['affiliate_commission']);
 
 /**
  * Shopify UK performance — the own store's answer to the Amazon Sales tab.
@@ -112,11 +124,37 @@ export default function ShopifyPerformance({ pnl = [], products = [], traffic = 
     [products, cur.Month]
   );
   const noCost = curProducts.filter(p => p['COGS (£)'] === '' || p['COGS (£)'] == null);
-  const pending = costModel.filter(c => c.Status === 'PENDING');
-  const queries = costModel.filter(c => c.Status === 'QUERY');
+  // Local copy so a saved value appears immediately rather than at next reload.
+  const [rows, setRows] = useState(costModel);
+  useEffect(() => { setRows(costModel); }, [costModel]);
+
+  async function saveCost(row, value) {
+    const clean = value === '' ? '' : value;
+    const fields = {
+      Value: clean,
+      // A figure Romano typed IS a measured cost, so the line stops being a
+      // gap. Clearing it puts the line back to PENDING rather than leaving a
+      // blank marked ACTUAL, which would read as "we checked, it is zero".
+      Status: clean === '' ? 'PENDING' : 'ACTUAL',
+      'Last Updated': new Date().toISOString().slice(0, 10),
+    };
+    const before = rows;
+    setRows(rs => rs.map(r => (r.id === row.id ? { ...r, ...fields } : r)));
+    const res = await fetch('/api/update-record', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ baseId: row._baseId, tableId: row._tableId, recordId: row.id, fields }),
+    });
+    if (!res.ok) {
+      setRows(before);
+      throw new Error((await res.json().catch(() => ({}))).error || 'Save failed');
+    }
+  }
+
+  const pending = rows.filter(c => c.Status === 'PENDING');
+  const queries = rows.filter(c => c.Status === 'QUERY');
   // Lines we DO have a source for. STALE counts as sourced but flags that the
   // upstream stopped updating, which is different from a cost being zero.
-  const sourced = costModel.filter(c => c.Status === 'ACTUAL' || c.Status === 'STALE');
+  const sourced = rows.filter(c => c.Status === 'ACTUAL' || c.Status === 'STALE');
 
   if (!months.length) {
     return (
@@ -573,6 +611,11 @@ export default function ShopifyPerformance({ pnl = [], products = [], traffic = 
               zero, because a missing cost shown as £0 silently overstates profit.
             </p>
           </div>
+          <p className="sp-edit-hint">
+            Click a value to fill it in. Saving marks the line ACTUAL, because a figure
+            you typed is a measured cost. Affiliate commission is read live from GoAffPro
+            and is not editable here.
+          </p>
           <SortableTable
             cols={[
               { label: 'Cost', key: 'Label' },
@@ -581,13 +624,21 @@ export default function ShopifyPerformance({ pnl = [], products = [], traffic = 
               { label: 'Source', key: 'Source' },
               { label: 'Status', key: 'Status' },
             ]}
-            data={costModel}
+            data={rows}
             hideDates
             emptyMsg="No cost model rows."
             renderRow={c => (
               <tr key={c.id || c.Key}>
                 <td>{c.Label}<div className="sp-note-inline">{c.Note}</div></td>
-                <td className="sp-num">{c.Value === '' || c.Value == null ? '—' : c.Value}</td>
+                <td className="sp-num">
+                  <EditableValue
+                    value={c.Value}
+                    type="number"
+                    locked={FEED_OWNED.has(c.Key)}
+                    lockReason="Read live from GoAffPro on every run. A value typed here would be overwritten within a day."
+                    onSave={v => saveCost(c, v)}
+                  />
+                </td>
                 <td>{c.Unit}</td>
                 <td>{c.Source}</td>
                 <td>

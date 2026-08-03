@@ -3632,26 +3632,57 @@ tr.sp-total td { background: var(--cream); font-weight: 700; color: var(--forest
 }
 .today-search { flex: 1 1 220px; }
 
-.tg { margin-bottom: 18px; }
+/* A group heading is a BAR, not a line of text.
+   With every group folded by default the headings are the whole page, so they
+   have to read as furniture you open rather than as a caption above content.
+   Deep Forest on white cards is the same contrast the OS header already uses,
+   which is why it reads as structure instead of decoration. */
 .tg-head {
   display: flex; align-items: center; gap: 10px; width: 100%;
-  padding: 8px 2px; background: none; border: 0; cursor: pointer;
-  font-family: inherit; text-align: left;
-  border-bottom: 1px solid var(--cream-dark); margin-bottom: 10px;
+  padding: 11px 14px; cursor: pointer;
+  background: var(--forest-900, #1d4130); border: 0; border-radius: var(--radius-md);
+  font-family: inherit; text-align: left; margin-bottom: 10px;
+  transition: background 0.15s var(--ease);
 }
+.tg-head:hover { background: var(--forest-800, #24503b); }
 .tg-title {
   font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
-  color: var(--forest-800);
+  color: #fff;
 }
 .tg-count {
-  font-family: var(--mono, ui-monospace, monospace); font-size: 10.5px; font-weight: 600;
-  background: var(--cream); border-radius: 999px; padding: 1px 8px; color: var(--forest-600);
+  font-family: var(--mono, ui-monospace, monospace); font-size: 10.5px; font-weight: 700;
+  background: rgba(255,255,255,.16); border-radius: 999px; padding: 1px 9px; color: #fff;
 }
-.tg--overdue .tg-count { background: #f7ece8; color: #8c4a3a; }
-.tg-hint { font-size: 11.5px; font-weight: 300; color: var(--charcoal-45); }
-.tg-chev { margin-left: auto; font-size: 10px; color: var(--charcoal-45); transition: transform 0.15s ease; }
+.tg--overdue .tg-count { background: rgba(255,255,255,.24); color: #fff; }
+.tg-hint { font-size: 11.5px; font-weight: 300; color: rgba(255,255,255,.62); }
+.tg-chev {
+  margin-left: auto; font-size: 11px; color: rgba(255,255,255,.75);
+  transition: transform 0.15s ease;
+}
 .tg-chev.open { transform: rotate(180deg); }
-.tg-body { display: flex; flex-direction: column; gap: 10px; }
+/* Folded groups sit closer together: the list of headings IS the overview. */
+.tg { margin-bottom: 8px; }
+.tg:has(.tg-body) { margin-bottom: 18px; }
+.tg-body { display: flex; flex-direction: column; gap: 10px; padding-bottom: 4px; }
+
+@media (max-width: 520px) {
+  .tg-head { padding: 10px 12px; gap: 8px; }
+  .tg-hint { display: none; }
+}
+
+/* Group-by control, cards view only. */
+.td-groupby {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 10px; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--charcoal-45);
+}
+.td-groupby select {
+  padding: 4px 8px; border: 1px solid var(--cream-dark); border-radius: var(--radius-md);
+  background: var(--surface); color: var(--charcoal); font-size: 12px;
+  font-family: inherit; text-transform: none; letter-spacing: 0; cursor: pointer;
+}
+.td-groupby select:focus { outline: none; border-color: var(--forest-600); }
 
 /* card + swipe */
 .tc-wrap { position: relative; overflow: hidden; border-radius: 12px; }
@@ -4520,3 +4551,29 @@ tr.sp-total td, tr.sp-total td.sp-num { color: var(--forest-800); }
 }
 .osr-row-snip b { font-weight: 600; color: var(--forest-600); }
 .osr-row-go { color: var(--forest-600); font-size: 14px; flex-shrink: 0; }
+
+/* ═══ Inline editing ═══
+   A value you can change looks different from one you cannot, before you click
+   it. The dotted underline is the affordance; `locked` drops it entirely rather
+   than showing a control that would lose the value on the next feed run. */
+.ev { font: inherit; }
+.ev--btn {
+  background: none; border: 0; padding: 2px 5px; margin: -2px -5px;
+  border-radius: 5px; cursor: text; color: inherit; font: inherit;
+  border-bottom: 1px dashed var(--cream-dark);
+}
+.ev--btn:hover { background: var(--forest-050); border-bottom-color: var(--forest-600); }
+.ev--empty { color: var(--charcoal-45); }
+.ev--locked { color: inherit; cursor: default; }
+.ev-lock { color: var(--charcoal-45); margin-left: 4px; }
+.ev-input {
+  width: 100px; padding: 3px 7px; font: inherit;
+  border: 1px solid var(--forest-600); border-radius: 5px;
+  background: var(--surface); color: var(--charcoal);
+}
+.ev-input:focus { outline: none; }
+.ev-error { display: block; font-size: 10.5px; color: #b4453a; margin-top: 3px; }
+.sp-edit-hint {
+  margin: 10px 0 0; font-size: 12px; font-weight: 300;
+  color: var(--charcoal-70); line-height: 1.55;
+}
