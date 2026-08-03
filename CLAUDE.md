@@ -156,8 +156,10 @@ badges, rename, delete, status hierarchy. Board report. Passive time tracking
 
 ## In flight
 
-`scripts/findings-pass.js` plus the `os:findings` table (uncommitted as of
-2 August). Cross-checks the OS against itself and writes what disagrees.
+`scripts/findings-pass.js` plus the `os:findings` table shipped 3 August:
+committed, run live, 4 findings Open in the database. The VAT check was
+removed before shipping because it re-raised a settled question; that
+decision is recorded in the script itself.
 
 The rule that keeps it useful: **a finding is two records that disagree**, not
 an observation, not a metric, not advice. If a check cannot name both sides it
@@ -165,6 +167,11 @@ does not belong. Severity is earned by consequence: money, an account, or a
 decision taken on a wrong figure. Closing is sacred, a re-run never reopens
 what Romano closed, and a finding that stops reproducing goes Stale rather
 than being deleted, so a broken check cannot look like a solved problem.
+
+**The gap: nothing in the UI reads `os:findings` yet.** Findings land in the
+database invisibly, which is the exact silent-failure pattern this project
+exists to kill. The display surface is an agreed August decision, not an
+oversight.
 
 ---
 
