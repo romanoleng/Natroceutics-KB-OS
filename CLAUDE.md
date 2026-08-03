@@ -218,6 +218,27 @@ observation, not two records that disagree, so it fails the rule above. It
 becomes a finding only when it can name a second side, for example stock whose
 BBD lands before the sell-through rate could clear it.
 
+## Page advice panels
+
+`components/ModulePanel.js`, piloted on the UK Amazon desk. A module exposes
+`actions()` and `insights()` alongside `health()` and `attention()`, and the
+panel renders them scoped to one desk. Adding a panel elsewhere means adding
+those two methods to a module, not writing a page.
+
+**The bar is enforced in `contract.js`, not left to the author.** `insight()`
+throws without a value AND a comparison; `action()` throws without a `next`
+step. Advice decays into wallpaper faster than anything else in a product, and
+the findings pass only stays readable because a finding must name two records
+that disagree. This is the same rule applied again.
+
+`tellTeam` marks an insight worth SAYING rather than doing, which nothing else
+in the OS notices. It fires only when a move is notable (revenue up 15%+), never
+on a wobble. **The OS drafts the words and offers Copy. Sending is Romano's.**
+
+Collapsed by default: a page that shouts advice on every open gets scrolled
+past. Piloted on Amazon UK alone on purpose — richest real data, so if it reads
+as filler there it reads as filler everywhere.
+
 ## Consistency: one card for every record
 
 Risks, priorities and registrations render through the **real `TaskCard`**, via
