@@ -37,12 +37,18 @@ const PAGE_NAMES = {
 const pageName = p => PAGE_NAMES[p] || p;
 
 export default function TimePage({ sessions, serverTime }) {
-  const [range, setRange] = useState('7');
+  // Today leads. "How did today go" is the question actually being asked at
+  // the end of a day, and a 7-day total answers a different one.
+  const [range, setRange] = useState('today');
+
+  const todayISO = new Date().toISOString().slice(0, 10);
 
   const view = useMemo(() => {
     const cutoff = range === 'all'
       ? '0000-00-00'
-      : new Date(Date.now() - Number(range) * 86400000).toISOString().slice(0, 10);
+      : range === 'today'
+        ? todayISO
+        : new Date(Date.now() - Number(range) * 86400000).toISOString().slice(0, 10);
     const rows = sessions.filter(s => s.Day >= cutoff);
 
     const byDay = new Map();
@@ -66,14 +72,44 @@ export default function TimePage({ sessions, serverTime }) {
 
     const days = [...byDay.values()].sort((a, b) => b.day.localeCompare(a.day));
     const total = days.reduce((s, d) => s + d.minutes, 0);
+
+    // Hour-by-hour, for the Today view. A session is spread across the hours it
+    // actually spans rather than dumped into the hour it started, so a two-hour
+    // stretch reads as two hours of work and not one enormous spike.
+    const byHour = new Array(24).fill(0);
+    if (range === 'today') {
+      for (const s0 of rows) {
+        const start = new Date(s0['Started At']);
+        const end = new Date(s0['Ended At'] || s0['Started At']);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) continue;
+        const spanMs = Math.max(end - start, 0);
+        const minutes = Number(s0.Minutes) || 0;
+        if (spanMs === 0) { byHour[start.getHours()] += minutes; continue; }
+        let cursor = new Date(start);
+        while (cursor < end) {
+          const hourEnd = new Date(cursor);
+          hourEnd.setMinutes(59, 59, 999);
+          const sliceEnd = hourEnd < end ? hourEnd : end;
+          byHour[cursor.getHours()] += minutes * ((sliceEnd - cursor) / spanMs);
+          cursor = new Date(sliceEnd.getTime() + 1);
+        }
+      }
+    }
+    const activeHours = byHour.filter(m => m >= 1).length;
+    const busiest = byHour.indexOf(Math.max(...byHour));
+
     return {
       days, total,
       sessions: rows.length,
       avg: days.length ? total / days.length : 0,
       pages: [...byPage.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10),
       max: Math.max(...days.map(d => d.minutes), 1),
+      byHour,
+      hourMax: Math.max(...byHour, 1),
+      activeHours,
+      busiest: byHour[busiest] >= 1 ? busiest : null,
     };
-  }, [sessions, range]);
+  }, [sessions, range, todayISO]);
 
   return (
     <OsLayout title="Time" serverTime={serverTime}>
@@ -82,8 +118,11 @@ export default function TimePage({ sessions, serverTime }) {
           <p className="os-eyebrow">Natroceutics OS</p>
           <h1 className="os-hero-title">Time</h1>
           <p className="today-sub">
-            {fmt(view.total)} in the OS over {view.days.length} day{view.days.length === 1 ? '' : 's'} ·
-            {' '}{view.sessions} sessions
+            {range === 'today'
+              ? <>{fmt(view.total)} in the OS today across {view.sessions} session{view.sessions === 1 ? '' : 's'}
+                  {view.busiest !== null && <> · busiest hour {String(view.busiest).padStart(2, '0')}:00</>}</>
+              : <>{fmt(view.total)} in the OS over {view.days.length} day{view.days.length === 1 ? '' : 's'} ·
+                  {' '}{view.sessions} sessions</>}
           </p>
         </div>
       </section>
@@ -97,7 +136,7 @@ export default function TimePage({ sessions, serverTime }) {
 
         <div className="td-bar">
           <div className="td-view">
-            {[['7', '7 days'], ['30', '30 days'], ['all', 'All']].map(([v, l]) => (
+            {[['today', 'Today'], ['7', '7 days'], ['30', '30 days'], ['all', 'All']].map(([v, l]) => (
               <button key={v} className={range === v ? 'on' : ''} onClick={() => setRange(v)} type="button">{l}</button>
             ))}
           </div>
@@ -105,11 +144,34 @@ export default function TimePage({ sessions, serverTime }) {
 
         {view.days.length === 0 ? (
           <div className="os-empty">
-            Nothing recorded in this range. Tracking runs automatically while the OS is open, and can
-            be switched off in Settings.
+            {range === 'today'
+              ? 'Nothing recorded yet today. Tracking starts as soon as the OS is open and visible.'
+              : 'Nothing recorded in this range. Tracking runs automatically while the OS is open, and can be switched off in Settings.'}
           </div>
         ) : (
           <>
+            {range === 'today' && (
+              <div className="sp-card" style={{ marginBottom: 16 }}>
+                <div className="sp-card-label">
+                  Today, hour by hour
+                  <span className="fd-count">{view.activeHours} active hour{view.activeHours === 1 ? '' : 's'}</span>
+                </div>
+                <div className="tm-hours">
+                  {view.byHour.map((m, h) => (
+                    <div className="tm-hour" key={h} title={`${String(h).padStart(2, '0')}:00 — ${fmt(m)}`}>
+                      <div className="tm-hour-bar">
+                        <div
+                          className={`tm-hour-fill${m >= 1 ? '' : ' tm-hour-fill--none'}`}
+                          style={{ height: `${Math.max((m / view.hourMax) * 100, m >= 1 ? 6 : 0)}%` }}
+                        />
+                      </div>
+                      <div className="tm-hour-label">{h % 3 === 0 ? String(h).padStart(2, '0') : ''}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="os-stat-row">
               <div className="os-stat-card os-stat-green">
                 <div className="os-stat-num">{fmt(view.total)}</div>
