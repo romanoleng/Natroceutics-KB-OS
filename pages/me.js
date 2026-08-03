@@ -18,7 +18,34 @@ import {
   getProducts,
 } from '../lib/airtable';
 
-const TABS = ['Tasks', 'Priorities', 'Risks', 'Registrations', 'Inventory', 'B2B', 'Partners', 'Affiliates', 'Customers', 'Marketing', 'Customer Service', 'Finance', 'Cost Model', 'Subscriptions', 'Email / Klaviyo', 'Reporting', 'Products', 'Google'];
+/**
+ * Desks, mirroring UK. ME had all eighteen tabs in one row, which wrapped onto
+ * three lines and made everything equally hard to find. UK solved this with
+ * Region → Desk → Tab and the same shape applies here: Overview is the same
+ * five tabs it is on UK, Shopify ME mirrors the UK Shopify desk so the two
+ * stores read alike, and Launch holds the pre-launch work UK no longer has.
+ *
+ * ME has no Amazon or Warehouse desk because it has neither yet. A desk is
+ * added when the work exists, not in advance.
+ */
+const SECTIONS = ['Overview', 'Shopify ME', 'Launch'];
+const SECTION_TABS = {
+  'Overview':   ['Tasks', 'Priorities', 'Risks', 'Reporting', 'Products'],
+  'Shopify ME': ['Finance', 'Cost Model', 'Customers', 'B2B', 'Affiliates',
+                 'Email / Klaviyo', 'Marketing', 'Subscriptions', 'Customer Service', 'Google'],
+  'Launch':     ['Registrations', 'Inventory', 'Partners'],
+};
+const TABS = Object.values(SECTION_TABS).flat();
+
+function sectionForTab(t) {
+  return Object.keys(SECTION_TABS).find(s => SECTION_TABS[s].includes(t)) || 'Overview';
+}
+
+const SECTION_ICON = {
+  'Overview':   <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><rect x="2" y="2" width="4" height="4" rx="0.5"/><rect x="8" y="2" width="4" height="4" rx="0.5"/><rect x="2" y="8" width="4" height="4" rx="0.5"/><rect x="8" y="8" width="4" height="4" rx="0.5"/></svg>,
+  'Shopify ME': <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h10l-1.5 7H3.5L2 3z"/><path d="M5 3l.5-1.5h3L9 3"/><circle cx="5" cy="12" r="0.8" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="0.8" fill="currentColor" stroke="none"/></svg>,
+  'Launch':     <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M7 1l2 4 4 .6-3 2.9.7 4L7 10.6 3.3 12.5l.7-4-3-2.9L5 5z"/></svg>,
+};
 
 const ME_BASE  = 'appdN9dWxVcB2KFZ6';
 const ME_TASKS_TABLE = 'tbleGswAUGSDhcrE9';
@@ -135,40 +162,19 @@ function RegistrationsTab({ items }) {
   const eligible = items.filter(r => r['Eligible for ME Launch'] === true || r['Eligible for ME Launch'] === 'true');
   return (
     <>
+      {/* The stat row stays: these three counts are the whole point of the tab
+          and are faster to read than any list. Only the LIST below became a
+          deck, so registrations look like every other record in the OS. */}
       <div className="os-stat-row">
         <div className="os-stat-card os-stat-green"><div className="os-stat-num">{approved.length}</div><div className="os-stat-label">Registered</div></div>
         <div className="os-stat-card"><div className="os-stat-num">{eligible.length}</div><div className="os-stat-label">Eligible for ME</div></div>
         <div className="os-stat-card"><div className="os-stat-num">{items.length}</div><div className="os-stat-label">Total Products</div></div>
       </div>
-      <div style={{...csvRowStyle, marginTop: 16}}>
-        <button style={csvBtnStyle} onClick={() => downloadCSV(items, 'me-registrations')}>↓ CSV</button>
-      </div>
-      <div>
-        <SortableTable
-          cols={[
-            { label: 'Product', key: 'Product Name' },
-            { label: 'SKU', key: 'SKU', w: 80 },
-            { label: 'Market', key: 'Market', w: 100 },
-            { label: 'Registration Status', key: 'Registration Status', w: 140 },
-            { label: 'Regulatory Body', key: 'Regulatory Body', w: 120 },
-            { label: 'Submitted', key: 'Submission Date', type: 'date', w: 110 },
-            { label: 'Expected', key: 'Expected Approval', type: 'date', w: 110 },
-          ]}
-          data={items}
-          renderRow={r => (
-            <tr key={r.id}>
-              <td><strong>{fmt(r['Product Name'])}</strong>
-                {r['Eligible for ME Launch'] && <span className="os-tag" style={{marginLeft:6}}>ME Launch</span>}
-              </td>
-              <td className="os-mono">{fmt(r.SKU)}</td>
-              <td className="os-muted">{fmt(r.Market)}</td>
-              <td>{r['Registration Status'] ? <span className={`os-pill ${sc(r['Registration Status'])}`}>{r['Registration Status']}</span> : '—'}</td>
-              <td className="os-muted">{fmt(r['Regulatory Body'])}</td>
-              <td className="os-mono">{fmt(r['Submission Date'])}</td>
-              <td className="os-mono">{fmt(r['Expected Approval'])}</td>
-            </tr>
-          )}
-          emptyMsg="No product registrations logged."
+      <div style={{ marginTop: 18 }}>
+        <RecordDeck
+          type="REGISTRATIONS" records={items}
+          region="ME" regionLabel="Middle East" flag="🇦🇪"
+          baseId={BASES.ME.defaultBaseId} tableId={BASES.ME.tables.REGISTRATIONS}
         />
       </div>
     </>
@@ -729,6 +735,13 @@ export default function MEPage({ tasks, priorities, risks, registrations, invent
   const router = useRouter();
   const routerDeep = useRouter();
   const [tab, setTab] = useState('Tasks');
+  const [section, setSection] = useState('Overview');
+
+  /** Switching desk lands on its first tab, the same as UK. */
+  function switchSection(s) {
+    setSection(s);
+    setTab(SECTION_TABS[s][0]);
+  }
 
   // Deep links into tabs: ?t=finance, ?t=inventory, ?t=customerservice —
   // used by the Menu page's collapsible region sections.
@@ -736,10 +749,13 @@ export default function MEPage({ tasks, priorities, risks, registrations, invent
     const q = String(routerDeep.query.t || '').toLowerCase().replace(/[^a-z]/g, '');
     if (!q) return;
     const match = TABS.find(x => x.toLowerCase().replace(/[^a-z]/g, '') === q);
-    if (match) setTab(match);
+    if (match) { setTab(match); setSection(sectionForTab(match)); }
   }, [routerDeep.query.t]);
   useEffect(() => {
-    if (router.query.tab && TABS.includes(router.query.tab)) setTab(router.query.tab);
+    if (router.query.tab && TABS.includes(router.query.tab)) {
+      setTab(router.query.tab);
+      setSection(sectionForTab(router.query.tab));
+    }
   }, [router.query.tab]);
   const openRisks = risks.filter(r => !['Resolved','Closed','Done'].includes(r.Status)).length;
   const openTasks = tasks.filter(t => !['Done','Complete','Completed','Approved'].includes(t.Status)).length;
@@ -766,8 +782,16 @@ export default function MEPage({ tasks, priorities, risks, registrations, invent
       <div className="os-page-wrap">
         {error && <div className="os-alert-error">{error}</div>}
 
+        <div className="uk-sections">
+          {SECTIONS.map(s => (
+            <button key={s} className={`uk-section-btn${section === s ? ' active' : ''}`} onClick={() => switchSection(s)}>
+              {SECTION_ICON[s]} {s}
+            </button>
+          ))}
+        </div>
+
         <div className="os-subnav">
-          {TABS.map(t => (
+          {SECTION_TABS[section].map(t => (
             <button key={t} className={`os-subnav-btn${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{t}</button>
           ))}
         </div>
