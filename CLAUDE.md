@@ -218,6 +218,26 @@ observation, not two records that disagree, so it fails the rule above. It
 becomes a finding only when it can name a second side, for example stock whose
 BBD lands before the sell-through rate could clear it.
 
+## Admin
+
+`/admin/data` (3 Aug) is the first piece of the self-managed admin programme:
+every table in the OS in one grid, editable where that is safe. It works
+generically because records are JSON blobs, so a new field appears the moment
+something writes it.
+
+It reads Postgres **directly**, not via `fetchFromMirror`. That helper gates on
+whether a table ever recorded a successful `SyncRun`, which made `UK.RISKS`
+render as empty while holding 11 rows. An unreadable table must never look like
+an empty one, so this page queries and reports what it gets, failure included.
+
+Agreed order for the rest: **data (done) → site settings → editable copy with
+code-default fallback → theme tokens → navigation from a table.** Held back by
+agreement on 3 Aug: the permissions system (one user, and the 31 July no-auth
+decision stands), a generic section/dashboard builder (panels encode judgment
+that generic widgets cannot hold; offer show/hide and reorder of existing panels
+instead), and a visual automation centre (the scheduler runs on Romano's Mac
+because cloud sandboxes cannot reach this host, so the OS cannot drive it).
+
 ## What is safe to make editable
 
 **Check before adding any edit control.** The test is not "does a feed touch
