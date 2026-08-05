@@ -15,6 +15,8 @@ import { getPrisma, isConfigured } from '../../lib/prisma';
 import { parseSellerboardFile } from '../../lib/sellerboard';
 import { commitTable } from '../../lib/mirror-write';
 import { BASES } from '../../lib/airtable-tables';
+import { parseGenericTable } from '../../lib/table-import';
+import { lockReason } from '../../lib/destinations';
 
 export const config = {
   api: { bodyParser: { sizeLimit: '8mb' } },
@@ -112,16 +114,141 @@ const FREEFORM_TARGETS = {
   },
 };
 
+/* ── explicit-destination import ──────────────────────────────
+ * "Put this table in UK.TRANSPARENCY" rather than "work out what this is".
+ * ──────────────────────────────────────────────────────────── */
+
+/** A target naming a real BASE.TABLE, as opposed to 'auto' or a freeform key. */
+function isTableTarget(target) {
+  if (!target || typeof target !== 'string' || target === 'auto') return false;
+  if (FREEFORM_TARGETS[target]) return false;
+  const [baseKey, tableKey] = target.split('.');
+  return Boolean(BASES[baseKey]?.tables?.[tableKey]);
+}
+
+/** XLSX buffer → { sheetName, tsv } for the chosen sheet, or the widest one. */
+function sheetToTsv(buffer, wanted) {
+  const XLSX = require('xlsx');
+  const wb = XLSX.read(buffer, { type: 'buffer', cellDates: false, raw: false });
+  const names = wb.SheetNames || [];
+  if (!names.length) {
+    const e = new Error('That workbook has no sheets'); e.status = 422; throw e;
+  }
+  const pick = wanted && names.includes(wanted)
+    ? wanted
+    // No sheet named: take the one with the most cells rather than the first.
+    // Exports routinely lead with a cover or a filter tab.
+    : names.map(n => ({ n, size: (XLSX.utils.sheet_to_csv(wb.Sheets[n]) || '').length }))
+           .sort((a, b) => b.size - a.size)[0].n;
+  return {
+    sheetName: pick,
+    sheetNames: names,
+    tsv: XLSX.utils.sheet_to_csv(wb.Sheets[pick], { FS: '\t', blankrows: false, defval: '' }),
+  };
+}
+
+async function importToTable(prisma, opts, res) {
+  const { target, keyColumn, sheet, preview, content, contentBase64, filename } = opts;
+  const [baseKey, tableKey] = target.split('.');
+
+  const reason = lockReason(baseKey, tableKey);
+  if (reason) {
+    const e = new Error(`${target} is written by a feed`);
+    e.status = 409;
+    e.detail = `Not imported: ${reason}. Anything written here would be lost on the next run.`;
+    throw e;
+  }
+
+  let text = content;
+  let sheetName = null;
+  let sheetNames = null;
+  if (contentBase64) {
+    const buffer = Buffer.from(contentBase64, 'base64');
+    if (!(buffer[0] === 0x50 && buffer[1] === 0x4b)) {
+      // Not a zip container, so not xlsx. Treat it as text (csv/tsv/txt).
+      text = buffer.toString('utf8');
+    } else {
+      const picked = sheetToTsv(buffer, sheet);
+      text = picked.tsv;
+      sheetName = picked.sheetName;
+      sheetNames = picked.sheetNames;
+    }
+  }
+
+  const parsed = parseGenericTable(text, { keyColumn });
+
+  // Preview stops here: parsed, counted, nothing written. A generic importer
+  // that writes before you have seen the grid is how 35 rows end up in the
+  // wrong table with no undo.
+  if (preview) {
+    return res.status(200).json({
+      ok: true, preview: true, table: target,
+      columns: parsed.columns,
+      keyColumn: parsed.keyColumn,
+      rowCount: parsed.records.length,
+      sample: parsed.rows.slice(0, 5),
+      sheetName, sheetNames,
+      warnings: parsed.warnings,
+    });
+  }
+
+  const base = BASES[baseKey];
+  const { written, deleted } = await commitTable(prisma, {
+    baseKey, tableKey,
+    baseId: base.defaultBaseId,
+    tableId: base.tables[tableKey],
+    records: parsed.records,
+    // ALWAYS additive. A hand upload must never delete rows it did not write:
+    // the file is usually a slice (one marketplace, one month), and replace
+    // would silently destroy everything outside that slice.
+    replace: false,
+    source: 'upload',
+  });
+
+  return res.status(200).json({
+    ok: true,
+    detected: `Table import → ${parsed.columns.length} columns`,
+    table: target,
+    written: written ?? parsed.records.length,
+    deleted: deleted || 0,
+    columns: parsed.columns,
+    keyColumn: parsed.keyColumn,
+    sheetName,
+    filename: filename || null,
+    warnings: parsed.warnings,
+  });
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   if (!isConfigured()) return res.status(500).json({ error: 'No database configured (DATABASE_URL missing)' });
 
-  const { filename, content, contentBase64, target } = req.body || {};
+  const { filename, content, contentBase64, target, keyColumn, sheet, preview } = req.body || {};
   if ((!content || typeof content !== 'string') && !contentBase64) {
     return res.status(400).json({ error: 'Missing file content' });
   }
 
   const prisma = getPrisma();
+
+  // ── explicit destination: skip detection entirely ──────────────────────
+  // The user has said where this goes, so there is nothing to guess. This is
+  // what lets a plain three-column export land in the OS: header detection is
+  // the right default for the nightly Sellerboard drops, where writing into the
+  // wrong financial series is expensive, and pure obstruction once the
+  // destination is named.
+  if (isTableTarget(target)) {
+    try {
+      return await importToTable(prisma, {
+        target, keyColumn, sheet, preview,
+        content, contentBase64, filename,
+      }, res);
+    } catch (err) {
+      return res.status(err.status || 500).json({
+        error: err.status ? err.message : 'Import failed',
+        detail: err.status ? err.detail : err.message,
+      });
+    }
+  }
 
   // Binary files (PDF / XLSX) arrive base64-encoded; sniff the magic bytes.
   if (contentBase64) {

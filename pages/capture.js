@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import OsLayout from '../components/OsLayout';
 import { IconUpload } from '../components/Icons';
 import SmartCapture from '../components/SmartCapture';
+import DestinationPicker from '../components/DestinationPicker';
 
 /**
  * /upload — drop data exports straight into the OS. No AI, no terminal.
@@ -52,6 +53,32 @@ function PasteBox({ onResult }) {
   const [text, setText] = useState('');
   const [target, setTarget] = useState('auto');
   const [busy, setBusy] = useState(false);
+  const [plan, setPlan] = useState(null);
+  const [keyColumn, setKeyColumn] = useState('');
+
+  // A named table is imported verbatim, so the columns are worth seeing before
+  // they become fields. 'auto' keeps the old one-press behaviour: those files
+  // are recognised exports whose shape is already known.
+  const needsPreview = target !== 'auto' && !target.startsWith('UK.TASKS')
+    && !target.startsWith('UK.RISKS') && !target.startsWith('UK.ORDERS');
+
+  async function check() {
+    const content = text.trim();
+    if (!content || busy) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/import-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: 'pasted data', content, target, preview: true, keyColumn: keyColumn || undefined }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) { setPlan(data); setKeyColumn(data.keyColumn || ''); }
+      else onResult({ name: 'Pasted data', status: 'error', detail: data.detail || data.error || `HTTP ${res.status}` });
+    } catch (e) {
+      onResult({ name: 'Pasted data', status: 'error', detail: e.message });
+    } finally { setBusy(false); }
+  }
 
   async function submit() {
     const content = text.trim();
@@ -61,7 +88,7 @@ function PasteBox({ onResult }) {
       const res = await fetch('/api/import-file', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: 'pasted data', content, target }),
+        body: JSON.stringify({ filename: 'pasted data', content, target, keyColumn: keyColumn || undefined }),
       });
       const data = await res.json();
       if (res.ok && data.ok) {
@@ -72,6 +99,8 @@ function PasteBox({ onResult }) {
         const warn = data.warnings?.length ? ` · ${data.warnings.join(' · ')}` : '';
         onResult({ name: 'Pasted data', status: data.warnings?.length ? 'warn' : 'ok', detail: `${data.detected} → ${data.table} · ${data.written} record${data.written === 1 ? '' : 's'}${range}${preview}${warn}` });
         setText('');
+        setPlan(null);
+        setKeyColumn('');
       } else {
         onResult({ name: 'Pasted data', status: 'error', detail: data.detail || data.error || `HTTP ${res.status}` });
       }
@@ -99,16 +128,69 @@ function PasteBox({ onResult }) {
         onChange={e => setText(e.target.value)}
       />
       <div className="paste-box-actions">
-        <select className="form-select paste-box-target" value={target} onChange={e => setTarget(e.target.value)}>
+        <select
+          className="form-select paste-box-target"
+          value={PASTE_TARGETS.some(t => t.value === target) ? target : '__table'}
+          onChange={e => {
+            const v = e.target.value;
+            setTarget(v === '__table' ? '' : v);
+            setPlan(null); setKeyColumn('');
+          }}
+        >
           {PASTE_TARGETS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+          <option value="__table">Table data — into a table I choose…</option>
         </select>
-        <button type="button" className="btn btn-primary" onClick={submit} disabled={busy || !text.trim()}>
-          {busy ? 'Importing…' : 'Import'}
-        </button>
+        {!PASTE_TARGETS.some(t => t.value === target) && (
+          <DestinationPicker value={target} onChange={v => { setTarget(v); setPlan(null); setKeyColumn(''); }} label="" />
+        )}
+        {needsPreview && !plan ? (
+          <button type="button" className="btn btn-primary" onClick={check} disabled={busy || !text.trim() || !target}>
+            {busy ? 'Reading…' : 'Check columns'}
+          </button>
+        ) : (
+          <button type="button" className="btn btn-primary" onClick={submit} disabled={busy || !text.trim() || !target}>
+            {busy ? 'Importing…' : 'Import'}
+          </button>
+        )}
         {text.trim() && !busy && (
-          <button type="button" className="btn btn-outline" onClick={() => setText('')}>Clear</button>
+          <button type="button" className="btn btn-outline" onClick={() => { setText(''); setPlan(null); }}>Clear</button>
         )}
       </div>
+
+      {plan && (
+        <div className="paste-plan">
+          <p className="paste-plan-head">
+            <strong>{plan.rowCount}</strong> row{plan.rowCount === 1 ? '' : 's'} ·{' '}
+            <strong>{plan.columns.length}</strong> columns → <code>{plan.table}</code>
+            {plan.sheetName && <> · sheet “{plan.sheetName}”</>}
+          </p>
+          <label className="sc-field">
+            <span>Row identity</span>
+            <select value={keyColumn} onChange={e => { setKeyColumn(e.target.value); setPlan(null); }}>
+              <option value="">
+                {plan.keyColumn ? `Auto — ${plan.keyColumn}` : 'Auto — no unique column found'}
+              </option>
+              {plan.columns.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+          <p className="paste-plan-note">
+            {plan.keyColumn
+              ? <>Re-importing this export will <strong>update</strong> rows matched on <code>{plan.keyColumn}</code>, not duplicate them.</>
+              : <>No column identifies a row, so re-importing after an edit will <strong>add</strong> a row rather than update one. Pick a column above if one is unique.</>}
+          </p>
+          <div className="paste-plan-grid">
+            <table>
+              <thead><tr>{plan.columns.map(c => <th key={c}>{c}</th>)}</tr></thead>
+              <tbody>
+                {plan.sample.map((r, i) => (
+                  <tr key={i}>{plan.columns.map(c => <td key={c}>{r[c]}</td>)}</tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {plan.warnings?.map((w, i) => <p key={i} className="paste-plan-warn">{w}</p>)}
+        </div>
+      )}
     </div>
   );
 }
@@ -173,6 +255,10 @@ export default function Capture() {
   const [dragOver, setDragOver] = useState(false);
   const [progress, setProgress] = useState(null);   // { done, total } while a batch runs
   const [refreshKey, setRefreshKey] = useState(0);
+  // '' means detect by header, which stays the default: the files dropped here
+  // daily are recognised exports and asking for a destination every time would
+  // be friction on the common path.
+  const [uploadTarget, setUploadTarget] = useState('');
   const inputRef = useRef(null);
   const counter = useRef(0);
 
@@ -225,6 +311,7 @@ export default function Capture() {
         const body = isBinary
           ? { filename: file.name, contentBase64: await fileToBase64(file) }
           : { filename: file.name, content: await file.text() };
+        if (uploadTarget) body.target = uploadTarget;
         const res = await fetch('/api/import-file', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -252,7 +339,9 @@ export default function Capture() {
     }
     setTimeout(() => setProgress(null), 1200);
     setRefreshKey(k => k + 1);
-  }, []);
+    // uploadTarget is read inside, so a stale closure would silently send the
+    // previous destination — the exact class of bug this page exists to avoid.
+  }, [uploadTarget]);
 
   const onDrop = useCallback(e => {
     e.preventDefault();
@@ -297,6 +386,28 @@ export default function Capture() {
             style={{ display: 'none' }}
             onChange={e => { processFiles(e.target.files); e.target.value = ''; }}
           />
+        </div>
+
+        <div className="upload-target">
+          <label className="sc-field">
+            <span>Destination</span>
+            <select
+              value={uploadTarget ? '__table' : ''}
+              onChange={e => setUploadTarget(e.target.value === '__table' ? 'UK.TRANSPARENCY' : '')}
+            >
+              <option value="">Work it out from the file (Sellerboard, SOH, RSP)</option>
+              <option value="__table">Put it in a table I choose…</option>
+            </select>
+          </label>
+          {uploadTarget && (
+            <DestinationPicker value={uploadTarget} onChange={setUploadTarget} label="Table" />
+          )}
+          {uploadTarget && (
+            <p className="paste-plan-note">
+              Detection is off. Every column in the file becomes a field on{' '}
+              <code>{uploadTarget}</code>, exactly as written.
+            </p>
+          )}
         </div>
 
         {progress && (

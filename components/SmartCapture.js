@@ -11,11 +11,11 @@ import { useState, useRef } from 'react';
  * editable first. That is the whole trust model.
  */
 
+import { areasFor } from '../lib/business-areas';
+
 const REGIONS = [['UK', '🇬🇧 United Kingdom'], ['ME', '🇦🇪 Middle East'],
                  ['SA', '🇿🇦 South Africa'], ['PT', '🇵🇹 Portugal'], ['AFF', '🤝 Affiliates']];
 const TABLES = [['TASKS', 'Task'], ['RISKS', 'Risk']];
-const SECTIONS = ['', 'B2B', 'ORDERS', 'STOCK', 'SUBSCRIPTIONS', 'CUSTOMERS',
-                  'MARKETING', 'BILLING', 'CS', 'MEETINGS'];
 const PRIORITIES = ['Critical', 'High', 'Normal', 'Low'];
 
 export default function SmartCapture() {
@@ -152,9 +152,15 @@ export default function SmartCapture() {
 
           <div className="sc-row">
             <label className="sc-field">
-              <span>Section</span>
+              {/* Named "Business area" because that is the FIELD it writes. It
+                  was labelled "Section", which read like a destination and is
+                  not one: this tags the task, the Region and File-as controls
+                  above choose where it lands. */}
+              <span>Business area</span>
               <select value={proposal.section || ''} onChange={e => set('section', e.target.value)}>
-                {SECTIONS.map(s => <option key={s} value={s}>{s || '(none)'}</option>)}
+                <option value="">(none)</option>
+                {areasFor(proposal.region || 'UK', proposal.section ? [proposal.section] : [])
+                  .map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </label>
             <label className="sc-field">
